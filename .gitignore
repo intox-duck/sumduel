@@ -1,0 +1,21 @@
+# deps / build
+node_modules/
+dist/
+build/
+.vercel/
+*.tsbuildinfo
+# env & secrets
+.env*
+!.env.example
+*.pem
+*.key
+# logs / caches
+*.log
+npm-debug.log*
+coverage/
+.cache/
+# scratch / archives / OS
+*.zip
+scratch/
+.DS_Store
+Thumbs.db
