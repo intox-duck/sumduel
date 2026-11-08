@@ -2,9 +2,12 @@
   "name": "sumduel",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "migrate": "node --env-file=.env.local scripts/migrate.js"
+    "migrate": "node --env-file=.env.local scripts/migrate.js",
+    "role": "node --env-file=.env.local scripts/role.js"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.0"

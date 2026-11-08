@@ -221,7 +221,7 @@
   // =====================================================================
   // Router
   // =====================================================================
-  var VIEWS = ['home', 'setup', 'record', 'boards', 'account'];
+  var VIEWS = ['home', 'setup', 'record', 'boards', 'chat', 'account'];
   var GAMESCREENS = ['play', 'handoff', 'results'];
   var setupFor = 'duel';
   function showScreen(id) {
@@ -235,9 +235,11 @@
   function route() {
     var h = (location.hash || '#/').replace(/^#\/?/, '');
     if (G) abortGame();
+    chatStop();
     if (h === 'record') { showScreen('record'); renderRecord(); }
     else if (h === 'boards') { showScreen('boards'); renderBoards(); }
     else if (h === 'account') { showScreen('account'); renderAccount(); }
+    else if (h === 'chat') { showScreen('chat'); renderChat(); }
     else if (h === 'duel' || h === 'tol') { setupFor = h; showScreen('setup'); renderSetup(); }
     else { showScreen('home'); renderHome(); }
   }
@@ -867,12 +869,185 @@
   }
 
   // =====================================================================
+  // Chat: mIRC-style window, polled every 3 s (8 s when quiet), paused when hidden
+  // =====================================================================
+  var CH = { c: 'lobby', last: 0, timer: null, quiet: 0, me: null, ids: {}, topic: '', online: [] };
+  var CHANS = ['lobby', 'duels'];
+  var NICKC = ['#00007F', '#009300', '#C00000', '#7F0000', '#9C009C', '#B35900', '#007F7F', '#0000FC', '#6B6B00', '#505050'];
+  function nickColor(n) { var h = 0; n = String(n || ''); for (var i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) >>> 0; return NICKC[h % NICKC.length]; }
+  function hhmm(iso) { var d = new Date(iso); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+  function chatStop() { if (CH.timer) { clearTimeout(CH.timer); CH.timer = null; } }
+  function chatOpen() { return !$('v-chat').classList.contains('hidden'); }
+
+  function renderChat() {
+    chatStop();
+    CH.last = 0; CH.ids = {}; CH.quiet = 0;
+    var el = $('v-chat');
+    el.innerHTML = '<p class="kicker"><b>§5</b> Chat</p><h2 class="title">#' + CH.c + '</h2>' +
+      '<div class="irc" id="irc">' +
+        '<div class="irc-title"><span id="ircTitle">mIRC - [#' + CH.c + ']</span><span aria-hidden="true"><i>_</i><i>□</i><i>×</i></span></div>' +
+        '<div class="irc-menu" aria-hidden="true"><span><u>F</u>ile</span><span><u>V</u>iew</span><span>F<u>a</u>vorites</span><span><u>T</u>ools</span><span><u>C</u>ommands</span><span><u>W</u>indow</span><span><u>H</u>elp</span></div>' +
+        '<div class="irc-switch">' + CHANS.map(function (c) { return '<button type="button" data-ch="' + c + '" aria-pressed="' + (c === CH.c) + '">#' + c + '</button>'; }).join('') +
+          '<button type="button" class="nk" id="ircNk">Nicks</button></div>' +
+        '<div class="irc-body"><div class="irc-log" id="ircLog" role="log" aria-live="polite"></div><ul class="irc-nicks" id="ircNicks" aria-label="Who’s here"></ul></div>' +
+        '<form class="irc-input" id="ircF" autocomplete="off"><input id="ircIn" maxlength="300" placeholder="' + (ME ? 'Type a message, or /help' : 'Sign in to chat') + '" aria-label="Message"' + (ME ? '' : ' disabled') + '><button type="submit"' + (ME ? '' : ' disabled') + '>Send</button></form>' +
+        '<div class="irc-status"><span id="ircStat">' + (ME ? 'Connecting…' : 'Not connected') + '</span><span>logged · moderated</span></div>' +
+      '</div>' +
+      (ME ? '' : '<div class="row" style="margin-top:14px"><a class="btn primary" href="#/account">Sign in to chat</a></div>') +
+      '<p class="foot">Be kind, and keep personal details private: no surnames, schools, addresses, phone numbers, emails or links. Tap a message to report it. Every message is logged and checked by moderators.</p>';
+    qsa('[data-ch]').forEach(function (b) { b.onclick = function () { if (CH.c !== b.dataset.ch) { CH.c = b.dataset.ch; renderChat(); } }; });
+    $('ircNk').onclick = function () { $('irc').classList.toggle('shownicks'); };
+    $('ircLog').onclick = onLogClick;
+    $('ircNicks').onclick = onNickClick;
+    $('ircF').onsubmit = function (e) { e.preventDefault(); chatSubmit(); };
+    if (!ME) { sysLine('* You need to sign in to chat.', 'err'); return; }
+    sysLine('* Connecting to #' + CH.c + '…');
+    poll();
+  }
+
+  function logEl() { return $('ircLog'); }
+  function nearBottom() { var l = logEl(); return !l || l.scrollHeight - l.scrollTop - l.clientHeight < 60; }
+  function toBottom() { var l = logEl(); if (l) l.scrollTop = l.scrollHeight; }
+  function sysLine(text, cls) {
+    var l = logEl(); if (!l) return; var stick = nearBottom();
+    var d = document.createElement('div'); d.className = cls || 'sys'; d.textContent = text; l.appendChild(d); if (stick) toBottom();
+  }
+  function lineHtml(m) {
+    var ts = '<span class="ts">[' + hhmm(m.at) + ']</span> ';
+    if (m.removed) return ts + '<span class="rm">&lt;' + esc(m.nick) + '&gt; [message removed by a moderator]</span>';
+    if (m.kind === 'action') return ts + '<span class="act">* ' + esc(m.nick) + ' ' + esc(m.body) + '</span>';
+    return ts + '&lt;<b style="color:' + nickColor(m.nick) + '">' + esc(m.nick) + '</b>&gt; ' + esc(m.body);
+  }
+  function addMsg(m) {
+    var l = logEl(); if (!l) return;
+    var ex = l.querySelector('.ln[data-id="' + m.id + '"]');
+    if (ex) { if (m.removed && !ex.dataset.removed) { ex.innerHTML = lineHtml(m); ex.dataset.removed = '1'; } return; }
+    var stick = nearBottom();
+    var d = document.createElement('div');
+    d.className = 'ln'; d.dataset.id = m.id; d.dataset.nick = m.nick;
+    if (m.uid) d.dataset.uid = m.uid; if (m.mine) d.dataset.mine = '1'; if (m.removed) d.dataset.removed = '1';
+    d.innerHTML = lineHtml(m);
+    // keep id order even when our own sent message arrived before a poll
+    var lines = l.querySelectorAll('.ln'), before = null;
+    for (var i = lines.length - 1; i >= 0; i--) { if (Number(lines[i].dataset.id) > Number(m.id)) before = lines[i]; else break; }
+    l.insertBefore(d, before ? before : null);
+    CH.ids[m.id] = 1;
+    if (stick) toBottom();
+  }
+  function markRemoved(id) {
+    var ex = logEl() && logEl().querySelector('.ln[data-id="' + id + '"]');
+    if (ex && !ex.dataset.removed) { ex.dataset.removed = '1'; var ts = ex.querySelector('.ts'); ex.innerHTML = (ts ? ts.outerHTML + ' ' : '') + '<span class="rm">&lt;' + esc(ex.dataset.nick) + '&gt; [message removed by a moderator]</span>'; }
+  }
+  function paintNicks(list) {
+    CH.online = list;
+    var ul = $('ircNicks'); if (!ul) return;
+    var mod = CH.me && CH.me.mod;
+    ul.innerHTML = list.map(function (o) {
+      return '<li' + (mod && o.uid ? ' class="mod" data-uid="' + esc(o.uid) + '" data-nick="' + esc(o.nick) + '" tabindex="0"' : '') + '>' + (o.op ? '@' : '') + esc(o.nick) + '</li>';
+    }).join('');
+    $('ircNk').textContent = 'Nicks (' + list.length + ')';
+    $('ircTitle').textContent = 'mIRC - [#' + CH.c + ' (' + list.length + ') [+nt]: ' + CH.topic + ']';
+  }
+  function setStatus(t) { var s = $('ircStat'); if (s) s.textContent = t; }
+
+  function poll() {
+    chatStop();
+    if (!chatOpen() || !ME || document.hidden) return;
+    var c = CH.c;
+    api('/api/chat?c=' + c + '&after=' + CH.last).then(function (j) {
+      if (c !== CH.c || !chatOpen()) return;
+      CH.me = j.me; CH.topic = j.topic;
+      if (!CH.last) {
+        logEl().innerHTML = '';
+        sysLine('* Now talking in #' + c);
+        sysLine('* Topic is \'' + j.topic + '\'');
+      }
+      (j.removed || []).forEach(markRemoved);
+      j.messages.forEach(function (m) { addMsg(m); if (Number(m.id) > CH.last) CH.last = Number(m.id); });
+      if (!CH.last && !j.messages.length) CH.last = -1; // first load done, channel empty
+      CH.quiet = j.messages.length ? 0 : CH.quiet + 1;
+      paintNicks(j.online);
+      var muted = j.me.muted_until;
+      var inp = $('ircIn');
+      inp.disabled = !!muted; inp.placeholder = muted ? 'You’re muted until ' + hhmm(muted) : 'Type a message, or /help';
+      setStatus('Connected · ' + j.me.nick + (j.me.mod ? ' · moderator' : ''));
+    }).catch(function (e) {
+      if (e.status === 401) { setMe(null); renderChat(); return; }
+      setStatus('Reconnecting…');
+    }).then(function () {
+      if (chatOpen() && ME && c === CH.c) CH.timer = setTimeout(poll, CH.quiet > 20 ? 8000 : 3000);
+    });
+  }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && chatOpen() && ME) poll(); });
+
+  function chatSubmit() {
+    var inp = $('ircIn'), v = inp.value.trim();
+    if (!v) return;
+    if (v === '/help') {
+      ['* Commands:', '*   /me <action>   e.g. /me is thinking', '*   /clear         clear this window', '*   /help          this list',
+       '* Tap a message to report it. Moderators see every report.'].forEach(function (t) { sysLine(t); });
+      inp.value = ''; return;
+    }
+    if (v === '/clear') { logEl().innerHTML = ''; inp.value = ''; return; }
+    if (v[0] === '/' && !/^\/me\s+\S/i.test(v)) { sysLine('* Unknown command: ' + v.split(' ')[0] + ' (try /help)', 'err'); inp.value = ''; return; }
+    inp.disabled = true;
+    api('/api/chat', { action: 'send', c: CH.c, body: v }).then(function (j) {
+      inp.value = ''; addMsg(j.message);
+    }).catch(function (e) {
+      sysLine('* ' + e.message, 'err');
+    }).then(function () { if (!(CH.me && CH.me.muted_until)) { inp.disabled = false; inp.focus(); } });
+  }
+
+  function onLogClick(e) {
+    var btn = e.target.closest('button');
+    if (btn) {
+      var ln = btn.closest('.irc-acts').previousElementSibling, id = ln.dataset.id, act = btn.dataset.a;
+      if (act === 'report') {
+        var why = window.prompt('Why are you reporting this message? (optional)', '');
+        if (why === null) return;
+        api('/api/chat', { action: 'report', id: id, reason: why }).then(function () { toast('Thanks. A moderator will check it.'); }).catch(function (er) { toast(er.message); });
+      } else if (act === 'delete') {
+        api('/api/chat', { action: 'delete', id: id }).then(function () { markRemoved(id); toast('Message removed'); }).catch(function (er) { toast(er.message); });
+      } else if (act === 'mute10' || act === 'mute60') {
+        api('/api/chat', { action: 'mute', userId: ln.dataset.uid, minutes: act === 'mute10' ? 10 : 60 }).then(function () { toast(ln.dataset.nick + ' muted'); }).catch(function (er) { toast(er.message); });
+      }
+      btn.closest('.irc-acts').remove(); return;
+    }
+    var line = e.target.closest('.ln'); if (!line) return;
+    var open = logEl().querySelector('.irc-acts'); var was = open && open.previousElementSibling === line;
+    if (open) { open.previousElementSibling.classList.remove('sel'); open.remove(); }
+    if (was || line.dataset.removed) return;
+    var mod = CH.me && CH.me.mod;
+    var html = (line.dataset.mine ? '' : '<button type="button" data-a="report">Report</button>') +
+      (mod ? '<button type="button" data-a="delete">Delete</button>' + (line.dataset.mine ? '' : '<button type="button" data-a="mute10">Mute 10m</button><button type="button" data-a="mute60">Mute 1h</button>') : '');
+    if (!html) return;
+    var box = document.createElement('div'); box.className = 'irc-acts'; box.innerHTML = html;
+    line.classList.add('sel'); line.parentNode.insertBefore(box, line.nextSibling);
+  }
+  function onNickClick(e) {
+    var b = e.target.closest('button');
+    if (b) {
+      var p = b.closest('.irc-pop'), li = p.previousElementSibling;
+      api('/api/chat', { action: 'mute', userId: li.dataset.uid, minutes: Number(b.dataset.m) })
+        .then(function () { toast(Number(b.dataset.m) ? li.dataset.nick + ' muted' : li.dataset.nick + ' unmuted'); })
+        .catch(function (er) { toast(er.message); });
+      p.remove(); return;
+    }
+    var li2 = e.target.closest('li.mod'); if (!li2) return;
+    var open = $('ircNicks').querySelector('.irc-pop'); var was = open && open.previousElementSibling === li2;
+    if (open) open.remove(); if (was) return;
+    var pop = document.createElement('li'); pop.className = 'irc-pop';
+    pop.innerHTML = '<button type="button" data-m="10">Mute 10 min</button><button type="button" data-m="60">Mute 1 hour</button><button type="button" data-m="1440">Mute 1 day</button><button type="button" data-m="0">Unmute</button>';
+    li2.parentNode.insertBefore(pop, li2.nextSibling);
+  }
+
+  // =====================================================================
   // Account
   // =====================================================================
   function renderAccount() {
     var el = $('v-account');
     if (!ME) {
-      el.innerHTML = '<div class="auth"><p class="kicker"><b>§5</b> Account</p><h2 class="title">Sign in or sign up.<br><span class="serif" style="font-style:italic;color:var(--p1)">Same box.</span></h2>' +
+      el.innerHTML = '<div class="auth"><p class="kicker"><b>§6</b> Account</p><h2 class="title">Sign in or sign up.<br><span class="serif" style="font-style:italic;color:var(--p1)">Same box.</span></h2>' +
         '<p class="lede">Enter an email and a password. A new email creates your account on the spot, with no confirmation step. After that, every battle goes on your record.</p>' +
         '<form id="authF" novalidate><label class="sr" for="em">Email</label><input class="inp" id="em" type="email" autocomplete="username" inputmode="email" placeholder="you@example.com" required>' +
         '<label class="sr" for="pw">Password</label><input class="inp" id="pw" type="password" autocomplete="current-password" placeholder="Password (6+ characters)" minlength="6" required>' +
@@ -904,10 +1079,10 @@
       };
     } else {
       var st = computeStats(localBattles());
-      el.innerHTML = '<div class="auth"><p class="kicker"><b>§5</b> Account</p><h2 class="title">' + esc(ME.name) + '</h2><p class="lede" style="margin-bottom:14px">' + esc(ME.email) + ' · ' + st.total + ' battles on record</p>' +
+      el.innerHTML = '<div class="auth"><p class="kicker"><b>§6</b> Account</p><h2 class="title">' + esc(ME.name) + '</h2><p class="lede" style="margin-bottom:14px">' + esc(ME.email) + ' · ' + st.total + ' battles on record</p>' +
         '<div class="panel"><label class="lab mono" for="dn" style="font-size:.72rem;letter-spacing:.12em;color:var(--muted)">DISPLAY NAME (SHOWN ON BOARDS)</label>' +
         '<div class="row" style="margin-top:8px"><input class="inp" id="dn" maxlength="20" value="' + esc(ME.name) + '" style="flex:1;margin:0;min-width:0"><button class="btn" id="dnSave">Save</button></div><div class="err" id="dnErr"></div></div>' +
-        '<div class="row" style="margin-top:14px"><a class="btn" href="#/record">View record</a><button class="btn ghost" id="logout">Sign out</button></div></div>' + settingsHtml();
+        '<div class="row" style="margin-top:14px"><a class="btn" href="#/record">View record</a>' + (ME.admin ? '<a class="btn" href="/admin">Admin tools</a>' : '') + '<button class="btn ghost" id="logout">Sign out</button></div></div>' + settingsHtml();
       $('dnSave').onclick = function () {
         var v = $('dn').value.trim(); if (!v) { $('dnErr').textContent = 'Name can’t be empty.'; return; }
         api('/api/auth', { action: 'rename', name: v }).then(function (j) { var old = ME.name; setMe(j.user); if (S.names[0] === old) { S.names[0] = j.user.name; save(); } toast('Name updated'); renderAccount(); })
@@ -922,7 +1097,7 @@
     bindSettings();
   }
   function settingsHtml() {
-    return '<div class="section auth"><p class="kicker"><b>§6</b> Preferences</p><div class="panel" style="padding:4px 18px">' +
+    return '<div class="section auth"><p class="kicker"><b>§7</b> Preferences</p><div class="panel" style="padding:4px 18px">' +
       '<div class="setrow"><div>Sound<small>Blips, buzzers and fanfare</small></div><button class="toggle" data-s="sound" aria-pressed="' + !!S.sound + '" aria-label="Sound"></button></div>' +
       '<div class="setrow"><div>Haptics<small>Vibrate on wrong answers (Android)</small></div><button class="toggle" data-s="haptics" aria-pressed="' + !!S.haptics + '" aria-label="Haptics"></button></div>' +
       '<div class="setrow"><div>Blackboard mode<small>Chalk on slate. Paper is the default.</small></div><button class="toggle" data-s="theme" aria-pressed="' + (S.theme === 'night') + '" aria-label="Blackboard mode"></button></div>' +

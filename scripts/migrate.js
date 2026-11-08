@@ -43,23 +43,75 @@ const statements = [
      at          timestamptz not null default now()
    )`,
   `create index if not exists auth_fails_key_idx on auth_fails(key, at)`,
-  // Admin portal (/admin): separate sessions + an append-only audit trail.
-  `create table if not exists admin_sessions (
-     token_hash  text primary key,
-     email       text not null,
-     created_at  timestamptz not null default now(),
-     expires_at  timestamptz not null
-   )`,
-  `create table if not exists admin_audit (
+  // v2.2 roles: player | admin | super_admin (super_admin is only ever set via `npm run role`)
+  `alter table users add column if not exists role text not null default 'player'`,
+  `do $$ begin
+     alter table users add constraint users_role_chk check (role in ('player','admin','super_admin'));
+   exception when duplicate_object then null; end $$`,
+  `alter table users add column if not exists muted_until timestamptz`,
+  // Everything that happens on the site, append-only. Read only by super_admin.
+  `create table if not exists activity_log (
      id              bigserial primary key,
-     admin_email     text not null,
+     at              timestamptz not null default now(),
+     actor_user_id   bigint,
+     actor_email     text,
+     actor_role      text,
      action          text not null,
      target_user_id  bigint,
      target_email    text,
+     detail          jsonb,
      ip              text,
-     at              timestamptz not null default now()
+     ua              text
    )`,
-  `create index if not exists admin_audit_at_idx on admin_audit(at desc)`,
+  `create index if not exists activity_at_idx on activity_log(at desc)`,
+  `create index if not exists activity_action_idx on activity_log(action, at desc)`,
+  `create index if not exists activity_actor_idx on activity_log(actor_user_id, at desc)`,
+  // Chat (mIRC-style). Messages are never hard-deleted: moderators soft-delete, super_admin still sees them.
+  `create table if not exists chat_messages (
+     id           bigserial primary key,
+     channel      text not null,
+     user_id      bigint not null references users(id) on delete cascade,
+     nick         text not null,
+     kind         text not null default 'msg',
+     body         text not null,
+     at           timestamptz not null default now(),
+     flagged      boolean not null default false,
+     flag_reason  text,
+     deleted_at   timestamptz,
+     deleted_by   bigint,
+     reviewed_at  timestamptz,
+     reviewed_by  bigint
+   )`,
+  `create index if not exists chat_channel_idx on chat_messages(channel, id)`,
+  `create index if not exists chat_flagged_idx on chat_messages(id) where flagged and reviewed_at is null`,
+  `create table if not exists chat_reports (
+     id           bigserial primary key,
+     message_id   bigint not null references chat_messages(id) on delete cascade,
+     reporter_id  bigint not null references users(id) on delete cascade,
+     reason       text,
+     at           timestamptz not null default now(),
+     resolved_at  timestamptz
+   )`,
+  `create table if not exists chat_presence (
+     user_id  bigint not null references users(id) on delete cascade,
+     channel  text not null,
+     seen_at  timestamptz not null default now(),
+     primary key (user_id, channel)
+   )`,
+  // Daily safeguarding audits (Vercel cron) + on-demand runs.
+  `create table if not exists audit_reports (
+     id            bigserial primary key,
+     created_at    timestamptz not null default now(),
+     trigger       text not null,
+     period_start  timestamptz not null,
+     period_end    timestamptz not null,
+     data          jsonb not null,
+     reviewed_at   timestamptz,
+     reviewed_by   bigint
+   )`,
+  // v2.1's Google-sign-in admin tables were never used in production (GOOGLE_CLIENT_ID was never set) and were empty.
+  `drop table if exists admin_sessions`,
+  `drop table if exists admin_audit`,
 ];
 
 for (const s of statements) await sql.query(s);

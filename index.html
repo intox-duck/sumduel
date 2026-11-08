@@ -93,7 +93,7 @@ main{max-width:1080px;margin:0 auto;padding:26px 18px calc(96px + var(--safe-b))
 @media (max-width:759px){
   .nav{display:none}
   .who{margin-left:auto}
-  .tabbar{display:grid;grid-template-columns:repeat(4,1fr);position:fixed;left:0;right:0;bottom:0;z-index:20;
+  .tabbar{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;left:0;right:0;bottom:0;z-index:20;
     padding:6px 6px calc(6px + var(--safe-b));background:var(--bg);border-top:1px solid var(--line2)}
   .tabbar a{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;color:var(--faint);text-decoration:none;font-family:var(--caps);font-size:.85rem;text-transform:lowercase;letter-spacing:.04em}
   .tabbar a[aria-current="page"]{color:var(--ink)}
@@ -312,6 +312,50 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
 .toggle::after{content:"";position:absolute;top:4px;left:4px;width:13px;height:13px;background:var(--ink);transform:scale(0);transition:transform .15s}
 .toggle[aria-pressed="true"]::after{transform:scale(1)}
 
+/* ================= Chat: an mIRC window (classic Win9x chrome in both themes, on purpose) ================= */
+.irc{--w95:#C0C0C0;--hi:#FFFFFF;--lo:#808080;--dk:#000000;background:var(--w95);color:#000;border:2px solid;border-color:var(--hi) var(--dk) var(--dk) var(--hi);box-shadow:inset 1px 1px 0 #DFDFDF,inset -1px -1px 0 var(--lo);font-family:var(--mono);font-size:14px;max-width:980px}
+.irc-title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px;padding:3px 4px 3px 6px;background:linear-gradient(90deg,#000080,#1084D0);color:#fff;font-weight:700;font-size:13px;letter-spacing:0}
+.irc-title span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.irc-title span:last-child{flex:none;display:flex}
+.irc-title i{display:inline-grid;place-items:center;width:16px;height:14px;margin-left:2px;background:var(--w95);color:#000;font-style:normal;font-size:10px;line-height:1;border:1px solid;border-color:var(--hi) var(--dk) var(--dk) var(--hi)}
+.irc-menu{display:flex;gap:14px;padding:2px 8px;font-size:13px;color:#000;overflow:hidden;white-space:nowrap}
+.irc-menu u{text-decoration:underline}
+.irc-switch{display:flex;gap:3px;padding:3px 4px;border-top:1px solid var(--lo);border-bottom:1px solid var(--hi);overflow-x:auto}
+.irc-switch button{font:inherit;font-size:13px;color:#000;background:var(--w95);border:2px solid;border-color:var(--hi) var(--dk) var(--dk) var(--hi);padding:1px 10px;border-radius:0;white-space:nowrap}
+.irc-switch button[aria-pressed="true"]{border-color:var(--dk) var(--hi) var(--hi) var(--dk);background:#D4D0C8;font-weight:700}
+.irc-switch .nk{margin-left:auto;display:none}
+.irc-body{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:3px;padding:3px;height:clamp(300px,calc(100dvh - 330px),620px)}
+.irc-log,.irc-nicks{background:#fff;border:2px solid;border-color:var(--lo) var(--hi) var(--hi) var(--lo);box-shadow:inset 1px 1px 0 var(--dk);overflow-y:auto;overscroll-behavior:contain}
+.irc-log{padding:4px 6px;line-height:1.4;word-break:break-word}
+.irc-log .ln{padding:1px 2px;cursor:pointer;border-radius:0}
+.irc-log .ln:hover,.irc-log .ln.sel{background:#E8E8F8}
+.irc-log .ts{color:#7F7F7F}
+.irc-log .sys{color:#009300}
+.irc-log .act{color:#9C009C}
+.irc-log .rm{color:#7F7F7F;font-style:italic}
+.irc-log .err{color:#FC0000;margin:0;min-height:0;font-size:inherit;font-style:normal}
+.irc-log .flag-me{color:#7F7F7F}
+.irc-acts{display:flex;gap:6px;margin:2px 0 4px 2px}
+.irc-acts button,.irc-pop button{font:inherit;font-size:12px;color:#000;background:var(--w95);border:2px solid;border-color:var(--hi) var(--dk) var(--dk) var(--hi);padding:0 8px;border-radius:0}
+.irc-nicks{padding:3px 0;list-style:none;margin:0}
+.irc-nicks li{padding:1px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default}
+.irc-nicks li.mod{cursor:pointer}
+.irc-nicks li.mod:hover{background:#000080;color:#fff}
+.irc-pop{display:flex;flex-direction:column;gap:3px;padding:4px 6px 6px}
+.irc-input{display:flex;gap:3px;padding:0 3px 3px}
+.irc-input input{flex:1;min-width:0;font:inherit;font-size:14px;color:#000;background:#fff;border:2px solid;border-color:var(--lo) var(--hi) var(--hi) var(--lo);border-radius:0;padding:3px 5px;outline:none}
+.irc-input button{font:inherit;font-size:13px;color:#000;background:var(--w95);border:2px solid;border-color:var(--hi) var(--dk) var(--dk) var(--hi);padding:0 12px;border-radius:0}
+.irc-status{padding:2px 6px 3px;font-size:12px;color:#000;border-top:1px solid var(--lo);display:flex;justify-content:space-between;gap:8px}
+.irc-status span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:640px){
+  .irc-body{grid-template-columns:1fr}
+  .irc-nicks{display:none}
+  .irc.shownicks .irc-nicks{display:block;max-height:140px}
+  .irc.shownicks .irc-body{grid-template-rows:1fr auto}
+  .irc-switch .nk{display:inline-block}
+  .irc-menu{display:none}
+}
+
 /* ================= Toast & confetti ================= */
 .toast{position:fixed;left:50%;bottom:calc(84px + var(--safe-b));transform:translateX(-50%) translateY(20px);opacity:0;z-index:50;background:var(--surface);border:1px solid var(--ink);color:var(--ink);padding:8px 16px;font-size:1rem;transition:.25s;pointer-events:none;max-width:calc(100% - 32px)}
 .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -330,6 +374,7 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
     <a href="#/" data-tab="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12h16M12 4v16"/></svg>Arena</a>
     <a href="#/record" data-tab="record"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Record</a>
     <a href="#/boards" data-tab="boards"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H3a3 3 0 0 0 4 4M17 6h4a3 3 0 0 1-4 4"/></svg>Boards</a>
+    <a href="#/chat" data-tab="chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>Chat</a>
     <a href="#/account" data-tab="account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Account</a>
   </nav>
   <a class="who" href="#/account" id="who"><span class="av">?</span><span>Sign in</span></a>
@@ -458,6 +503,9 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
     <div id="boardBody"></div>
   </section>
 
+  <!-- ===== Chat ===== -->
+  <section id="v-chat" data-view class="hidden"></section>
+
   <!-- ===== Account ===== -->
   <section id="v-account" data-view class="hidden"></section>
 
@@ -476,6 +524,7 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
   <a href="#/" data-tab="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12h16M12 4v16"/></svg>Arena</a>
   <a href="#/record" data-tab="record"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Record</a>
   <a href="#/boards" data-tab="boards"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H3a3 3 0 0 0 4 4M17 6h4a3 3 0 0 1-4 4"/></svg>Boards</a>
+    <a href="#/chat" data-tab="chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>Chat</a>
   <a href="#/account" data-tab="account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Account</a>
 </nav>
 

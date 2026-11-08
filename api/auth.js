@@ -4,7 +4,7 @@
 // POST /api/auth {action:'rename', name}
 import {
   route, send, fail, db, hashPassword, verifyPassword, createSession, destroySession,
-  currentUser, requireUser, publicUser, clientIp, cleanName,
+  currentUser, requireUser, publicUser, clientIp, cleanName, logEvent,
 } from './_lib.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -16,6 +16,8 @@ export default route(['GET', 'POST'], async (req, res) => {
   const { action } = req.body;
 
   if (action === 'logout') {
+    const who = await currentUser(req).catch(() => null);
+    if (who) await logEvent(req, who, 'sign_out');
     await destroySession(req, res);
     return send(res, 200, { ok: true });
   }
@@ -25,6 +27,7 @@ export default route(['GET', 'POST'], async (req, res) => {
     const name = cleanName(req.body.name);
     if (!name) return fail(res, 400, 'Name can’t be empty');
     await db()`update users set name = ${name} where id = ${u.id}`;
+    await logEvent(req, u, 'rename', { detail: { from: u.name, to: name } });
     return send(res, 200, { user: publicUser({ ...u, name }) });
   }
 
@@ -40,14 +43,18 @@ export default route(['GET', 'POST'], async (req, res) => {
   const failKey = email + '|' + clientIp(req);
   const [{ n }] = await sql`select count(*)::int as n from auth_fails
                             where key = ${failKey} and at > now() - make_interval(mins => ${FAIL_WINDOW_MIN})`;
-  if (n >= MAX_FAILS) return fail(res, 429, 'Too many attempts. Try again in 15 minutes.');
+  if (n >= MAX_FAILS) {
+    await logEvent(req, { id: null, email, role: null }, 'sign_in_locked');
+    return fail(res, 429, 'Too many attempts. Try again in 15 minutes.');
+  }
 
-  let [user] = await sql`select id, email, name, pw_hash, created_at from users where email = ${email}`;
+  let [user] = await sql`select id, email, name, pw_hash, created_at, role from users where email = ${email}`;
   let created = false;
 
   if (user) {
     if (!(await verifyPassword(password, user.pw_hash))) {
       await sql`insert into auth_fails (key) values (${failKey})`;
+      await logEvent(req, user, 'sign_in_failed');
       // Opportunistic cleanup of stale rows
       if (Math.random() < 0.05) await sql`delete from auth_fails where at < now() - interval '1 day'`;
       return fail(res, 401, 'Wrong password for that email');
@@ -57,11 +64,12 @@ export default route(['GET', 'POST'], async (req, res) => {
     const pw_hash = await hashPassword(password);
     const rows = await sql`insert into users (email, name, pw_hash) values (${email}, ${name}, ${pw_hash})
                            on conflict (email) do nothing
-                           returning id, email, name, created_at`;
+                           returning id, email, name, created_at, role`;
     if (!rows[0]) return fail(res, 409, 'That email was just registered. Try signing in.');
     user = rows[0]; created = true;
   }
 
   await createSession(req, res, user.id);
+  await logEvent(req, user, created ? 'sign_up' : 'sign_in');
   send(res, 200, { user: publicUser(user), created });
 });

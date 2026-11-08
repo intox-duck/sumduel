@@ -1,6 +1,6 @@
 // GET  /api/battles?limit=500   -> { battles: [...] } newest first
 // POST /api/battles {battles:[...]}  -> idempotent insert by client id (cid); returns { saved }
-import { route, send, fail, db, requireUser } from './_lib.js';
+import { route, send, fail, db, requireUser, logEvent } from './_lib.js';
 
 const GAMES = new Set(['duel', 'tol', 'sprint', 'daily']);
 const MAX_BATCH = 200;
@@ -35,6 +35,24 @@ export default route(['GET', 'POST'], async (req, res) => {
     select ${u.id}, x.cid, x.game, x.at::timestamptz, x.json::jsonb
     from jsonb_to_recordset(${JSON.stringify(clean)}::jsonb) as x(cid text, game text, at text, json text)
     on conflict (user_id, client_id) do nothing
-    returning id`;
+    returning id, client_id`;
+  // One activity row per newly saved battle, with a compact score summary.
+  const fresh = new Set(rows.map(r => r.client_id));
+  for (const b of list) {
+    if (!b || !fresh.has(String(b.cid || '').slice(0, 40))) continue;
+    fresh.delete(String(b.cid).slice(0, 40));
+    await logEvent(req, u, 'battle_saved', { detail: summarise(b) });
+  }
   send(res, 200, { saved: rows.length, received: clean.length });
 });
+
+function summarise(b) {
+  const P = Array.isArray(b.players) ? b.players : [];
+  const p = i => P[i] || {};
+  const out = { game: b.game, at: b.at };
+  if (b.game === 'duel') Object.assign(out, { mode: b.mode, winner: b.winner, vs: p(1).name, times: [p(0).time, p(1).time], wrong: [p(0).wrong, p(1).wrong] });
+  else if (b.game === 'tol') Object.assign(out, { winner: b.winner, vs: p(1).name, score: [p(0).score, p(1).score] });
+  else if (b.game === 'sprint') Object.assign(out, { score: p(0).score, wrong: p(0).wrong });
+  else if (b.game === 'daily') Object.assign(out, { day: b.day, time: p(0).time, wrong: p(0).wrong, practice: !!b.practice });
+  return out;
+}

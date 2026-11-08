@@ -92,6 +92,34 @@ td{color:var(--muted);overflow-wrap:anywhere}
 td:nth-child(2),td:nth-child(4),td:nth-child(5){font-family:var(--mono);font-size:.82rem}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--surface);border:1px solid var(--ink);color:var(--ink);padding:8px 16px;font-size:.98rem;max-width:calc(100% - 32px);opacity:0;pointer-events:none;transition:opacity .2s}
 .toast.show{opacity:1}
+a{color:var(--p1)}
+.back{font-family:var(--caps);text-transform:lowercase;letter-spacing:.05em;color:var(--muted);text-decoration:none;font-size:1rem;white-space:nowrap}
+@media (max-width:560px){ #whoName{display:none} }
+.tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line2);margin-bottom:24px}
+.tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 12px;color:var(--muted)}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink);background:transparent}
+.tabs b{font-family:var(--mono);font-weight:700;color:var(--bad);margin-left:6px;text-transform:none}
+.pill{display:inline-block;font-family:var(--caps);font-size:.85rem;letter-spacing:.04em;text-transform:lowercase;padding:0 6px;border:1px solid var(--line2);color:var(--muted)}
+.pill.admin{color:var(--p1);border-color:var(--p1)} .pill.super_admin{color:var(--p2);border-color:var(--p2)}
+.pill.bad{color:var(--bad);border-color:var(--bad)} .pill.warn{color:#8E5D07;border-color:#8E5D07} .pill.ok{color:var(--win);border-color:var(--win)}
+select{font:inherit;font-family:var(--caps);text-transform:lowercase;letter-spacing:.04em;background:transparent;color:var(--ink);border:1px solid var(--line2);border-radius:2px;padding:6px 8px}
+.acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.detail{margin-top:12px;padding:14px;border:1px solid var(--line2);background:var(--surface)}
+.detail h3,.card h3{font-family:var(--mono);font-size:1rem;margin:14px 0 6px}
+.detail h3:first-child{margin-top:0}
+.muted{color:var(--muted)} .faint{color:var(--faint)} .rm{color:var(--faint);text-decoration:line-through}
+.card{border:1px solid var(--line2);background:var(--surface);padding:14px 16px;margin-bottom:14px}
+.card .hd{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline}
+.ctx{font-family:var(--mono);font-size:.85rem;margin:8px 0;padding:8px 10px;border-left:3px solid var(--line2);background:var(--bg)}
+.ctx .hit{background:rgba(192,38,45,.12)}
+.attention{margin:8px 0;padding:0 0 0 18px;color:var(--bad)}
+.metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:0 18px;border-top:1.6px solid var(--ink);border-bottom:1.6px solid var(--ink);padding:8px 0;margin:10px 0}
+.metrics div{padding:4px 0}
+.metrics b{display:block;font-family:var(--mono);font-size:1.4rem;font-weight:400}
+.metrics span{font-family:var(--caps);text-transform:lowercase;letter-spacing:.04em;color:var(--muted);font-size:.9rem}
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.filters input{flex:1 1 220px}
+.more{margin-top:12px}
 [hidden]{display:none !important}
 @media (max-width:560px){ .row{grid-template-columns:1fr} .row button{justify-self:start} }
 @media (prefers-reduced-motion:reduce){ .toast{transition:none} }
@@ -101,45 +129,18 @@ td:nth-child(2),td:nth-child(4),td:nth-child(5){font-family:var(--mono);font-siz
 <div class="wrap">
   <header class="top">
     <a class="logo" href="/">Sum<i>Duel</i><sup>Admin</sup></a>
-    <div class="who" id="who" hidden><span id="whoEmail"></span><button class="ghost" id="logout">Sign out</button></div>
+    <div class="who" id="who" hidden><span id="whoName"></span><a class="back" href="/">Back to the game</a></div>
   </header>
-
   <main>
     <section id="loading"><p class="lede">Loading…</p></section>
-
-    <section id="unconfigured" hidden>
-      <div class="kicker">§0 Setup needed</div>
-      <h1>Not <i>configured</i></h1>
-      <p class="lede">The admin portal needs <code>GOOGLE_CLIENT_ID</code> and <code>ADMIN_EMAILS</code> set on the server. Until then nobody can sign in.</p>
+    <section id="nf" hidden>
+      <div class="kicker">404</div>
+      <h1>Page not <i>found</i></h1>
+      <p class="lede">There’s nothing here. <a href="/">Back to Sum Duel</a></p>
     </section>
-
-    <section id="signin" hidden>
-      <div class="kicker">§0 Restricted</div>
-      <h1>Admin <i>sign in</i></h1>
-      <div class="panel signin">
-        <p style="margin:0;color:var(--muted)">Sign in with the Google account that's on the admin list. Player accounts don't work here.</p>
-        <div class="gbtn" id="gbtn"></div>
-        <div class="msg" id="signinMsg" role="status"></div>
-      </div>
-    </section>
-
     <section id="dash" hidden>
-      <div class="kicker">§1 Players</div>
-      <h1>accounts <i>:</i> List Player</h1>
-      <p class="lede qed"><span class="thm">Procedure 1.1 <span>(Password reset)</span>.</span> Search for a player, then set a new password. Saving it signs them out on every device and clears any lockout, so they can sign in straight away with the new one.</p>
-      <div class="bar">
-        <input id="q" type="search" placeholder="Search email or name" autocomplete="off" aria-label="Search players">
-        <span class="count" id="count"></span>
-      </div>
-      <ul class="users" id="users"></ul>
-
-      <details id="auditBox">
-        <summary>-- §2 Audit log</summary>
-        <div class="tbl"><table>
-          <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Player</th><th>IP</th></tr></thead>
-          <tbody id="audit"></tbody>
-        </table></div>
-      </details>
+      <nav class="tabs" id="tabs" role="tablist"></nav>
+      <div id="pane"></div>
     </section>
   </main>
 </div>

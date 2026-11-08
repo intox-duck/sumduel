@@ -2,7 +2,7 @@
 // GET  /api/board?b=sprint | daily[&d=YYYY-MM-DD]  -> { board, rows:[{rank,name,score,me}], mine }
 // POST /api/board {b:'sprint', score}              -> keeps personal best (higher is better)
 // POST /api/board {b:'daily', d, score}            -> first attempt of the day counts (lower seconds is better)
-import { route, send, fail, db, currentUser, requireUser, utcDay } from './_lib.js';
+import { route, send, fail, db, currentUser, requireUser, utcDay, logEvent } from './_lib.js';
 
 const TOP = 25;
 // Plausibility bounds: stops trivially forged scores without pretending to be anti-cheat.
@@ -60,6 +60,7 @@ export default route(['GET', 'POST'], async (req, res) => {
     await sql`insert into scores (user_id, board, score) values (${u.id}, 'sprint', ${score})
               on conflict (board, user_id) do update set score = excluded.score, created_at = now()
               where scores.score < excluded.score`;
+    await logEvent(req, u, 'score_posted', { detail: { board: 'sprint', score } });
     return send(res, 200, { ok: true });
   }
 
@@ -69,6 +70,7 @@ export default route(['GET', 'POST'], async (req, res) => {
     if (score < DAILY_MIN || score > 3600) return fail(res, 400, 'Implausible time');
     const rows = await sql`insert into scores (user_id, board, score) values (${u.id}, ${'daily:' + d}, ${score})
                            on conflict (board, user_id) do nothing returning score`;
+    await logEvent(req, u, 'score_posted', { detail: { board: 'daily:' + d, score, counted: rows.length > 0 } });
     return send(res, 200, { ok: true, counted: rows.length > 0 });
   }
 

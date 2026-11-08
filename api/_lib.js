@@ -95,7 +95,7 @@ export async function destroySession(req, res) {
 export async function currentUser(req) {
   const t = parseCookies(req)[COOKIE];
   if (!t || t.length > 100) return null;
-  const rows = await db()`select u.id, u.email, u.name, u.created_at
+  const rows = await db()`select u.id, u.email, u.name, u.created_at, u.role, u.muted_until
                           from sessions s join users u on u.id = s.user_id
                           where s.token_hash = ${sha(t)} and s.expires_at > now()`;
   return rows[0] || null;
@@ -107,7 +107,26 @@ export async function requireUser(req, res) {
   return u;
 }
 
-export const publicUser = u => u && ({ id: String(u.id), email: u.email, name: u.name, since: u.created_at });
+// `admin:true` is only exposed for the plain admin role (it drives the "Admin tools" link).
+// super_admin is deliberately indistinguishable from a player in every player-facing response.
+export const publicUser = u => u && ({
+  id: String(u.id), email: u.email, name: u.name, since: u.created_at,
+  ...(u.role === 'admin' ? { admin: true } : {}),
+});
+
+export const isMod = u => !!u && (u.role === 'admin' || u.role === 'super_admin');
+export const isSuper = u => !!u && u.role === 'super_admin';
+
+// Append-only site activity log (read only by super_admin). Never throws: logging must not break gameplay.
+export async function logEvent(req, actor, action, { target = null, detail = null } = {}) {
+  try {
+    await db()`insert into activity_log (actor_user_id, actor_email, actor_role, action, target_user_id, target_email, detail, ip, ua)
+               values (${actor ? actor.id : null}, ${actor ? actor.email : null}, ${actor ? (actor.role || 'player') : null}, ${action},
+                       ${target ? target.id : null}, ${target ? target.email : null},
+                       ${detail == null ? null : JSON.stringify(detail)}::jsonb, ${req ? clientIp(req) : null},
+                       ${req ? String(req.headers['user-agent'] || '').slice(0, 200) : null})`;
+  } catch (e) { console.error('logEvent failed', action, e.message); }
+}
 
 export function clientIp(req) {
   return String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim() || 'unknown';
