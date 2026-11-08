@@ -36,7 +36,7 @@
   --ink:#22223B; --muted:#4A4E69; --faint:#70758F; --line:rgba(34,34,59,.13); --line2:rgba(34,34,59,.34);
   --p1:#0F7C8C; --p1-deep:#DDF3F4; --p1-glow:transparent;
   --p2:#D6336C; --p2-deep:#FCE4EC; --p2-glow:transparent;
-  --win:#2B8A3E; --warn:#B35C00; --bad:#C92A2A; --sun:#F4B400; --on-accent:#FFFFFF;
+  --win:#2B8A3E; --warn:#B35C00; --bad:#C92A2A; --sun:#F4B400; --sun-deep:#FFF3C4; --sun-ink:#7A5200; --on-accent:#FFFFFF;
   --serif:"SD LM Roman","Latin Modern Roman","CMU Serif",Georgia,"Times New Roman",serif;
   --caps:"SD LM Caps","Latin Modern Roman Caps",Georgia,serif;
   --mono:"SD Lean Mono","JuliaMono","DejaVu Sans Mono",ui-monospace,Menlo,Consolas,monospace;
@@ -50,7 +50,7 @@
   --bg:#13203A; --bg2:#101B31; --surface:#1A2A48; --surface2:#20335A; --raise:#294070;
   --ink:#F5F3FF; --muted:#C9CCE8; --faint:#9AA0C8; --line:rgba(245,243,255,.14); --line2:rgba(245,243,255,.38);
   --p1:#5CD3E0; --p1-deep:#163C52; --p2:#FF8FB8; --p2-deep:#47213A;
-  --win:#8CE99A; --warn:#FFD43B; --bad:#FF8787; --sun:#FFD43B; --on-accent:#13203A;
+  --win:#8CE99A; --warn:#FFD43B; --bad:#FF8787; --sun:#FFD43B; --sun-deep:#3B3420; --sun-ink:#FFE08A; --on-accent:#13203A;
   color-scheme:dark;
 }
 
@@ -411,6 +411,70 @@ body{background-image:radial-gradient(var(--line) 1px, transparent 1.3px);backgr
 .pwbox summary{cursor:pointer;font-family:var(--caps);text-transform:lowercase;letter-spacing:.05em;color:var(--ink)}
 .pwbox[open] summary{margin-bottom:10px}
 
+/* ================= v2.5 Little Ones: picture level for 4-year-olds =================
+   Huge targets (min 88px), emoji pictures, no clock, soft feedback. Uses the seaside tokens. */
+.game.little{grid-column:1/-1;background:linear-gradient(135deg,var(--sun-deep),var(--surface) 70%);box-shadow:0 4px 0 var(--line),inset 0 0 0 3px var(--surface),inset 0 0 0 4px var(--sun)}
+.game.little h3 em{font-style:normal;color:var(--sun-ink)}
+.game .tag.sun{color:var(--sun-ink);border-color:var(--sun);background:var(--sun-deep)}
+.little-row{font-size:1.6rem;letter-spacing:.2em;margin-top:6px;line-height:1}
+.lt{position:relative;display:flex;flex-direction:column;height:100vh;height:100dvh;padding:calc(10px + var(--safe-t)) 14px calc(14px + var(--safe-b));
+  background:radial-gradient(circle at 50% 30%,var(--sun-deep),var(--bg) 75%);overflow:hidden;user-select:none;-webkit-user-select:none}
+.lt-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.lt-stars{display:flex;flex-wrap:wrap;justify-content:center}
+.lt-stars{gap:3px}
+.lt-stars i{width:min(4.6vw,24px);height:min(4.6vw,24px);border-radius:50%;border:2px dashed var(--line2);transition:transform .25s}
+.lt-stars i.now{border-color:var(--sun);border-style:solid}
+.lt-stars i.on{border:0;border-radius:0;background:var(--sun);transform:scale(1.15);
+  clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)}
+.lt-say{width:48px;height:48px;border-radius:50%;border:2px solid var(--p1);background:var(--surface);font-size:1.4rem;line-height:1;flex:none}
+.lt-say:active{transform:scale(.94)}
+.lt-prompt{font-family:var(--mono);font-weight:700;text-align:center;font-size:clamp(1.25rem,5.4vw,2rem);line-height:1.2;margin:12px 0 4px;color:var(--ink);min-height:2.4em;display:flex;align-items:center;justify-content:center}
+.lt-scene{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;gap:min(3vw,22px);--sz:min(17vw,11vh)}
+.lt-scene.add{--sz:min(14vw,9vh)} .lt-scene.more{--sz:min(11.5vw,8vh)}
+.lt-group{display:flex;flex-direction:column;align-items:center;gap:min(2vw,12px)}
+.lt-row{display:flex;gap:min(2.4vw,14px);justify-content:center}
+.lt-it{position:relative;font-size:var(--sz);line-height:1.1;cursor:pointer;transition:transform .15s}
+.lt-it.counted{transform:scale(1.08)}
+.lt-it.counted::after{content:attr(data-no);position:absolute;right:-6px;top:-4px;min-width:1.5em;height:1.5em;border-radius:50%;background:var(--p1);color:var(--on-accent);
+  font-family:var(--mono);font-weight:700;font-size:max(14px,calc(var(--sz) * .3));display:grid;place-items:center;line-height:1;box-shadow:0 2px 0 var(--line2)}
+.lt-op{font-family:var(--mono);font-weight:700;font-size:calc(var(--sz) * .9);color:var(--p2);line-height:1}
+.lt-or{font-size:clamp(1.1rem,5vw,1.6rem);color:var(--muted)}
+.lt-side{flex:1;max-width:46vw;min-height:min(46vw,34vh);border:3px solid var(--line2);border-radius:24px;background:var(--surface);display:grid;place-items:center;padding:10px;box-shadow:0 5px 0 var(--line2)}
+.lt-side:active{transform:translateY(3px);box-shadow:0 2px 0 var(--line2)}
+.lt-side .lt-it{cursor:inherit}
+.lt-choices{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:620px;width:100%;margin:8px auto 0}
+.lt-choices button,.lt-side{color:var(--ink);transition:transform .1s,opacity .3s,background .2s,border-color .2s}
+.lt-choices button{min-height:max(88px,19vh);border:3px solid var(--p1);border-radius:24px;background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:8px;box-shadow:0 5px 0 var(--p1)}
+.lt-choices button:active{transform:translateY(3px);box-shadow:0 2px 0 var(--p1)}
+.lt-choices b{font-family:var(--mono);font-size:clamp(2.6rem,13vw,4.4rem);line-height:1}
+.lt-dots{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;max-width:5.5em}
+.lt-dots i{width:10px;height:10px;border-radius:50%;background:var(--p2)}
+.lt-choices button.right,.lt-side.right{background:var(--win);border-color:var(--win);color:var(--on-accent);box-shadow:0 5px 0 var(--win);animation:lt-pop .5s}
+.lt-choices button.right .lt-dots i{background:var(--on-accent)}
+.lt-choices button.nope,.lt-side.nope{animation:lt-wobble .45s;opacity:.35}
+.lt-choices button[disabled],.lt-side[disabled]{pointer-events:none}
+.lt-scene.happy .lt-it{animation:lt-hop .6s ease-in-out 2}
+@keyframes lt-pop{40%{transform:scale(1.12)}100%{transform:scale(1)}}
+@keyframes lt-wobble{20%{transform:rotate(-6deg)}40%{transform:rotate(5deg)}60%{transform:rotate(-3deg)}80%{transform:rotate(2deg)}}
+@keyframes lt-hop{50%{transform:translateY(-14px)}}
+.lt-cover{position:absolute;inset:0;z-index:3;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;
+  background:radial-gradient(circle at 50% 40%,var(--sun-deep),var(--bg) 72%)}
+.lt-cover h2,.lt-end h2{font-family:var(--mono);font-size:clamp(2.2rem,10vw,3.6rem);margin:6px 0 4px;letter-spacing:-.02em;line-height:1.05}
+.lt-cover p{margin:0;color:var(--muted);font-size:1.15rem}
+.lt-wave{font-size:clamp(2.2rem,11vw,3.4rem);letter-spacing:.15em}
+.lt-go{width:min(44vw,180px);height:min(44vw,180px);border-radius:50%;border:0;background:var(--win);color:var(--on-accent);font-size:min(18vw,74px);margin:26px 0 10px;
+  box-shadow:0 8px 0 rgba(0,0,0,.18);padding-left:.18em;animation:lt-breathe 1.8s ease-in-out infinite}
+.lt-go:active{transform:translateY(4px);box-shadow:0 4px 0 rgba(0,0,0,.18)}
+@keyframes lt-breathe{50%{transform:scale(1.06)}}
+.lt-small{font-size:1rem!important;font-style:italic}
+.lt-end{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px}
+.lt-trophy{font-size:min(30vw,130px);line-height:1;animation:lt-pop .8s}
+.lt-earned{display:grid;grid-template-columns:repeat(5,auto);justify-content:center;gap:2px 4px;font-size:clamp(1.5rem,7vw,2.2rem);margin:6px 0}
+.lt-earned i{font-style:normal}
+.lt-total{font-family:var(--mono);font-size:1.2rem;color:var(--sun-ink);margin:0 0 18px}
+.lt-endbtns{display:grid;gap:12px;width:min(100%,360px)}
+@media (min-width:760px){ .lt-scene{--sz:min(12vw,12vh)} .lt-scene.add,.lt-scene.more{--sz:min(8vw,9vh)} .lt-side{max-width:340px} }
+
 @media (prefers-reduced-motion: reduce){
   *{animation-duration:.001ms!important;transition-duration:.001ms!important}
   .half.wrong .pen{opacity:1}
@@ -478,6 +542,13 @@ body{background-image:radial-gradient(var(--line) 1px, transparent 1.3px);backgr
           <span class="n">EVERY 24 H</span>
           <h3>The Daily</h3>
           <p>Twenty questions, and everyone on Earth gets the same set. Only your first attempt counts.</p>
+        </button>
+        <button class="game little" data-go="little">
+          <span class="tag sun">AGE 4+ · NO CLOCK</span>
+          <span class="n">LITTLE ONES</span>
+          <h3>Count with <em>me</em></h3>
+          <p>Count the fish, find the side with more, and add tiny groups. Big buttons and a friendly voice that reads everything out. Made for 4-year-olds.</p>
+          <span class="little-row" aria-hidden="true">🐟 🐚 🦀 🐙 ⭐</span>
         </button>
       </div>
     </div>

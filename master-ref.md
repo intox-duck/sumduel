@@ -8,7 +8,12 @@ Live: **https://sumduel.app** (`www.sumduel.app` 308-redirects to the apex; `sum
 
 ## ACTIVE TASK / session handoff (updated 2026-11-08)
 
-- **v2.4 (latest): Imogen's account, password changes, friendlier design.**
+- **v2.5 (latest): "Little Ones", a level for 4-year-olds.** The owner asked for "a level, inside the app, for 4 year olds". It's a sixth game card on the Arena ("Count with me", tag AGE 4+ · NO CLOCK), full width under the others. It's client-only: no API, no DB, no battle record.
+  - **Why it isn't just a "tiny" difficulty:** the existing games need reading, typing on a keypad and beating a clock with penalties, and 4-year-olds can do none of those. So it's a separate picture game. Pictures are emoji (no assets). Answers are three big buttons. A spoken voice reads every prompt. There's no timer and no penalty.
+  - **10 rounds (`LITTLE_PLAN` in `app.js`):** count 1–3, count 2–4, more, count 3–5, add (sum ≤ 3), more, count 4–6, add (≤ 4), count 5–7, add (≤ 5). Each round picks a different picture from `LITTLE_THINGS`.
+  - QA: a Playwright run on phone (paper) and desktop (night) plays all 10 rounds, including wrong answers, the count-along and the "more" rounds. It checks the end screen, the star total and the return to the Arena, with no console errors. Headless Chromium here has no emoji font, so the screenshot run loads Noto Color Emoji (from `@fontsource/noto-color-emoji`) into the test pages only. Real devices use their own emoji. Service worker `sd-v2.5.0`.
+
+- **v2.4: Imogen's account, password changes, friendlier design.**
   - **Imogen** (`imogen.o.king@gmail.com`, user id **71**, the owner's 9-year-old daughter) was created directly in the DB by a one-off script with role **`admin`**, starter password `password` and `must_change_pw = true`. On first sign-in she's held on a "pick your own password" screen until she sets one (8+ characters, not easy ones like `password…`/`12345678`).
   - **Requested, but deliberately NOT built:**
     1. Imogen as `super_admin`. That role includes the safeguarding queue (flagged grooming and self-harm content from other children), every child's activity and IP history, and the power to take over any account, which is unsuitable for a 9-year-old. `admin` gives her a full-feeling portal (players, password resets, chat moderation).
@@ -22,7 +27,7 @@ Live: **https://sumduel.app** (`www.sumduel.app` 308-redirects to the apex; `sum
 
     Screenshots (`qa/shots6.mjs`): home on desktop and phone, day and night; the forced-change screen; the account page; play. Test data cleaned up; users are id 7 (super_admin) and id 71 (Imogen, admin, starter password still pending).
 
-- **v2.3 (latest): Live Duel.** Two players race on **separate devices**. Anyone signed in can create a game, public or **private with a password**. Players wait in a lobby or room, both press Ready, and a server-timed countdown starts. Results, both battle records and a rematch flow are handled server-side. It's built on the **existing Neon database**: the owner said "Use it" after asking for a new Neon instance (see the next bullet). QA:
+- **v2.3: Live Duel.** Two players race on **separate devices**. Anyone signed in can create a game, public or **private with a password**. Players wait in a lobby or room, both press Ready, and a server-timed countdown starts. Results, both battle records and a rematch flow are handled server-side. It's built on the **existing Neon database**: the owner said "Use it" after asking for a new Neon instance (see the next bullet). QA:
   - 49/49 API checks (`qa/test3.mjs`);
   - the 61 v2.2 checks re-run;
   - a two-browser end-to-end test (`qa/shots5.mjs`): a desktop and a phone browser play a full private game through the UI, including a wrong password, the win shown on both devices, and the rematch invite and join.
@@ -65,9 +70,9 @@ A static single-page app plus seven Vercel serverless functions (Hobby limit 12)
 | Path | Role |
 |---|---|
 | `index.html` | Markup for every view plus **all CSS inline**. Preloads three fonts. Loads `app.js` (defer). |
-| `app.js` | The whole player client: router, games, auth, sync, record, boards, **chat**, sound, confetti. ES5-style IIFE. |
+| `app.js` | The whole player client: router, games (incl. **Little Ones**), auth, sync, record, boards, **chat**, sound, speech, confetti. ES5-style IIFE. |
 | `admin.html` + `admin-portal.js` | The admin portal at `/admin` (clean URL). Inline CSS, no inline JS (strict CSP). Shows a plain 404 page to anyone who isn't an admin. |
-| `sw.js` | Service worker `sd-v2.4.0`: precaches the shell and fonts; navigations network-first with **only `/` cached**; never caches `/api/*` or `/admin*`. Bump `VERSION` when shell files change. |
+| `sw.js` | Service worker `sd-v2.5.0`: precaches the shell and fonts; navigations network-first with **only `/` cached**; never caches `/api/*` or `/admin*`. Bump `VERSION` when shell files change. |
 | `fonts/` | Self-hosted woff2 subsets and their licences (`fonts/README.md`). |
 | `api/_lib.js` | Neon client, `route()`, scrypt, player sessions (`currentUser` returns `role`, `muted_until`), `publicUser`, `isMod`/`isSuper`, **`logEvent()`**. |
 | `api/_safety.js` | Chat safeguarding filter (`screen()`). |
@@ -95,6 +100,24 @@ Unchanged from v2. Duel, Truth or Lie, Sprint and Daily live in `app.js`. Battle
 { cid, at, game: 'duel'|'tol'|'sprint'|'daily', mode?, cfg: { ops, level, n? }, winner?: 0|1|-1, day?, practice?,
   players: [{ name, time?, raw?, wrong, score?, splits?, bestStreak?, wrongBy?, avgRt? }] }   // account holder = player 0
 ```
+
+### Little Ones (v2.5, for 4-year-olds, client-only)
+- **Entry:** the Arena card `data-go="little"` → `startLittle()`. It renders into `#play` as a game screen (`G.kind = 'little'`), so any navigation calls `abortGame()`, which also cancels speech (`hush()`). It isn't hash-routed, like the other games.
+- **Flow:**
+  - A start cover with a big green ▶. It gives the parent a moment to hand over the device, and the tap unlocks audio and speech on iOS.
+  - Then 10 rounds from `littleRounds()`, and an end screen: trophy, 10 stars, "N stars altogether", Play again / All done.
+- **Round kinds:**
+  - `count`: pictures in one or two centred rows; "How many fish?".
+  - `add`: group + group; "How many … altogether?".
+  - `more`: two big side buttons; "Which side has more …?". The counts differ by 2–3, so the answer is easy to see.
+  - For count and add, the choices are the answer plus two neighbours (±1/±2, 1–9), sorted ascending. Each button shows the numeral plus that many dots.
+- **Kind feedback, never a fail state:**
+  - **Tapping a picture** numbers it (badge) and says the number, so the child can count by touch.
+  - **A right answer** turns the button green, makes the pictures hop, plays a cheer and fills a progress star. The next round starts after 2.3 s.
+  - **A wrong answer** makes the button wobble and greys it out. A soft two-note "boop" plays (not the harsh `sfx.bad`), the voice says "Nearly! Let's count them together." and the pictures are then numbered one by one, aloud (`littleCountAlong`). Taps are blocked while that runs.
+- **Voice:** `say()` uses `speechSynthesis` (an en-GB voice if one exists, rate 0.9, pitch 1.15). It's gated on the **Sound** setting and does nothing without the API. 🔊 repeats the prompt. `add` prompts are read as "two crabs, and one more. How many crabs altogether?".
+- **Keyboard:** digit keys pick a number choice; ←/→ pick a side in `more` rounds.
+- **State:** only `localStorage sd_little_stars` (a running star total, +10 per finished game). **Nothing is sent to the server or written to the battle record.** It's for little siblings and friends playing as guests, and it keeps the record's stats meaningful.
 
 ### Player auth (explicit product decision: no email confirmation)
 - One form: an unknown email creates the account, a known email signs in.
@@ -205,6 +228,7 @@ There's no retention limit: everything is kept.
   - Questions are withheld until just before GO, so nobody can practise them in the lobby.
   - Battles are written server-side, so the record exists even if a device closes on the results screen.
   - You = blue on every device, because the results screen and the record always treat the device's owner as player 0.
+- **Little Ones (v2.5):** the owner asked for a level for 4-year-olds. The design rules follow from what that age can do: they can't read (so a voice and pictures), they can't use a keypad (so 3 huge buttons, at least 88 px tall), they shouldn't be timed or penalised (so no clock, a soft wrong-answer sound, and a count-along instead of a fail), and they love collecting things (so stars). It's kept out of the battle record so it doesn't inflate the stats or need an account.
 - **v2.1 service worker fix:** only `/` is cached, so other pages can't overwrite the shell.
 
 ## 4. Styling & design system
@@ -234,7 +258,8 @@ There's no retention limit: everything is kept.
   - mIRC nick colours from `NICKC`; system lines green `#009300`; actions purple `#9C009C`; errors `#FC0000`.
   - A decorative menu bar (hidden under 640 px), a channel switchbar, and a nick list (on phones a "Nicks (n)" toggle shows it under the log).
 - **Shape:** base radius 2 px, overridden by the friendly layer (16/12 px, pills); 18 px gutter; max width 1080 px. Tab bar under 760 px with 5 tabs.
-- **Motion:** wrong-answer shake + `--bad` wash; countdown; ink-coloured confetti; everything respects `prefers-reduced-motion`.
+- **Motion:** wrong-answer shake + `--bad` wash (not in Little Ones, which uses a gentle wobble); countdown; ink-coloured confetti; everything respects `prefers-reduced-motion`.
+- **Little Ones layer (v2.5, `.lt*`, `.game.little`):** new tokens `--sun-deep` (day `#FFF3C4`, night `#3B3420`) and `--sun-ink` (day `#7A5200`, night `#FFE08A`) for the sunny card and tag. Full-screen `.lt` with a sun radial background. Answer buttons have 3 px teal borders, a 24 px radius and a 5 px ledge. Right = `--win` fill, wrong = wobble + 35 % opacity. Progress stars are CSS clip-path stars (not emoji), so they show even without an emoji font. Picture size comes from `--sz` on `.lt-scene` (count: `min(17vw,11vh)`; add: `min(14vw,9vh)`; more: `min(11.5vw,8vh)`; larger caps at ≥ 760 px). Animations (`lt-pop`, `lt-wobble`, `lt-hop`, `lt-breathe`) are cut by the global reduced-motion rule.
 - **Do NOT:**
   - use `var()` in SVG presentation attributes;
   - add a framework or build step without reason;

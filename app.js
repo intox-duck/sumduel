@@ -261,6 +261,7 @@
       else if (g === 'sprint') startSoloGame('sprint');
       else if (g === 'daily') startSoloGame('daily');
       else if (g === 'live') go('live');
+      else if (g === 'little') startLittle();
     });
   });
   function renderHome() {
@@ -339,7 +340,7 @@
   var G = null, token = 0, raf = 0, series = {};
   function playerNames() { return [0, 1].map(function (i) { return (S.names[i] || '').trim() || (i === 0 && ME ? ME.name : 'Player ' + (i + 1)); }); }
 
-  function abortGame() { token++; if (G && G.timer) clearInterval(G.timer); G = null; cancelAnimationFrame(raf); wakeOff(); }
+  function abortGame() { token++; if (G && G.timer) clearInterval(G.timer); if (G && G.kind === 'little') hush(); G = null; cancelAnimationFrame(raf); wakeOff(); }
 
   function startDuel() {
     abortGame(); token++;
@@ -525,6 +526,7 @@
     if (!G || e.metaKey || e.ctrlKey || e.altKey) return;
     if ($('play').classList.contains('hidden')) return;
     if (G.kind === 'tol') return tolKey(e);
+    if (G.kind === 'little') return littleKey(e);
     // Map on physical key (e.code) so the numpad works with NumLock on or off.
     var k = null, code = e.code || '', isPad = code.indexOf('Numpad') === 0;
     var m = /^(?:Digit|Numpad)([0-9])$/.exec(code);
@@ -632,6 +634,217 @@
   // =====================================================================
   // Results
   // =====================================================================
+  // =====================================================================
+  // Little Ones (v2.5): a picture level for 4-year-olds. No clock, no
+  // penalties, no record entry. Three kinds of round: count the pictures,
+  // tap the group with more, and add two little groups. A spoken voice
+  // (speechSynthesis, when available and sound is on) reads every prompt,
+  // because the players can't read yet.
+  // =====================================================================
+  var LITTLE_N = 10;
+  var LITTLE_THINGS = [
+    ['🐟', 'fish', 'fish'], ['🐚', 'shell', 'shells'], ['🦀', 'crab', 'crabs'], ['🐙', 'octopus', 'octopuses'],
+    ['🐳', 'whale', 'whales'], ['🦆', 'duck', 'ducks'], ['🍦', 'ice cream', 'ice creams'], ['🎈', 'balloon', 'balloons'],
+    ['🍓', 'strawberry', 'strawberries'], ['⭐', 'star', 'stars'], ['🐢', 'turtle', 'turtles'], ['🌼', 'flower', 'flowers']
+  ];
+  var LITTLE_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+  var LITTLE_CHEERS = ['Yes!', 'Well done!', 'Brilliant!', 'You got it!', 'Super!', 'Hooray!'];
+  // Round plan: easy counting first, then a mix, ending on the biggest numbers.
+  var LITTLE_PLAN = [['count', 1, 3], ['count', 2, 4], ['more'], ['count', 3, 5], ['add', 3], ['more'], ['count', 4, 6], ['add', 4], ['count', 5, 7], ['add', 5]];
+
+  function littleRounds() {
+    var ri = function (a, b) { return a + Math.floor(Math.random() * (b - a + 1)); };
+    var pool = LITTLE_THINGS.slice().sort(function () { return Math.random() - .5; });
+    return LITTLE_PLAN.map(function (p, i) {
+      var thing = pool[i % pool.length], r = { kind: p[0], thing: thing };
+      if (p[0] === 'count') { r.ans = ri(p[1], p[2]); r.groups = [r.ans]; }
+      else if (p[0] === 'add') { r.a = ri(1, p[1] - 1); r.b = ri(1, p[1] - r.a); r.ans = r.a + r.b; r.groups = [r.a, r.b]; }
+      else { var a = ri(1, 3), b = a + ri(2, 3); if (Math.random() < .5) { var t = a; a = b; b = t; } r.groups = [a, b]; r.ans = a > b ? 0 : 1; }
+      if (p[0] !== 'more') {
+        var near = [r.ans - 1, r.ans + 1, r.ans - 2, r.ans + 2].filter(function (v) { return v >= 1 && v <= 9; });
+        near = near.slice(0, 3).sort(function () { return Math.random() - .5; }).slice(0, 2);
+        r.choices = [r.ans].concat(near).sort(function (x, y) { return x - y; });
+      }
+      return r;
+    });
+  }
+
+  // ---------- voice ----------
+  var littleVoice = null;
+  function pickVoice() {
+    try {
+      var vs = window.speechSynthesis ? speechSynthesis.getVoices() : [];
+      littleVoice = vs.filter(function (v) { return /^en-GB/i.test(v.lang); })[0] || vs.filter(function (v) { return /^en/i.test(v.lang); })[0] || null;
+    } catch (e) { littleVoice = null; }
+  }
+  try { if (window.speechSynthesis) { pickVoice(); speechSynthesis.addEventListener && speechSynthesis.addEventListener('voiceschanged', pickVoice); } } catch (e) {}
+  function say(text, opts) {
+    if (!S.sound || !window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
+    try {
+      if (!opts || !opts.queue) speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(text);
+      u.lang = littleVoice ? littleVoice.lang : 'en-GB'; if (littleVoice) u.voice = littleVoice;
+      u.rate = 0.9; u.pitch = 1.15;
+      speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+  function hush() { try { window.speechSynthesis && speechSynthesis.cancel(); } catch (e) {} }
+
+  function startLittle() {
+    abortGame(); token++;
+    G = { kind: 'little', token: token, live: true, rounds: littleRounds(), idx: 0, counted: 0, tries: 0, firstTry: 0, busy: false };
+    var play = $('play');
+    play.innerHTML =
+      '<section class="lt">' +
+        '<div class="lt-top"><button class="chipbtn" id="ltQuit">Stop</button>' +
+          '<div class="lt-stars" aria-label="Progress">' + new Array(LITTLE_N + 1).join('<i></i>') + '</div>' +
+          '<button class="lt-say" id="ltSay" aria-label="Say it again">🔊</button></div>' +
+        '<p class="lt-prompt" id="ltPrompt" aria-live="polite"></p>' +
+        '<div class="lt-scene" id="ltScene"></div>' +
+        '<div class="lt-choices" id="ltChoices"></div>' +
+        '<div class="lt-cover" id="ltCover"><div class="lt-wave" aria-hidden="true">🐟 🐚 🦀</div>' +
+          '<h2>Little Ones</h2><p>Count, find more, add up.</p>' +
+          '<button class="lt-go" id="ltGo" aria-label="Start">▶</button><p class="lt-small">Tap the big button to start</p></div>' +
+      '</section>';
+    $('ltQuit').onclick = function () { hush(); abortGame(); route(); };
+    $('ltSay').onclick = function () { littleSayPrompt(); };
+    $('ltGo').onclick = function () { ac(); $('ltCover').classList.add('hidden'); littleRound(); };
+    $('ltScene').addEventListener('click', littleTapScene);
+    $('ltChoices').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) littleAnswer(Number(b.dataset.v), b); });
+    showScreen('play'); wakeOn();
+  }
+
+  function littleRows(n, big) {
+    if (n <= 3) return [n];
+    if (!big && n === 4) return [2, 2];
+    return [Math.ceil(n / 2), Math.floor(n / 2)];
+  }
+  function littleGroupHtml(n, emoji, gi, startNo) {
+    return '<div class="lt-group" data-g="' + gi + '">' + littleRows(n, false).map(function (cnt) {
+      var row = '';
+      for (var k = 0; k < cnt; k++) row += '<span class="lt-it" data-i="' + (startNo++) + '">' + emoji + '</span>';
+      return '<div class="lt-row">' + row + '</div>';
+    }).join('') + '</div>';
+  }
+  function littlePromptText(r) {
+    if (r.kind === 'count') return 'How many ' + r.thing[2] + '?';
+    if (r.kind === 'add') return 'How many ' + r.thing[2] + ' altogether?';
+    return 'Which side has more ' + r.thing[2] + '?';
+  }
+  function littleSayPrompt() {
+    if (!G || G.kind !== 'little') return;
+    var r = G.rounds[G.idx]; if (!r) return;
+    var t = littlePromptText(r);
+    if (r.kind === 'add') t = LITTLE_WORDS[r.a] + ' ' + (r.a === 1 ? r.thing[1] : r.thing[2]) + ', and ' + LITTLE_WORDS[r.b] + ' more. ' + t;
+    if (r.kind !== 'more') t += ' Tap them to count.';
+    say(t);
+  }
+  function littleRound() {
+    if (!G || G.kind !== 'little') return;
+    var r = G.rounds[G.idx], em = r.thing[0];
+    G.counted = 0; G.tries = 0; G.busy = false;
+    $('ltPrompt').textContent = littlePromptText(r);
+    var sc = $('ltScene'); sc.className = 'lt-scene ' + r.kind;
+    if (r.kind === 'count') sc.innerHTML = '<div class="lt-group" data-g="0">' + littleRows(r.ans, true).map(function (cnt, ri) {
+      var row = '', base = ri ? littleRows(r.ans, true)[0] : 0;
+      for (var k = 0; k < cnt; k++) row += '<span class="lt-it" data-i="' + (base + k) + '">' + em + '</span>';
+      return '<div class="lt-row">' + row + '</div>';
+    }).join('') + '</div>';
+    else if (r.kind === 'add') sc.innerHTML = littleGroupHtml(r.a, em, 0, 0) + '<span class="lt-op" aria-hidden="true">+</span>' + littleGroupHtml(r.b, em, 1, r.a);
+    else sc.innerHTML = r.groups.map(function (n, gi) {
+      return '<button class="lt-side" data-v="' + gi + '" aria-label="' + (gi ? 'Right side' : 'Left side') + ', ' + n + ' ' + (n === 1 ? r.thing[1] : r.thing[2]) + '">' + littleGroupHtml(n, em, gi, 0) + '</button>';
+    }).join('<span class="lt-op lt-or" aria-hidden="true">or</span>');
+    var ch = $('ltChoices');
+    if (r.kind === 'more') { ch.innerHTML = ''; ch.classList.add('hidden'); }
+    else {
+      ch.classList.remove('hidden');
+      ch.innerHTML = r.choices.map(function (v) {
+        return '<button data-v="' + v + '" aria-label="' + v + '"><b>' + v + '</b><span class="lt-dots" aria-hidden="true">' + new Array(v + 1).join('<i></i>') + '</span></button>';
+      }).join('');
+    }
+    littlePaintStars();
+    setTimeout(littleSayPrompt, 250);
+  }
+  function littlePaintStars() {
+    qsa('.lt-stars i').forEach(function (s, k) { s.classList.toggle('on', k < G.idx); s.classList.toggle('now', k === G.idx); });
+  }
+  function littleTapScene(e) {
+    if (!G || G.kind !== 'little' || G.busy) return;
+    var r = G.rounds[G.idx];
+    if (r.kind === 'more') { var side = e.target.closest('.lt-side'); if (side) littleAnswer(Number(side.dataset.v), side); return; }
+    var it = e.target.closest('.lt-it'); if (!it || it.dataset.no) return;
+    G.counted++; it.dataset.no = G.counted;
+    it.classList.add('counted');
+    tone(440 + G.counted * 70, 0.12, 'triangle', 0.08);
+    say(LITTLE_WORDS[G.counted] || String(G.counted));
+  }
+  function littleAnswer(v, btn) {
+    if (!G || G.kind !== 'little' || G.busy) return;
+    var r = G.rounds[G.idx], my = G.token;
+    if (v === r.ans) {
+      G.busy = true; if (!G.tries) G.firstTry++;
+      btn.classList.add('right');
+      sfx.good(); buzz(20);
+      $('ltScene').classList.add('happy');
+      var cheer = LITTLE_CHEERS[Math.floor(Math.random() * LITTLE_CHEERS.length)];
+      if (r.kind === 'more') say(cheer + ' ' + LITTLE_WORDS[r.groups[r.ans]] + ' is more than ' + LITTLE_WORDS[r.groups[1 - r.ans]] + '.');
+      else say(cheer + ' ' + LITTLE_WORDS[r.ans] + ' ' + (r.ans === 1 ? r.thing[1] : r.thing[2]) + '!');
+      G.idx++; littlePaintStars();
+      setTimeout(function () {
+        if (!G || G.token !== my) return;
+        if (G.idx >= LITTLE_N) littleDone(); else littleRound();
+      }, 2300);
+    } else {
+      G.tries++;
+      btn.classList.remove('nope'); void btn.offsetWidth; btn.classList.add('nope'); btn.disabled = true;
+      tone(300, 0.14, 'triangle', 0.06); tone(250, 0.18, 'triangle', 0.05, 0.12);
+      say(r.kind === 'more' ? 'Not that one. Look again!' : 'Nearly! Let’s count them together.');
+      if (r.kind !== 'more') littleCountAlong(my);
+    }
+  }
+  // After a wrong pick, number each picture one by one so the child can count along.
+  function littleCountAlong(my) {
+    var items = qsa('#ltScene .lt-it'); G.busy = true; G.counted = 0;
+    items.forEach(function (it) { delete it.dataset.no; it.classList.remove('counted'); });
+    var k = 0;
+    setTimeout(function step() {
+      if (!G || G.token !== my) return;
+      if (k >= items.length) { G.busy = false; return; }
+      var it = items[k++]; G.counted = k; it.dataset.no = k; it.classList.add('counted');
+      tone(440 + k * 70, 0.12, 'triangle', 0.08); say(LITTLE_WORDS[k] || String(k));
+      setTimeout(step, 750);
+    }, 1900);
+  }
+  function littleDone() {
+    var total = store.get('sd_little_stars', 0) + LITTLE_N; store.set('sd_little_stars', total);
+    sfx.win(); confetti([cssVar('--p1'), cssVar('--p2'), cssVar('--sun'), cssVar('--win')]);
+    var sec = qsa('#play .lt')[0]; if (!sec) return;
+    sec.innerHTML =
+      '<div class="lt-end">' +
+        '<div class="lt-trophy" aria-hidden="true">🏆</div>' +
+        '<h2>You did it!</h2>' +
+        '<p class="lt-earned">' + new Array(LITTLE_N + 1).join('<i>⭐</i>') + '</p>' +
+        '<p class="lt-total">' + total + ' stars altogether</p>' +
+        '<div class="lt-endbtns"><button class="btn primary lg" id="ltAgain">Play again</button><button class="btn ghost lg" id="ltHome">All done</button></div>' +
+      '</div>';
+    say('You did it! Ten more stars. You have ' + total + ' stars altogether!');
+    $('ltAgain').onclick = function () { ac(); startLittle(); $('ltCover').classList.add('hidden'); littleRound(); };
+    $('ltHome').onclick = function () { hush(); abortGame(); go(''); };
+  }
+  function littleKey(e) {
+    if (!G.rounds || G.busy) return;
+    var r = G.rounds[G.idx]; if (!r) return;
+    var m = /^(?:Digit|Numpad)([0-9])$/.exec(e.code || '');
+    if (r.kind === 'more') {
+      var side = e.key === 'ArrowLeft' ? 0 : e.key === 'ArrowRight' ? 1 : -1;
+      if (side < 0) return; e.preventDefault();
+      littleAnswer(side, qsa('#ltScene .lt-side')[side]); return;
+    }
+    if (!m) return;
+    var btn = qsa('#ltChoices button').filter(function (b) { return b.dataset.v === m[1] && !b.disabled; })[0];
+    if (btn) { e.preventDefault(); littleAnswer(Number(m[1]), btn); }
+  }
+
   function bumpSeries(kind, names, w) {
     var key = kind + '|' + names.join('|').toLowerCase();
     var s = series[key] || (series[key] = [0, 0, 0]);
