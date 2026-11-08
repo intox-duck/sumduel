@@ -8,6 +8,20 @@ Live: **https://sumduel.app** (`www.sumduel.app` 308-redirects to the apex; `sum
 
 ## ACTIVE TASK / session handoff (updated 2026-11-08)
 
+- **v2.4 (latest): Imogen's account, password changes, friendlier design.**
+  - **Imogen** (`imogen.o.king@gmail.com`, user id **71**, the owner's 9-year-old daughter) was created directly in the DB by a one-off script with role **`admin`**, starter password `password` and `must_change_pw = true`. On first sign-in she's held on a "pick your own password" screen until she sets one (8+ characters, not easy ones like `password…`/`12345678`).
+  - **Requested, but deliberately NOT built:**
+    1. Imogen as `super_admin`. That role includes the safeguarding queue (flagged grooming and self-harm content from other children), every child's activity and IP history, and the power to take over any account, which is unsuitable for a 9-year-old. `admin` gives her a full-feeling portal (players, password resets, chat moderation).
+    2. A decoy reset where her changing the owner's password would appear to succeed but secretly do nothing (deceptive auth behaviour). The owner's account is protected honestly: admins get the generic "This account can't be changed from here.", the same message as for any protected account, which doesn't reveal the super_admin role.
+    3. Changing the owner's own password to a generated string. Not done, because a lost reply would lock the owner out of super_admin. The owner can now change it themselves (Account → Change password).
+  - **Design:** a "seaside" friendly layer for a 9–11 audience: warm cream with teal sea and raspberry pink, rounded cards and pill buttons, a scalloped wave under the header, a polka-dot background, simpler wording. The night theme is now "Night by the sea" (navy). Service worker `sd-v2.4.0`.
+  - **QA:** 129 checks pass:
+    - 17 password-flow checks (`qa/test4.mjs`): starter login, every API blocked until the change, wrong/short/easy passwords refused, other devices signed out, the old password dead, the portal opening afterwards, dad shown as a player and protected;
+    - 63 v2.2 checks (updated: admin resets now force a change);
+    - 49 live checks.
+
+    Screenshots (`qa/shots6.mjs`): home on desktop and phone, day and night; the forced-change screen; the account page; play. Test data cleaned up; users are id 7 (super_admin) and id 71 (Imogen, admin, starter password still pending).
+
 - **v2.3 (latest): Live Duel.** Two players race on **separate devices**. Anyone signed in can create a game, public or **private with a password**. Players wait in a lobby or room, both press Ready, and a server-timed countdown starts. Results, both battle records and a rematch flow are handled server-side. It's built on the **existing Neon database**: the owner said "Use it" after asking for a new Neon instance (see the next bullet). QA:
   - 49/49 API checks (`qa/test3.mjs`);
   - the 61 v2.2 checks re-run;
@@ -18,7 +32,7 @@ Live: **https://sumduel.app** (`www.sumduel.app` 308-redirects to the apex; `sum
   - **The Vercel MCP tools can't create Neon stores** (only Blob and Edge Config), **but the CLI can**: `vercel integration add neon`. An earlier message in this session wrongly said a Neon database couldn't be created at all.
 
 - **Situation:** v2.2 replaces the v2.1 Google-sign-in admin portal (which was never switched on) with **roles stored in Neon**. It also adds a full **activity log**, an **mIRC-style chat** with safeguarding filters, a **flag review queue** and **daily automated safeguarding audits**. The owner is giving the site to their 9-year-old daughter as a gift. The owner is a hidden **super admin**. The daughter will be an **admin** (mostly a player, plus moderation and password resets), and her actions are visible to the owner.
-- **Roles now:** `james.s.king@gmail.com` (user id 7) = `super_admin`, set with `npm run role` on 2026-11-08. **The daughter's account doesn't exist yet.** Once she signs up, the owner promotes her in `/admin` → Players → role dropdown → Admin (or with `npm run role -- <her email> admin`).
+- **Roles now:** `james.s.king@gmail.com` (id 7) = `super_admin` (set with `npm run role`). `imogen.o.king@gmail.com` (id 71) = `admin`, created 2026-11-08 with a starter password she must change.
 - **Why not Google sign-in any more:** the owner judged OAuth client setup "too hardcore" for a family app and asked for super admin mapped from the database. The risk this reopens: player sign-up has no email confirmation. It's mitigated because the super_admin role sits on the **existing account row (id 7)**, which the owner already created on 2026-11-08 09:01 UTC, not on an email string. Nobody can re-register that email. The account is protected by its password plus the 10-failures-per-15-minutes lockout. Advise the owner to use a strong password.
 - **Done this session (v2.1 → v2.2):** domain bought and attached; retro mathlib redesign; v2.1 admin portal replaced by v2.2 roles; activity log; chat; audits. `CRON_SECRET` set on Vercel (sensitive, production + preview). Migrations applied (`npm run migrate`, 24 statements, which drop the empty v2.1 `admin_sessions`/`admin_audit` tables).
 - **QA:** 61/61 end-to-end checks (`qa/test2.mjs` in the session scratchpad). They cover:
@@ -53,7 +67,7 @@ A static single-page app plus seven Vercel serverless functions (Hobby limit 12)
 | `index.html` | Markup for every view plus **all CSS inline**. Preloads three fonts. Loads `app.js` (defer). |
 | `app.js` | The whole player client: router, games, auth, sync, record, boards, **chat**, sound, confetti. ES5-style IIFE. |
 | `admin.html` + `admin-portal.js` | The admin portal at `/admin` (clean URL). Inline CSS, no inline JS (strict CSP). Shows a plain 404 page to anyone who isn't an admin. |
-| `sw.js` | Service worker `sd-v2.1.0`: precaches the shell and fonts; navigations network-first with **only `/` cached**; never caches `/api/*` or `/admin*`. Bump `VERSION` when shell files change. |
+| `sw.js` | Service worker `sd-v2.4.0`: precaches the shell and fonts; navigations network-first with **only `/` cached**; never caches `/api/*` or `/admin*`. Bump `VERSION` when shell files change. |
 | `fonts/` | Self-hosted woff2 subsets and their licences (`fonts/README.md`). |
 | `api/_lib.js` | Neon client, `route()`, scrypt, player sessions (`currentUser` returns `role`, `muted_until`), `publicUser`, `isMod`/`isSuper`, **`logEvent()`**. |
 | `api/_safety.js` | Chat safeguarding filter (`screen()`). |
@@ -87,6 +101,11 @@ Unchanged from v2. Duel, Truth or Lie, Sprint and Daily live in `app.js`. Battle
 - scrypt; an HttpOnly + Secure + SameSite=Lax cookie `sd_s` valid 365 days, storing only the token's SHA-256.
 - 10 failures per email+IP per 15 min → 429.
 - `publicUser` adds `admin:true` **only** for the `admin` role (it drives the "Admin tools" button on the Account page). **super_admin is indistinguishable from a player in every player-facing response.**
+- **Forced password change (v2.4):** `users.must_change_pw` is set for starter accounts and by **every admin password reset** (except resetting your own). While it's set:
+  - sign-in works and `publicUser` carries `mustChange:true`;
+  - `requireUser` returns 403 for every API (battles, boards, chat, live) and `/api/admin` returns 404;
+  - the client router sends every route to `#/account`, which shows only the "Hi <name>! Pick your own secret password" form.
+- **`POST /api/auth {action:'changePassword', current, password}`:** checks the current password; the new one must be 8–200 characters, differ from the old, and not start with `password`, `12345678`, `qwertyui` or `sumduel`. It clears `must_change_pw`, signs out every other session (keeping this device) and logs `password_changed`. Signed-in players also get a collapsible "Change password" panel on Account.
 
 ### Activity log (`activity_log`, append-only, read only by super_admin)
 `logEvent(req, actor, action, {target, detail})` stores the actor id, email and role, the action, the target id and email, `detail` jsonb, IP and user agent. It never throws.
@@ -159,7 +178,7 @@ There's no retention limit: everything is kept.
 
 ### Database (Neon Postgres, `lhr1`)
 - **Core tables:**
-  - `users(id, email unique, name, pw_hash, created_at, role ['player'|'admin'|'super_admin'], muted_until)`
+  - `users(id, email unique, name, pw_hash, created_at, role ['player'|'admin'|'super_admin'], muted_until, must_change_pw)`
   - `sessions(token_hash pk, user_id, created_at, expires_at)`
   - `battles(id, user_id, client_id, game, played_at, data jsonb)`
   - `scores(board, user_id pk, score, created_at)`
@@ -190,22 +209,31 @@ There's no retention limit: everything is kept.
 
 ## 4. Styling & design system
 - **Approach:** hand-written CSS inline in `index.html` and `admin.html` (shared tokens). No framework.
-- **Themes:** `paper` (default) and `night` ("Blackboard mode", stored in localStorage `sumduel.theme`). Old `dark`/`light` values fall back to paper.
-- **Paper tokens:** `--bg #F7F3E8`, `--surface #FBF8F1`, `--surface2 #F2EDE1`, `--ink #1A1A1A`, `--muted #4D4A42`, `--faint #77715F`, `--line rgba(26,26,26,.16)`, `--line2 rgba(26,26,26,.5)`, `--p1 #1D4E89`, `--p2 #9B1C31` (deep tints `#E3E9F1`/`#F3E2E1`), `--win #2D6A2E`, `--warn #8E5D07`, `--bad #C0262D`. `--p1-glow`/`--p2-glow` are `transparent`, which neutralises the glows `app.js` still writes inline.
-- **Night tokens:** `--bg #1E2A24`, `--ink #EEEDE6`, `--p1 #9CC6EE`, `--p2 #F2A7B8`, `--win #B9DC97`, `--bad #FF8A80`.
+- **Audience (v2.4):** the owner's daughter (9, reasoning at about 11) and her friends. Keep wording short and plain, keep it colourful but calm. Never put her name or home town in public page text.
+- **Layers:** the v2.1 textbook base (Latin Modern + Lean Mono, booktabs, numbered equations) plus a **v2.4 "friendly layer"**: a CSS block at the end of the `index.html` styles that overrides radii, button and segment colours, header wave, background dots and kicker star. Remove that block to get the plain textbook look back.
+- **Themes:** `paper` (default, "seaside day") and `night` ("Night by the sea", the Account → Night mode toggle; stored in localStorage `sumduel.theme`). Old `dark`/`light` values fall back to paper.
+- **Day tokens:** `--bg #FFF8EE` (warm sand-cream), `--surface #FFFFFF`, `--surface2 #FFF3E6`, `--ink #22223B`, `--muted #4A4E69`, `--faint #70758F`, `--line rgba(34,34,59,.13)`, `--line2 rgba(34,34,59,.34)`, `--p1 #0F7C8C` (sea teal), `--p2 #D6336C` (raspberry), deep tints `#DDF3F4`/`#FCE4EC`, `--win #2B8A3E`, `--warn #B35C00`, `--bad #C92A2A`, `--sun #F4B400`, `--on-accent #FFFFFF`. `--p1-glow`/`--p2-glow` are `transparent`, which neutralises the glows `app.js` writes inline.
+- **Night tokens:** `--bg #13203A` (navy), `--surface #1A2A48`, `--ink #F5F3FF`, `--p1 #5CD3E0`, `--p2 #FF8FB8`, `--win #8CE99A`, `--bad #FF8787`, `--on-accent #13203A`. `theme-color` meta: day `#FFF8EE`, night `#13203A`.
+- **Friendly layer details:**
+  - `--r 16px` / `--r-sm 12px` on cards, panels, lists, KPI rows and keypads;
+  - pill-shaped buttons, segments, filters, tags and toasts; primary buttons raspberry; selected segments and ops teal;
+  - cards lift on hover with a 4–6 px "shadow ledge";
+  - a teal scalloped wave under the sticky header (`.top::after` radial gradients); a 22 px polka-dot background;
+  - kicker marker ✦ in pink with plain numbers (no `§`, no `--`);
+  - game cards labelled "Game n ·"; home lede "How it works: …" (no "Definition", no QED box).
 - **Type:**
   - `--serif` "SD LM Roman" for prose;
   - `--caps` "SD LM Caps" (always lowercased → even small caps) for labels, buttons and nav;
   - `--mono` "SD Lean Mono" for headings, numbers, questions, keypad, equations, logo, kickers and chat.
   - `em` in mono headings is upright and coloured.
 - **Motifs:**
-  - Kickers are Lean comments (`-- §n`): §1 arena, §2 games, **§2.5 live duel** (lobby A/B/C sub-sections, rooms), §3 numbers/record, §4 boards, §5 chat, §6 account, §7 preferences. The Arena has a full-width "Live Duel" card (ONLINE · 2 DEVICES) under the main event. Admin portal: §1 Players … §5 Audits, with headings in Lean type-signature style (`players : List User`).
-  - "Definition 1.1" lede with a QED box; numbered equations; "Exercise n" cards; booktabs tables; "Figure n" captions; ballot-box toggles.
+  - Section numbers: 1 arena, 2 games, 2.5 live duel (lobby A/B/C, rooms), 3 numbers/record, 4 boards, 5 chat, 6 account, 7 preferences. The Arena has a full-width "Live Duel" card (ONLINE · 2 DEVICES) under the main event. The admin portal uses §1 Players … §5 Audits with Lean type-signature headings (`players : List User`) and the same seaside tokens, pills and ✦.
+  - Kept from the textbook base: numbered equations, booktabs tables, "Figure n" captions, ballot-box toggles (now rounded, teal).
 - **Chat window exception:** `.irc` deliberately uses **classic Win9x/mIRC chrome in both themes**:
   - grey `#C0C0C0` bevels; title bar gradient `#000080 → #1084D0`; white log;
   - mIRC nick colours from `NICKC`; system lines green `#009300`; actions purple `#9C009C`; errors `#FC0000`.
   - A decorative menu bar (hidden under 640 px), a channel switchbar, and a nick list (on phones a "Nicks (n)" toggle shows it under the log).
-- **Shape:** radius 2 px (cards are square); 18 px gutter; max width 1080 px. Tab bar under 760 px with 5 tabs.
+- **Shape:** base radius 2 px, overridden by the friendly layer (16/12 px, pills); 18 px gutter; max width 1080 px. Tab bar under 760 px with 5 tabs.
 - **Motion:** wrong-answer shake + `--bad` wash; countdown; ink-coloured confetti; everything respects `prefers-reduced-motion`.
 - **Do NOT:**
   - use `var()` in SVG presentation attributes;
@@ -227,6 +255,7 @@ There's no retention limit: everything is kept.
   - `qa/test2.mjs` holds the 61 checks; it creates `qa.*.<tag>@example.com` users, sets roles via SQL, and cleans up after itself.
   - `qa/shots4.mjs` takes the screenshots.
   - `qa/test3.mjs` holds the 49 live API checks. `qa/shots5.mjs` runs two browser contexts (desktop paper + phone blackboard) through a full private live game with a rematch.
+  - `qa/test4.mjs` holds the 17 password-flow checks. `qa/shots6.mjs` takes the v2.4 design screenshots.
   - `qa/cleanup2.mjs` deletes every `qa.%@example.com` user and its logs, plus **all** `audit_reports`, so don't run it once real audits exist.
   - Browser: `playwright-core@1.56.1` with the cached `chromium_headless_shell-1208`.
 
@@ -249,5 +278,5 @@ There's no retention limit: everything is kept.
 | Role | Set by | Sees / can do |
 |---|---|---|
 | **player** | default on sign-up | Play; read and write own battles and name; post scores; chat (subject to the filter, rate limit and mutes); report messages. `/admin` shows 404. |
-| **admin** (the daughter) | super_admin in Players → role, or `npm run role` | Everything a player can do, plus an "Admin tools" button on Account, `@` in chat, and the `/admin` Players and Chat tabs: search players, reset **players'** passwords, delete messages, mute or unmute **players**. Can't see the activity log, flags, audits or player details. Can't act on admin or super_admin accounts. Sees the super_admin as an ordinary player. Every action is logged and listed in each audit. |
+| **admin** (Imogen, id 71) | super_admin in Players → role, or `npm run role` (Imogen was created by a one-off script) | Everything a player can do, plus an "Admin tools" button on Account, `@` in chat, and the `/admin` Players and Chat tabs: search players, reset **players'** passwords, delete messages, mute or unmute **players**. Can't see the activity log, flags, audits or player details. Can't act on admin or super_admin accounts (generic "can't be changed from here" / "can't mute this player"). Sees the super_admin as an ordinary player. Password resets she does force the player to choose a new one. Every action is logged and listed in each audit. |
 | **super_admin** (the owner) | **only** `npm run role` (CLI) | Looks exactly like a player in the game and in chat. Types `/admin` while signed in to get everything: all players with true roles, role changes, password resets for anyone, mutes for anyone, removed-message text, the flag review queue, the full activity log with CSV export, audits (run, read, mark reviewed), and per-player histories. |

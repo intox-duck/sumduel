@@ -49,6 +49,8 @@ const statements = [
      alter table users add constraint users_role_chk check (role in ('player','admin','super_admin'));
    exception when duplicate_object then null; end $$`,
   `alter table users add column if not exists muted_until timestamptz`,
+  // v2.4: set after an admin reset or for a starter password; the player must pick their own before playing
+  `alter table users add column if not exists must_change_pw boolean not null default false`,
   // Everything that happens on the site, append-only. Read only by super_admin.
   `create table if not exists activity_log (
      id              bigserial primary key,

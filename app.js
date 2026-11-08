@@ -49,7 +49,7 @@
     // v2.1 textbook redesign: 'paper' (default) or 'night' (blackboard). Old saved 'dark'/'light' values fall back to paper.
     var night = S.theme === 'night';
     document.documentElement.setAttribute('data-theme', night ? 'night' : 'paper');
-    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = night ? '#1E2A24' : '#F7F3E8';
+    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = night ? '#13203A' : '#FFF8EE';
   }
   applyTheme();
 
@@ -238,6 +238,8 @@
     var h = (location.hash || '#/').replace(/^#\/?/, '');
     if (G) abortGame();
     chatStop(); liveStop();
+    // A starter or reset password must be replaced before anything else.
+    if (ME && ME.mustChange && h !== 'account') { location.hash = '#/account'; return; }
     if (h === 'record') { showScreen('record'); renderRecord(); }
     else if (h === 'boards') { showScreen('boards'); renderBoards(); }
     else if (h === 'account') { showScreen('account'); renderAccount(); }
@@ -267,7 +269,7 @@
     var st = computeStats(localBattles());
     var el = $('homeStats');
     if (!st.total) { el.innerHTML = ''; return; }
-    el.innerHTML = '<p class="kicker"><b>§3</b> Your numbers</p>' + kpiRow(st) +
+    el.innerHTML = '<p class="kicker"><b>3</b> Your numbers</p>' + kpiRow(st) +
       (ME ? '' : '<p class="foot">These stats only live on this device for now. <a href="#/account">Sign in</a> to keep them for good.</p>');
   }
   function kpiRow(st) {
@@ -799,13 +801,13 @@
     var el = $('v-record');
     var paint = function (list) {
       var st = computeStats(list);
-      var html = '<p class="kicker"><b>§3</b> ' + (ME ? esc(ME.name) + '’s record' : 'Your record · this device') + '</p><h2 class="title">Every battle, on the record</h2>';
+      var html = '<p class="kicker"><b>3</b> ' + (ME ? esc(ME.name) + '’s record' : 'Your record · this device') + '</p><h2 class="title">Every battle, on the record</h2>';
       if (!ME) html += '<div class="savebar"><span>You’re not signed in, so this record only lives in this browser.</span><a class="btn" href="#/account" style="padding:8px 12px">Sign in</a></div>';
       if (!list.length) { el.innerHTML = html + '<div class="blank">No battles yet. <a href="#/">Go and pick a fight.</a></div>'; return; }
       html += '<div class="section" style="margin-top:18px">' + kpiRow(st) + '</div>';
       html += '<div class="grid2">';
       // Head to head
-      html += '<div class="panel"><p class="kicker"><b>§3.1</b> Head to head</p>';
+      html += '<div class="panel"><p class="kicker"><b>3.1</b> Head to head</p>';
       if (st.rivals.length) {
         html += '<table class="tbl"><thead><tr><th>Rival</th><th class="n">P</th><th class="n">W–L</th><th></th></tr></thead><tbody>' +
           st.rivals.slice(0, 12).map(function (r) {
@@ -815,11 +817,11 @@
       } else html += '<p class="hint">Play a Duel or Truth or Lie to start a rivalry.</p>';
       html += '</div>';
       // Sprint trend
-      html += '<div class="panel spark"><p class="kicker"><b>§3.2</b> Sprint trend</p>' + sparkline(st.sprintSeries) +
+      html += '<div class="panel spark"><p class="kicker"><b>3.2</b> Sprint trend</p>' + sparkline(st.sprintSeries) +
         '<p class="hint">' + (st.sprintSeries.length ? st.sprintSeries.length + (st.sprintSeries.length === 1 ? ' sprint' : ' sprints') + ' · best ' + st.bestSprint + (st.bestDaily != null ? ' · best Daily ' + st.bestDaily.toFixed(2) + ' s' : '') : 'No sprints yet.') + '</p></div>';
       html += '</div>';
       // History
-      html += '<div class="section"><p class="kicker"><b>§3.3</b> History</p><div class="filters" id="recF">' +
+      html += '<div class="section"><p class="kicker"><b>3.3</b> History</p><div class="filters" id="recF">' +
         [['all', 'All'], ['duel', 'Duels'], ['tol', 'Truth or Lie'], ['sprint', 'Sprint'], ['daily', 'Daily']].map(function (f) { return '<button data-f="' + f[0] + '" aria-pressed="' + (recFilter === f[0]) + '">' + f[1] + (f[0] !== 'all' && st.byGame[f[0]] ? ' · ' + st.byGame[f[0]] : '') + '</button>'; }).join('') +
         '</div><div class="list">' + list.filter(function (b) { return recFilter === 'all' || b.game === recFilter; }).slice(0, 200).map(itemHtml).join('') + '</div></div>';
       el.innerHTML = html;
@@ -902,12 +904,12 @@
     liveStop();
     var el = $('v-live');
     if (!ME) {
-      el.innerHTML = '<p class="kicker"><b>§2.5</b> Live duel</p><h2 class="title">Live duel</h2>' +
+      el.innerHTML = '<p class="kicker"><b>2.5</b> Live duel</p><h2 class="title">Live duel</h2>' +
         '<p class="lede">Race a friend on their own device. You need an account so the game knows who’s who.</p><a class="btn primary" href="#/account">Sign in to play</a>';
       return;
     }
     if (code) return renderRoom(code);
-    el.innerHTML = '<p class="kicker"><b>§2.5</b> Live duel</p><h2 class="title">Live duel</h2>' +
+    el.innerHTML = '<p class="kicker"><b>2.5</b> Live duel</p><h2 class="title">Live duel</h2>' +
       '<p class="lede">Two devices, one race. Create a game and share its code, or join an open game below. Private games need their password.</p>' +
       '<div id="lvActive"></div>' +
       '<div class="grid2">' +
@@ -986,7 +988,7 @@
   // ---------------- room ----------------
   function renderRoom(code) {
     var el = $('v-live');
-    el.innerHTML = '<button class="back" id="lvBack">← Live lobby</button><p class="kicker"><b>§2.5</b> Room <span class="mono" style="margin-left:.4em">' + esc(code) + '</span></p>' +
+    el.innerHTML = '<button class="back" id="lvBack">← Live lobby</button><p class="kicker"><b>2.5</b> Room <span class="mono" style="margin-left:.4em">' + esc(code) + '</span></p>' +
       '<h2 class="title" id="lvTitle">…</h2><p class="series" id="lvCfg">&nbsp;</p><div id="lvRoom"><div class="blank">Connecting…</div></div>';
     $('lvBack').onclick = function () {
       var g = LV.g;
@@ -1191,7 +1193,7 @@
     chatStop();
     CH.last = 0; CH.ids = {}; CH.quiet = 0;
     var el = $('v-chat');
-    el.innerHTML = '<p class="kicker"><b>§5</b> Chat</p><h2 class="title">#' + CH.c + '</h2>' +
+    el.innerHTML = '<p class="kicker"><b>5</b> Chat</p><h2 class="title">#' + CH.c + '</h2>' +
       '<div class="irc" id="irc">' +
         '<div class="irc-title"><span id="ircTitle">mIRC - [#' + CH.c + ']</span><span aria-hidden="true"><i>_</i><i>□</i><i>×</i></span></div>' +
         '<div class="irc-menu" aria-hidden="true"><span><u>F</u>ile</span><span><u>V</u>iew</span><span>F<u>a</u>vorites</span><span><u>T</u>ools</span><span><u>C</u>ommands</span><span><u>W</u>indow</span><span><u>H</u>elp</span></div>' +
@@ -1352,11 +1354,37 @@
   // =====================================================================
   // Account
   // =====================================================================
+  function pwFormHtml(forced) {
+    return '<form id="pwF" novalidate>' +
+      '<label class="sr" for="pwCur">Current password</label><input class="inp" id="pwCur" type="password" autocomplete="current-password" placeholder="' + (forced ? 'Temporary password' : 'Current password') + '">' +
+      '<label class="sr" for="pwNew">New password</label><input class="inp" id="pwNew" type="password" autocomplete="new-password" placeholder="New password (8+ characters)">' +
+      '<label class="sr" for="pwNew2">New password again</label><input class="inp" id="pwNew2" type="password" autocomplete="new-password" placeholder="Type it again">' +
+      '<div class="err" id="pwErr" role="alert"></div><button class="btn primary block' + (forced ? ' lg' : '') + '" id="pwGo" type="submit">Save my password</button></form>';
+  }
+  function bindPwForm(forced) {
+    $('pwF').onsubmit = function (e) {
+      e.preventDefault();
+      var cur = $('pwCur').value, nw = $('pwNew').value, nw2 = $('pwNew2').value, err = $('pwErr'), btn = $('pwGo');
+      if (nw.length < 8) { err.textContent = 'Use at least 8 characters.'; return; }
+      if (nw !== nw2) { err.textContent = 'The two new passwords don’t match.'; return; }
+      err.textContent = ''; btn.disabled = true;
+      api('/api/auth', { action: 'changePassword', current: cur, password: nw }).then(function (j) {
+        setMe(j.user); toast('Password saved. Only you know it now.');
+        if (forced) { flush(); go(''); } else renderAccount();
+      }).catch(function (e2) { err.textContent = e2.message; btn.disabled = false; });
+    };
+  }
   function renderAccount() {
     var el = $('v-account');
+    if (ME && ME.mustChange) {
+      el.innerHTML = '<div class="auth"><p class="kicker"><b>6</b> Account</p><h2 class="title">Hi ' + esc(ME.name) + '!</h2>' +
+        '<p class="lede">Your account starts with a temporary password. Before you play, pick your own secret one that only you know. Use at least 8 characters. Tip: three random words, like <i>pebble-rocket-toast</i>.</p>' +
+        pwFormHtml(true) + '</div>';
+      bindPwForm(true); return;
+    }
     if (!ME) {
-      el.innerHTML = '<div class="auth"><p class="kicker"><b>§6</b> Account</p><h2 class="title">Sign in or sign up.<br><span class="serif" style="font-style:italic;color:var(--p1)">Same box.</span></h2>' +
-        '<p class="lede">Enter an email and a password. A new email creates your account on the spot, with no confirmation step. After that, every battle goes on your record.</p>' +
+      el.innerHTML = '<div class="auth"><p class="kicker"><b>6</b> Account</p><h2 class="title">Sign in or sign up.<br><span class="serif" style="font-style:italic;color:var(--p1)">Same box.</span></h2>' +
+        '<p class="lede">Type your email and a password. If you’re new, this makes your account straight away. After that, every game you play is saved to your record.</p>' +
         '<form id="authF" novalidate><label class="sr" for="em">Email</label><input class="inp" id="em" type="email" autocomplete="username" inputmode="email" placeholder="you@example.com" required>' +
         '<label class="sr" for="pw">Password</label><input class="inp" id="pw" type="password" autocomplete="current-password" placeholder="Password (6+ characters)" minlength="6" required>' +
         '<div class="err" id="authErr" role="alert"></div><button class="btn primary block lg" id="authGo" type="submit">Continue</button></form>' +
@@ -1387,15 +1415,17 @@
       };
     } else {
       var st = computeStats(localBattles());
-      el.innerHTML = '<div class="auth"><p class="kicker"><b>§6</b> Account</p><h2 class="title">' + esc(ME.name) + '</h2><p class="lede" style="margin-bottom:14px">' + esc(ME.email) + ' · ' + st.total + ' battles on record</p>' +
+      el.innerHTML = '<div class="auth"><p class="kicker"><b>6</b> Account</p><h2 class="title">' + esc(ME.name) + '</h2><p class="lede" style="margin-bottom:14px">' + esc(ME.email) + ' · ' + st.total + ' battles on record</p>' +
         '<div class="panel"><label class="lab mono" for="dn" style="font-size:.72rem;letter-spacing:.12em;color:var(--muted)">DISPLAY NAME (SHOWN ON BOARDS)</label>' +
         '<div class="row" style="margin-top:8px"><input class="inp" id="dn" maxlength="20" value="' + esc(ME.name) + '" style="flex:1;margin:0;min-width:0"><button class="btn" id="dnSave">Save</button></div><div class="err" id="dnErr"></div></div>' +
+        '<details class="panel pwbox" style="margin-top:14px"><summary>Change password</summary>' + pwFormHtml(false) + '</details>' +
         '<div class="row" style="margin-top:14px"><a class="btn" href="#/record">View record</a>' + (ME.admin ? '<a class="btn" href="/admin">Admin tools</a>' : '') + '<button class="btn ghost" id="logout">Sign out</button></div></div>' + settingsHtml();
       $('dnSave').onclick = function () {
         var v = $('dn').value.trim(); if (!v) { $('dnErr').textContent = 'Name can’t be empty.'; return; }
         api('/api/auth', { action: 'rename', name: v }).then(function (j) { var old = ME.name; setMe(j.user); if (S.names[0] === old) { S.names[0] = j.user.name; save(); } toast('Name updated'); renderAccount(); })
           .catch(function (e) { $('dnErr').textContent = e.message; });
       };
+      bindPwForm(false);
       $('logout').onclick = function () {
         api('/api/auth', { action: 'logout' }).catch(function () {}).then(function () {
           setMe(null); setLocalBattles([]); store.set('sd_pending', []); S.names[0] = 'Player 1'; save(); toast('Signed out'); renderAccount();
@@ -1405,10 +1435,10 @@
     bindSettings();
   }
   function settingsHtml() {
-    return '<div class="section auth"><p class="kicker"><b>§7</b> Preferences</p><div class="panel" style="padding:4px 18px">' +
+    return '<div class="section auth"><p class="kicker"><b>7</b> Preferences</p><div class="panel" style="padding:4px 18px">' +
       '<div class="setrow"><div>Sound<small>Blips, buzzers and fanfare</small></div><button class="toggle" data-s="sound" aria-pressed="' + !!S.sound + '" aria-label="Sound"></button></div>' +
       '<div class="setrow"><div>Haptics<small>Vibrate on wrong answers (Android)</small></div><button class="toggle" data-s="haptics" aria-pressed="' + !!S.haptics + '" aria-label="Haptics"></button></div>' +
-      '<div class="setrow"><div>Blackboard mode<small>Chalk on slate. Paper is the default.</small></div><button class="toggle" data-s="theme" aria-pressed="' + (S.theme === 'night') + '" aria-label="Blackboard mode"></button></div>' +
+      '<div class="setrow"><div>Night mode<small>Dark blue, like the sea at night</small></div><button class="toggle" data-s="theme" aria-pressed="' + (S.theme === 'night') + '" aria-label="Night mode"></button></div>' +
       '</div><p class="foot">Tip: in Chrome or Safari, choose Add to Home Screen and it runs full-screen and offline.</p></div>';
   }
   function bindSettings() {

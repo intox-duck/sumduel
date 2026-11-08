@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#F7F3E8">
+<meta name="theme-color" content="#FFF8EE">
 <meta name="color-scheme" content="light dark">
 <title>Sum Duel</title>
 <meta name="description" content="Head-to-head mental maths on one phone. Duel a friend, play Truth or Lie, chase the 60-second Sprint and the Daily. Every battle on your record.">
@@ -30,27 +30,27 @@
 @font-face{font-family:"SD Lean Mono";src:url(/fonts/sd-leanmono-regular.woff2) format("woff2");font-weight:300 500;font-style:normal;font-display:swap}
 @font-face{font-family:"SD Lean Mono";src:url(/fonts/sd-leanmono-bold.woff2) format("woff2");font-weight:600 900;font-style:normal;font-display:swap}
 
-/* ================= Tokens: "paper" (default) ================= */
+/* ================= Tokens: "seaside day" (default, v2.4) ================= */
 :root{
-  --bg:#F7F3E8; --bg2:#F1ECDF; --surface:#FBF8F1; --surface2:#F2EDE1; --raise:#E9E2D0;
-  --ink:#1A1A1A; --muted:#4D4A42; --faint:#77715F; --line:rgba(26,26,26,.16); --line2:rgba(26,26,26,.5);
-  --p1:#1D4E89; --p1-deep:#E3E9F1; --p1-glow:transparent;
-  --p2:#9B1C31; --p2-deep:#F3E2E1; --p2-glow:transparent;
-  --win:#2D6A2E; --warn:#8E5D07; --bad:#C0262D;
+  --bg:#FFF8EE; --bg2:#FDF0E0; --surface:#FFFFFF; --surface2:#FFF3E6; --raise:#FBE6D0;
+  --ink:#22223B; --muted:#4A4E69; --faint:#70758F; --line:rgba(34,34,59,.13); --line2:rgba(34,34,59,.34);
+  --p1:#0F7C8C; --p1-deep:#DDF3F4; --p1-glow:transparent;
+  --p2:#D6336C; --p2-deep:#FCE4EC; --p2-glow:transparent;
+  --win:#2B8A3E; --warn:#B35C00; --bad:#C92A2A; --sun:#F4B400; --on-accent:#FFFFFF;
   --serif:"SD LM Roman","Latin Modern Roman","CMU Serif",Georgia,"Times New Roman",serif;
   --caps:"SD LM Caps","Latin Modern Roman Caps",Georgia,serif;
   --mono:"SD Lean Mono","JuliaMono","DejaVu Sans Mono",ui-monospace,Menlo,Consolas,monospace;
   --sans:var(--serif);
-  --r:2px; --r-sm:2px;
+  --r:16px; --r-sm:12px;
   --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
   color-scheme:light;
 }
-/* "Blackboard" night theme: chalk on slate green */
+/* "Night by the sea" */
 :root[data-theme="night"]{
-  --bg:#1E2A24; --bg2:#1A251F; --surface:#23302A; --surface2:#283730; --raise:#31423A;
-  --ink:#EEEDE6; --muted:#BABDB2; --faint:#8C948A; --line:rgba(238,237,230,.16); --line2:rgba(238,237,230,.45);
-  --p1:#9CC6EE; --p1-deep:#25394A; --p2:#F2A7B8; --p2-deep:#47303A;
-  --win:#B9DC97; --warn:#F0C674; --bad:#FF8A80;
+  --bg:#13203A; --bg2:#101B31; --surface:#1A2A48; --surface2:#20335A; --raise:#294070;
+  --ink:#F5F3FF; --muted:#C9CCE8; --faint:#9AA0C8; --line:rgba(245,243,255,.14); --line2:rgba(245,243,255,.38);
+  --p1:#5CD3E0; --p1-deep:#163C52; --p2:#FF8FB8; --p2-deep:#47213A;
+  --win:#8CE99A; --warn:#FFD43B; --bad:#FF8787; --sun:#FFD43B; --on-accent:#13203A;
   color-scheme:dark;
 }
 
@@ -144,7 +144,7 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
 .game{position:relative;display:flex;flex-direction:column;gap:6px;text-align:left;border:1px solid var(--line2);border-radius:0;padding:18px 18px 16px;background:var(--surface);overflow:hidden;min-height:150px;color:var(--ink);transition:background .2s}
 .game:hover{background:var(--surface2)}
 .game .n{font-family:var(--caps);font-size:.95rem;letter-spacing:.04em;text-transform:lowercase;color:var(--muted)}
-.game .n::before{counter-increment:ex;content:"Exercise " counter(ex) " \00B7  ";font-family:var(--serif);font-weight:700;text-transform:none;letter-spacing:0;color:var(--ink)}
+.game .n::before{counter-increment:ex;content:"Game " counter(ex) " \00B7  ";font-family:var(--serif);font-weight:700;text-transform:none;letter-spacing:0;color:var(--ink)}
 .game h3{font-family:var(--mono);font-weight:700;font-size:1.4rem;line-height:1.15;margin:2px 0 4px;letter-spacing:-.02em}
 .game p{color:var(--muted);margin:0;font-size:1rem;max-width:42ch}
 .game .tag{position:absolute;top:16px;right:16px;font-family:var(--caps);font-size:.82rem;letter-spacing:.04em;text-transform:lowercase;padding:2px 7px;border:1px solid var(--line2);color:var(--muted)}
@@ -373,6 +373,44 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
 .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 #fx{position:fixed;inset:0;pointer-events:none;z-index:40}
 
+/* ================= v2.4 friendly layer: rounder, brighter, seaside (audience 9–11) =================
+   Overrides the textbook base above. The mIRC chat window (.irc) deliberately stays square and grey. */
+body{background-image:radial-gradient(var(--line) 1px, transparent 1.3px);background-size:22px 22px}
+.top{border-bottom:0}
+.top::after{content:"";position:absolute;left:0;right:0;bottom:-9px;height:10px;pointer-events:none;
+  background:radial-gradient(circle at 10px 0, transparent 7px, var(--p1) 7.5px, var(--p1) 9px, transparent 9.5px) repeat-x;background-size:20px 10px;opacity:.55}
+.kicker::before{content:"\2726";color:var(--p2);font-weight:400}
+.logo .d{color:var(--p2)}
+.panel,.game,.card,.blank,.savebar,.kpis,.list,.detail{border-radius:var(--r)}
+.kpis{border:1px solid var(--line2);padding:0 14px;background:var(--surface)}
+.list{border:1px solid var(--line2);overflow:hidden;background:var(--surface)}
+.item{padding:10px 14px}
+.game{box-shadow:0 4px 0 var(--line)}
+.game:hover{transform:translateY(-2px);box-shadow:0 6px 0 var(--line2);background:var(--surface)}
+.game.hero-card{box-shadow:0 4px 0 var(--line),inset 0 0 0 3px var(--surface),inset 0 0 0 4px var(--p2-deep)}
+.game .tag,.badge{border-radius:999px;padding:1px 9px}
+.btn{border-radius:999px}
+.btn.primary{background:var(--p2);border-color:var(--p2);color:var(--on-accent)}
+.btn.primary:hover{background:var(--p2);filter:brightness(1.08)}
+.seg{border-radius:999px;overflow:hidden}
+.seg button[aria-pressed="true"]{background:var(--p1);color:var(--on-accent)}
+.ops button{border-radius:var(--r-sm)}
+.ops button[aria-pressed="true"]{background:var(--p1);border-color:var(--p1);color:var(--on-accent)}
+.filters button,.chipsr button{border-radius:999px}
+.filters button[aria-pressed="true"]{background:var(--p1);border-color:var(--p1);color:var(--on-accent)}
+.who{border-radius:999px}
+.toggle{border-radius:7px;border-color:var(--p1)}
+.toggle::after{border-radius:3px;background:var(--p1)}
+.inp{border-radius:0}
+.toast{border-radius:999px;border-color:var(--p1)}
+.card{border-top-width:4px}
+.pad button{border-radius:var(--r-sm)}
+.chipbtn,.lv-opp{border-radius:999px}
+.tabbar a[aria-current="page"] svg{color:var(--p2)}
+.nav a[aria-current="page"]{box-shadow:inset 0 -2px 0 var(--p2)}
+.pwbox summary{cursor:pointer;font-family:var(--caps);text-transform:lowercase;letter-spacing:.05em;color:var(--ink)}
+.pwbox[open] summary{margin-bottom:10px}
+
 @media (prefers-reduced-motion: reduce){
   *{animation-duration:.001ms!important;transition-duration:.001ms!important}
   .half.wrong .pen{opacity:1}
@@ -397,9 +435,9 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
   <section id="v-home" data-view>
     <div class="hero">
       <div>
-        <p class="kicker"><b>§1</b> The arena</p>
+        <p class="kicker"><b>1</b> The arena</p>
         <h1 class="display">Quick maths,<br><em>head</em> to <em class="m">head.</em></h1>
-        <p class="lede qed"><span class="thm">Definition 1.1 <span>(Sum Duel)</span>.</span> Two players on one phone. You get the same questions on separate clocks, and every wrong answer adds three seconds. Sign in once and every battle goes on your record.</p>
+        <p class="lede"><span class="thm">How it works:</span> two players, the same questions, separate clocks. Every wrong answer adds 3 seconds, so be quick <em>and</em> careful. Sign in and every game is saved to your record.</p>
       </div>
       <div class="eqn" aria-hidden="true">
         <div class="l"><span>17 × 6 =</span><span class="a">102</span></div>
@@ -409,7 +447,7 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
     </div>
 
     <div class="section">
-      <p class="kicker"><b>§2</b> Choose your game</p>
+      <p class="kicker"><b>2</b> Choose your game</p>
       <div class="games">
         <button class="game hero-card" data-go="duel" style="--gc:var(--p2-glow)">
           <span class="tag">2P · 1 DEVICE</span>
@@ -451,7 +489,7 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
   <section id="v-setup" data-view class="hidden">
     <button class="back" data-back>← Arena</button>
     <div class="setup">
-      <p class="kicker"><b id="setupNo">§1</b> <span id="setupKicker">Set up the duel</span></p>
+      <p class="kicker"><b id="setupNo">1</b> <span id="setupKicker">Set up the duel</span></p>
       <h2 class="title" id="setupTitle">The Duel</h2>
       <p class="lede" id="setupLede"></p>
 
@@ -515,7 +553,7 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
 
   <!-- ===== Boards ===== -->
   <section id="v-boards" data-view class="hidden">
-    <p class="kicker"><b>§4</b> Leaderboards</p>
+    <p class="kicker"><b>4</b> Leaderboards</p>
     <h2 class="title">Who’s quickest</h2>
     <div class="filters" id="boardTabs" style="margin-top:14px">
       <button data-b="daily" aria-pressed="true">Today’s Daily</button>

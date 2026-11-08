@@ -30,7 +30,7 @@ const KINDS = {
 
 export default route(['GET', 'POST'], async (req, res) => {
   const u = await currentUser(req).catch(() => null);
-  if (!isMod(u)) return fail(res, 404, 'Not found');
+  if (!isMod(u) || u.must_change_pw) return fail(res, 404, 'Not found');
   const sup = isSuper(u);
   const sql = db();
 
@@ -66,7 +66,8 @@ export default route(['GET', 'POST'], async (req, res) => {
     const [t] = await sql`select id, email, role from users where id = ${userId}`;
     if (!t) return fail(res, 404, 'Player not found');
     if (!sup && t.role !== 'player' && String(t.id) !== String(u.id)) return fail(res, 403, 'This account can’t be changed from here.');
-    await sql`update users set pw_hash = ${await hashPassword(password)} where id = ${t.id}`;
+    // A reset password is temporary: the player must choose their own at next sign-in (not when you reset your own).
+    await sql`update users set pw_hash = ${await hashPassword(password)}, must_change_pw = ${String(t.id) !== String(u.id)} where id = ${t.id}`;
     const ended = await sql`delete from sessions where user_id = ${t.id} and user_id <> ${u.id} returning 1`;
     await sql`delete from auth_fails where key like ${likeEsc(t.email) + '|%'}`;
     await logEvent(req, u, 'admin_password_reset', { target: t, detail: { sessionsEnded: ended.length } });

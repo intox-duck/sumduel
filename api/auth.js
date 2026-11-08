@@ -2,6 +2,7 @@
 // POST /api/auth {action:'enter', email, password}  -> sign in, or create the account if the email is new
 // POST /api/auth {action:'logout'}
 // POST /api/auth {action:'rename', name}
+// POST /api/auth {action:'changePassword', current, password}  -> also clears a forced change; signs out other devices
 import {
   route, send, fail, db, hashPassword, verifyPassword, createSession, destroySession,
   currentUser, requireUser, publicUser, clientIp, cleanName, logEvent,
@@ -31,6 +32,25 @@ export default route(['GET', 'POST'], async (req, res) => {
     return send(res, 200, { user: publicUser({ ...u, name }) });
   }
 
+  if (action === 'changePassword') {
+    const u = await currentUser(req);
+    if (!u) return fail(res, 401, 'Sign in first');
+    const current = String(req.body.current || ''), next = String(req.body.password || '');
+    const [row] = await db()`select pw_hash from users where id = ${u.id}`;
+    if (!(await verifyPassword(current, row.pw_hash))) return fail(res, 401, 'Your current password isn’t right.');
+    if (next.length < 8) return fail(res, 400, 'Pick a password with at least 8 characters.');
+    if (next.length > 200) return fail(res, 400, 'That password is too long.');
+    if (next === current) return fail(res, 400, 'Pick a different password from the old one.');
+    if (/^(password|12345678|123456789|qwertyui|sumduel)/i.test(next)) return fail(res, 400, 'That one’s too easy to guess. Try a few words together.');
+    await db()`update users set pw_hash = ${await hashPassword(next)}, must_change_pw = false where id = ${u.id}`;
+    // Keep this device signed in; sign out everywhere else.
+    const t = String(req.headers.cookie || '').match(/(?:^|;\s*)sd_s=([^;]+)/);
+    const keep = t ? (await import('node:crypto')).createHash('sha256').update(decodeURIComponent(t[1])).digest('hex') : '';
+    await db()`delete from sessions where user_id = ${u.id} and token_hash <> ${keep}`;
+    await logEvent(req, u, 'password_changed', { detail: { forced: !!u.must_change_pw } });
+    return send(res, 200, { user: publicUser({ ...u, must_change_pw: false }) });
+  }
+
   if (action !== 'enter') return fail(res, 400, 'Unknown action');
 
   const email = String(req.body.email || '').trim().toLowerCase();
@@ -48,7 +68,7 @@ export default route(['GET', 'POST'], async (req, res) => {
     return fail(res, 429, 'Too many attempts. Try again in 15 minutes.');
   }
 
-  let [user] = await sql`select id, email, name, pw_hash, created_at, role from users where email = ${email}`;
+  let [user] = await sql`select id, email, name, pw_hash, created_at, role, must_change_pw from users where email = ${email}`;
   let created = false;
 
   if (user) {

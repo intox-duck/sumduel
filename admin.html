@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#F7F3E8">
+<meta name="theme-color" content="#FFF8EE">
 <meta name="color-scheme" content="light dark">
 <title>Sum Duel Admin</title>
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
@@ -18,18 +18,18 @@
 @font-face{font-family:"SD Lean Mono";src:url(/fonts/sd-leanmono-regular.woff2) format("woff2");font-weight:300 500;font-display:swap}
 @font-face{font-family:"SD Lean Mono";src:url(/fonts/sd-leanmono-bold.woff2) format("woff2");font-weight:600 900;font-display:swap}
 :root{
-  --bg:#F7F3E8; --surface:#FBF8F1; --surface2:#F2EDE1;
-  --ink:#1A1A1A; --muted:#4D4A42; --faint:#77715F; --line:rgba(26,26,26,.16); --line2:rgba(26,26,26,.5);
-  --p1:#1D4E89; --p2:#9B1C31; --win:#2D6A2E; --bad:#C0262D;
+  --bg:#FFF8EE; --surface:#FFFFFF; --surface2:#FFF3E6;
+  --ink:#22223B; --muted:#4A4E69; --faint:#70758F; --line:rgba(34,34,59,.13); --line2:rgba(34,34,59,.34);
+  --p1:#0F7C8C; --p2:#D6336C; --win:#2B8A3E; --bad:#C92A2A; --on-accent:#FFFFFF;
   --serif:"SD LM Roman","Latin Modern Roman",Georgia,serif;
   --caps:"SD LM Caps","Latin Modern Roman Caps",Georgia,serif;
   --mono:"SD Lean Mono","JuliaMono","DejaVu Sans Mono",ui-monospace,Menlo,monospace;
   color-scheme:light;
 }
 :root[data-theme="night"]{
-  --bg:#1E2A24; --surface:#23302A; --surface2:#283730;
-  --ink:#EEEDE6; --muted:#BABDB2; --faint:#8C948A; --line:rgba(238,237,230,.16); --line2:rgba(238,237,230,.45);
-  --p1:#9CC6EE; --p2:#F2A7B8; --win:#B9DC97; --bad:#FF8A80;
+  --bg:#13203A; --surface:#1A2A48; --surface2:#20335A;
+  --ink:#F5F3FF; --muted:#C9CCE8; --faint:#9AA0C8; --line:rgba(245,243,255,.14); --line2:rgba(245,243,255,.38);
+  --p1:#5CD3E0; --p2:#FF8FB8; --win:#8CE99A; --bad:#FF8787; --on-accent:#13203A;
   color-scheme:dark;
 }
 *{box-sizing:border-box}
@@ -120,6 +120,11 @@ select{font:inherit;font-family:var(--caps);text-transform:lowercase;letter-spac
 .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
 .filters input{flex:1 1 220px}
 .more{margin-top:12px}
+.panel,.card,.reset,.detail{border-radius:16px}
+button{border-radius:999px}
+button.primary{background:var(--p2);border-color:var(--p2);color:var(--on-accent)}
+.kicker::before{content:"\2726";color:var(--p2)}
+.pill{border-radius:999px;padding:0 8px}
 [hidden]{display:none !important}
 @media (max-width:560px){ .row{grid-template-columns:1fr} .row button{justify-self:start} }
 @media (prefers-reduced-motion:reduce){ .toast{transition:none} }

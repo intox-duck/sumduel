@@ -95,7 +95,7 @@ export async function destroySession(req, res) {
 export async function currentUser(req) {
   const t = parseCookies(req)[COOKIE];
   if (!t || t.length > 100) return null;
-  const rows = await db()`select u.id, u.email, u.name, u.created_at, u.role, u.muted_until
+  const rows = await db()`select u.id, u.email, u.name, u.created_at, u.role, u.muted_until, u.must_change_pw
                           from sessions s join users u on u.id = s.user_id
                           where s.token_hash = ${sha(t)} and s.expires_at > now()`;
   return rows[0] || null;
@@ -104,6 +104,8 @@ export async function currentUser(req) {
 export async function requireUser(req, res) {
   const u = await currentUser(req);
   if (!u) { fail(res, 401, 'Sign in first'); return null; }
+  // Starter / reset passwords: nothing else works until the player picks their own.
+  if (u.must_change_pw) { fail(res, 403, 'Please choose your own password first.'); return null; }
   return u;
 }
 
@@ -112,6 +114,7 @@ export async function requireUser(req, res) {
 export const publicUser = u => u && ({
   id: String(u.id), email: u.email, name: u.name, since: u.created_at,
   ...(u.role === 'admin' ? { admin: true } : {}),
+  ...(u.must_change_pw ? { mustChange: true } : {}),
 });
 
 export const isMod = u => !!u && (u.role === 'admin' || u.role === 'super_admin');
