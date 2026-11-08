@@ -2,15 +2,17 @@
 
 > Living architecture reference. Update this **before every push or major change**. If code and this file disagree, that is a bug.
 
-Live: **https://sumduel.app** (Vercel project `sumduel`, team `james-projects-f6199c2a`). Repo: `github.com/intox-duck/sumduel`, branch `main`.
+Live: **https://sumduel-james-projects-f6199c2a.vercel.app** for now. `sumduel.app` is NOT registered yet, see the handoff below. (Vercel project `sumduel`, team `james-projects-f6199c2a`). Repo: `github.com/intox-duck/sumduel`, branch `main`.
 
 ---
 
-## ACTIVE TASK / session handoff (2026-11-07)
+## ACTIVE TASK / session handoff (updated 2026-11-08)
+
+- **BLOCKER (found 2026-11-08):** the `sumduel.app` purchase **failed**. Order `01M6W4V42EZK35YXQJ4WAPNGGB` has status `failed`, error `payment-failed`. The domain is still available (checked with `get_domain_availability`), DNS doesn't resolve, and `get_domain_config` reports `misconfigured: true`. Fix: update the payment method on the Vercel team, then buy it again (about $9.99/yr). Production deploy `dpl_7F9Q9B4cMwPYsYNPUdT8CcorQoVW` (commit `b96b5f7`) is READY on the `*.vercel.app` URL.
 
 - **Situation:** v2 rebuild of the original single-file Sum Duel (from `sumduel.zip`) is complete. It adds accounts, battle history, leaderboards, two side games and a neon "consulting meets maths" redesign.
-- **Done:** domain `sumduel.app` bought through Vercel ($9.99, 1 yr, auto-renew ON, order `01M6W4V42EZK35YXQJ4WAPNGGB`). Neon Postgres `sumduel-db` (free plan, `lhr1`) provisioned and connected; schema applied with `npm run migrate`. The API was tested end to end with curl (16 checks) and the UI in headless Chromium at phone (390×844), tablet (820×1180) and desktop (1366×860), dark and light themes.
-- **Next steps / ideas not built yet:** online (remote) duels over WebSockets or polling; friend codes so both players' records update; achievements and badges; an "Exhibit" PDF/PNG export of a season; better anti-cheat (server-side seeded verification of Daily answers). Also check periodically that the domain order completed (`get_domain_order`).
+- **Done:** Neon Postgres `sumduel-db` (free plan, `lhr1`) provisioned and connected; schema applied with `npm run migrate`. The API was tested end to end with curl (16 checks) and the UI in headless Chromium at phone (390×844), tablet (820×1180) and desktop (1366×860), dark and light themes.
+- **Next steps / ideas not built yet:** online (remote) duels over WebSockets or polling; friend codes so both players' records update; achievements and badges; an "Exhibit" PDF/PNG export of a season; better anti-cheat (server-side seeded verification of Daily answers).
 - **Gotchas:**
   - The Vercel CLI hangs silently when it isn't logged in, because it runs a device-login flow. Run `vercel whoami` first.
   - `vercel link` is interactive. The project is already linked through `.vercel/project.json`, which is gitignored.
@@ -116,7 +118,7 @@ Sprint must be an integer 0–150. A Daily time must be ≥ 7 s (20 × 0.35 s) a
 ## 6. Deploy & environment
 - **Hosting:** Vercel, project `sumduel` (`prj_46A6caxkH7B2TjfcipANTRX3rqS4`). Functions run in `lhr1`.
 - **Deploys:** the GitHub repo is connected to Vercel, so **pushes to `main` auto-deploy to production**. Manual fallback: `vercel deploy --prod`.
-- **Domain:** `sumduel.app` (registered through Vercel, nameservers on Vercel). `www.sumduel.app` redirects to the apex.
+- **Domain:** `sumduel.app` is planned but **not registered** (the 2026-11-07 purchase failed with payment-failed). Once it's bought through Vercel (nameservers on Vercel), attach it to the project and make `www.sumduel.app` redirect to the apex. Until then the app is served only on `*.vercel.app`.
 - **Env/secrets:** `DATABASE_URL` (plus the other `POSTGRES_*`/`PG*` vars) is injected by the Neon integration into all environments. Locally: `vercel env pull .env.local` (gitignored). `.env.example` documents the keys. **No secrets in the repo.**
 - **Schema changes:** edit `scripts/migrate.js` (idempotent `create … if not exists`), then run `npm run migrate`.
 
