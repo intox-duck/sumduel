@@ -2,7 +2,7 @@
 
 > Living architecture reference. Update this **before every push or major change**. If code and this file disagree, that is a bug.
 
-Live: **https://sumduel-james-projects-f6199c2a.vercel.app** for now. `sumduel.app` is NOT registered yet, see the handoff below. (Vercel project `sumduel`, team `james-projects-f6199c2a`). Repo: `github.com/intox-duck/sumduel`, branch `main`.
+Live for now on the Vercel deployment URL: **https://sumduel-m85bddwyn-james-projects-f6199c2a.vercel.app** (deploy `dpl_7F9Q9B4c…`). Project aliases under `*.vercel.app` have not been verified. `sumduel.app` is NOT registered yet, see the handoff below. (Vercel project `sumduel`, team `james-projects-f6199c2a`). Repo: `github.com/intox-duck/sumduel`, branch `main`.
 
 ---
 
