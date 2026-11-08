@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en-GB" data-theme="paper">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F7F3E8">
+<meta name="color-scheme" content="light dark">
+<title>Sum Duel Admin</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="preload" href="/fonts/sd-lmroman-regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/sd-leanmono-regular.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face{font-family:"SD LM Roman";src:url(/fonts/sd-lmroman-regular.woff2) format("woff2");font-weight:300 500;font-style:normal;font-display:swap}
+@font-face{font-family:"SD LM Roman";src:url(/fonts/sd-lmroman-italic.woff2) format("woff2");font-weight:300 500;font-style:italic;font-display:swap}
+@font-face{font-family:"SD LM Roman";src:url(/fonts/sd-lmroman-bold.woff2) format("woff2");font-weight:600 900;font-style:normal;font-display:swap}
+@font-face{font-family:"SD LM Caps";src:url(/fonts/sd-lmroman-caps.woff2) format("woff2");font-weight:300 900;font-display:block}
+@font-face{font-family:"SD Lean Mono";src:url(/fonts/sd-leanmono-regular.woff2) format("woff2");font-weight:300 500;font-display:swap}
+@font-face{font-family:"SD Lean Mono";src:url(/fonts/sd-leanmono-bold.woff2) format("woff2");font-weight:600 900;font-display:swap}
+:root{
+  --bg:#F7F3E8; --surface:#FBF8F1; --surface2:#F2EDE1;
+  --ink:#1A1A1A; --muted:#4D4A42; --faint:#77715F; --line:rgba(26,26,26,.16); --line2:rgba(26,26,26,.5);
+  --p1:#1D4E89; --p2:#9B1C31; --win:#2D6A2E; --bad:#C0262D;
+  --serif:"SD LM Roman","Latin Modern Roman",Georgia,serif;
+  --caps:"SD LM Caps","Latin Modern Roman Caps",Georgia,serif;
+  --mono:"SD Lean Mono","JuliaMono","DejaVu Sans Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+:root[data-theme="night"]{
+  --bg:#1E2A24; --surface:#23302A; --surface2:#283730;
+  --ink:#EEEDE6; --muted:#BABDB2; --faint:#8C948A; --line:rgba(238,237,230,.16); --line2:rgba(238,237,230,.45);
+  --p1:#9CC6EE; --p2:#F2A7B8; --win:#B9DC97; --bad:#FF8A80;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{min-height:100vh;background:var(--bg);color:var(--ink);font-family:var(--serif);font-size:17px;line-height:1.5;font-kerning:normal;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:0 18px 60px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 0 12px;border-bottom:1px solid var(--line2);margin-bottom:28px}
+.logo{font-family:var(--mono);font-weight:700;font-size:1.3rem;letter-spacing:-.02em;line-height:1;color:var(--ink);text-decoration:none}
+.logo i{font-style:normal;color:var(--p2)}
+.logo sup{font-family:var(--caps);font-weight:400;font-size:.8rem;letter-spacing:.04em;text-transform:lowercase;color:var(--muted);margin-left:10px;vertical-align:baseline}
+.who{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:.8rem;color:var(--muted);min-width:0}
+.who span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kicker{font-family:var(--mono);font-size:1rem;font-weight:700;display:flex;align-items:baseline;gap:.7em;margin:0 0 10px}
+.kicker::before{content:"--";font-weight:400;color:var(--faint)}
+h1{font-family:var(--mono);font-weight:400;font-size:clamp(2rem,6vw,3.2rem);line-height:1.08;letter-spacing:-.03em;margin:4px 0 12px}
+h1 i{font-style:normal;color:var(--p1)}
+p.lede{color:var(--muted);max-width:60ch;margin:0 0 24px;text-align:justify;hyphens:auto}
+.thm{font-weight:700;color:var(--ink)} .thm span{font-weight:400}
+.qed::after{content:"";display:inline-block;width:.62em;height:.62em;border:1px solid currentColor;margin-left:.6em;vertical-align:-.02em}
+code{font-family:var(--mono);font-size:.9em}
+.panel{background:var(--surface);border:1px solid var(--line2);padding:20px}
+button{font:inherit;cursor:pointer;white-space:nowrap;border-radius:2px;border:1px solid var(--ink);background:transparent;color:var(--ink);padding:7px 14px;font-family:var(--caps);font-size:1rem;letter-spacing:.05em;text-transform:lowercase}
+button:hover{background:var(--surface2)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--p1);outline-offset:2px}
+button.primary{background:var(--ink);color:var(--bg)}
+button.primary:hover{background:var(--muted)}
+button.ghost{border-color:var(--line2)}
+button:disabled{opacity:.5;cursor:default}
+input{font:inherit;width:100%;min-width:0;background:transparent;color:var(--ink);border:0;border-bottom:1px solid var(--line2);border-radius:0;padding:9px 2px}
+input:focus{outline:none;border-color:var(--p1);box-shadow:0 1px 0 var(--p1)}
+input.mono{font-family:var(--mono)}
+.signin{max-width:460px}
+.signin .gbtn{min-height:44px;margin-top:16px}
+.msg{font-style:italic;font-size:.95rem;margin-top:12px;min-height:1.3em}
+.msg.bad{color:var(--bad)} .msg.ok{color:var(--win)}
+.bar{display:flex;gap:14px;align-items:center;margin-bottom:12px}
+.bar input{flex:1}
+.count{font-family:var(--mono);font-size:.78rem;color:var(--faint);white-space:nowrap}
+/* booktabs-style list: thick top/bottom rules, thin separators */
+.users{list-style:none;margin:0;padding:0;border-top:1.6px solid var(--ink);border-bottom:1.6px solid var(--ink)}
+.users li{border-top:1px solid var(--line);padding:12px 4px}
+.users li:first-child{border-top:0}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center}
+.em{font-family:var(--mono);font-size:.95rem;overflow-wrap:anywhere}
+.meta{font-size:.9rem;color:var(--muted);margin-top:2px;display:flex;flex-wrap:wrap;gap:2px 14px}
+.meta b{color:var(--ink);font-weight:700}
+.reset{margin-top:12px;padding:14px;border:1px solid var(--line2);background:var(--surface)}
+.reset .line{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+.reset .line input{flex:1 1 220px}
+.reset small{display:block;color:var(--muted);font-size:.9rem;margin-top:10px;font-style:italic}
+.empty-state{padding:26px 16px;text-align:center;color:var(--muted);font-style:italic}
+details{margin-top:30px}
+summary{cursor:pointer;font-family:var(--mono);font-size:1rem;font-weight:700;padding:6px 0}
+summary::marker{color:var(--faint)}
+.tbl{overflow-x:auto;margin-top:8px}
+table{width:100%;min-width:560px;border-collapse:collapse;font-size:.92rem;border-top:1.6px solid var(--ink);border-bottom:1.6px solid var(--ink)}
+th,td{text-align:left;padding:6px 10px;vertical-align:top}
+th{font-family:var(--caps);font-weight:400;letter-spacing:.04em;text-transform:lowercase;border-bottom:.8px solid var(--ink)}
+td{color:var(--muted);overflow-wrap:anywhere}
+td:nth-child(2),td:nth-child(4),td:nth-child(5){font-family:var(--mono);font-size:.82rem}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--surface);border:1px solid var(--ink);color:var(--ink);padding:8px 16px;font-size:.98rem;max-width:calc(100% - 32px);opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.show{opacity:1}
+[hidden]{display:none !important}
+@media (max-width:560px){ .row{grid-template-columns:1fr} .row button{justify-self:start} }
+@media (prefers-reduced-motion:reduce){ .toast{transition:none} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="logo" href="/">Sum<i>Duel</i><sup>Admin</sup></a>
+    <div class="who" id="who" hidden><span id="whoEmail"></span><button class="ghost" id="logout">Sign out</button></div>
+  </header>
+
+  <main>
+    <section id="loading"><p class="lede">Loading…</p></section>
+
+    <section id="unconfigured" hidden>
+      <div class="kicker">§0 Setup needed</div>
+      <h1>Not <i>configured</i></h1>
+      <p class="lede">The admin portal needs <code>GOOGLE_CLIENT_ID</code> and <code>ADMIN_EMAILS</code> set on the server. Until then nobody can sign in.</p>
+    </section>
+
+    <section id="signin" hidden>
+      <div class="kicker">§0 Restricted</div>
+      <h1>Admin <i>sign in</i></h1>
+      <div class="panel signin">
+        <p style="margin:0;color:var(--muted)">Sign in with the Google account that's on the admin list. Player accounts don't work here.</p>
+        <div class="gbtn" id="gbtn"></div>
+        <div class="msg" id="signinMsg" role="status"></div>
+      </div>
+    </section>
+
+    <section id="dash" hidden>
+      <div class="kicker">§1 Players</div>
+      <h1>accounts <i>:</i> List Player</h1>
+      <p class="lede qed"><span class="thm">Procedure 1.1 <span>(Password reset)</span>.</span> Search for a player, then set a new password. Saving it signs them out on every device and clears any lockout, so they can sign in straight away with the new one.</p>
+      <div class="bar">
+        <input id="q" type="search" placeholder="Search email or name" autocomplete="off" aria-label="Search players">
+        <span class="count" id="count"></span>
+      </div>
+      <ul class="users" id="users"></ul>
+
+      <details id="auditBox">
+        <summary>-- §2 Audit log</summary>
+        <div class="tbl"><table>
+          <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Player</th><th>IP</th></tr></thead>
+          <tbody id="audit"></tbody>
+        </table></div>
+      </details>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="/admin-portal.js"></script>
+</body>
+</html>

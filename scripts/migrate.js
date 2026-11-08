@@ -43,6 +43,23 @@ const statements = [
      at          timestamptz not null default now()
    )`,
   `create index if not exists auth_fails_key_idx on auth_fails(key, at)`,
+  // Admin portal (/admin): separate sessions + an append-only audit trail.
+  `create table if not exists admin_sessions (
+     token_hash  text primary key,
+     email       text not null,
+     created_at  timestamptz not null default now(),
+     expires_at  timestamptz not null
+   )`,
+  `create table if not exists admin_audit (
+     id              bigserial primary key,
+     admin_email     text not null,
+     action          text not null,
+     target_user_id  bigint,
+     target_email    text,
+     ip              text,
+     at              timestamptz not null default now()
+   )`,
+  `create index if not exists admin_audit_at_idx on admin_audit(at desc)`,
 ];
 
 for (const s of statements) await sql.query(s);

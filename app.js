@@ -40,14 +40,16 @@
   // =====================================================================
   // Settings
   // =====================================================================
-  var DEFAULTS = { names: ['Player 1', 'Player 2'], mode: 'split', ops: ['+', '−', '×', '÷'], level: 'medium', n: 10, sound: true, haptics: true, theme: 'dark' };
+  var DEFAULTS = { names: ['Player 1', 'Player 2'], mode: 'split', ops: ['+', '−', '×', '÷'], level: 'medium', n: 10, sound: true, haptics: true, theme: 'paper' };
   var S = Object.assign({}, DEFAULTS, store.get('sumduel', {}));
   if (!Array.isArray(S.ops) || !S.ops.length) S.ops = DEFAULTS.ops.slice();
   if (!Array.isArray(S.names)) S.names = DEFAULTS.names.slice();
   function save() { store.set('sumduel', S); }
   function applyTheme() {
-    document.documentElement.setAttribute('data-theme', S.theme === 'light' ? 'light' : 'dark');
-    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = S.theme === 'light' ? '#F3F5FA' : '#050B18';
+    // v2.1 textbook redesign: 'paper' (default) or 'night' (blackboard). Old saved 'dark'/'light' values fall back to paper.
+    var night = S.theme === 'night';
+    document.documentElement.setAttribute('data-theme', night ? 'night' : 'paper');
+    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = night ? '#1E2A24' : '#F7F3E8';
   }
   applyTheme();
 
@@ -259,7 +261,7 @@
     var st = computeStats(localBattles());
     var el = $('homeStats');
     if (!st.total) { el.innerHTML = ''; return; }
-    el.innerHTML = '<p class="kicker"><b>03</b> Your numbers</p>' + kpiRow(st) +
+    el.innerHTML = '<p class="kicker"><b>§3</b> Your numbers</p>' + kpiRow(st) +
       (ME ? '' : '<p class="foot">These stats only live on this device for now. <a href="#/account">Sign in</a> to keep them for good.</p>');
   }
   function kpiRow(st) {
@@ -658,7 +660,7 @@
         return '<div class="card' + (lose ? ' lose' : '') + '" ' + style + '><div class="whoc">' + esc(p.name) + '</div><div class="t">' + p.score + ' pts</div><dl>' +
           '<dt>Wrong calls</dt><dd>' + p.wrong + '</dd><dt>Avg reaction</dt><dd>' + (p.avgRt == null ? '–' : p.avgRt.toFixed(2) + ' s') + '</dd></dl></div>';
       }).join('') + '</div>';
-      if (b.game === 'duel') html += exhibitSplits(P, 'Exhibit 1: seconds per question, penalties excluded');
+      if (b.game === 'duel') html += exhibitSplits(P, 'Figure 1: seconds per question, penalties excluded');
       winColor = w < 0 ? null : (w === 0 ? cssVar('--p1') : cssVar('--p2'));
     } else if (b.game === 'sprint') {
       var p0 = P[0], best = computeStats(localBattles()).bestSprint, pb = best == null || p0.score > best;
@@ -667,7 +669,7 @@
       html += '<p class="margin">' + (pb && p0.score > 0 ? 'New personal best.' : 'Personal best: ' + best + '.') + ' ' + (p0.score ? (60 / p0.score).toFixed(2) + ' s per answer.' : '') + '</p><p class="series">&nbsp;</p>';
       html += '<div class="cards one"><div class="card" style="--pc:var(--p1);--pd:var(--p1-deep);--pg:var(--p1-glow)"><div class="whoc">' + esc(p0.name) + '</div><dl>' +
         '<dt>Correct</dt><dd>' + p0.score + '</dd><dt>Wrong</dt><dd>' + p0.wrong + '</dd><dt>Accuracy</dt><dd>' + (p0.score + p0.wrong ? Math.round(p0.score / (p0.score + p0.wrong) * 100) : 0) + '%</dd><dt>Best streak</dt><dd>' + p0.bestStreak + '</dd>' + weakSpot(p0.wrongBy) + '</dl></div></div>';
-      html += exhibitSplits([p0], 'Exhibit 1: seconds per correct answer');
+      html += exhibitSplits([p0], 'Figure 1: seconds per correct answer');
       if (pb && p0.score > 0) winColor = cssVar('--p1');
     } else {
       var d0 = P[0];
@@ -676,7 +678,7 @@
       html += '<p class="margin">' + (b.practice ? 'Practice run. Only your first attempt counts on the board.' : 'That’s your time for today. See where it ranks.') + '</p><p class="series">&nbsp;</p>';
       html += '<div class="cards one"><div class="card" style="--pc:var(--p2);--pd:var(--p2-deep);--pg:var(--p2-glow)"><div class="whoc">' + esc(d0.name) + '</div><dl>' +
         '<dt>Answering</dt><dd>' + d0.raw.toFixed(2) + ' s</dd><dt>Wrong</dt><dd>' + d0.wrong + ' (+' + d0.wrong * PENALTY + ' s)</dd><dt>Best streak</dt><dd>' + d0.bestStreak + '</dd>' + weakSpot(d0.wrongBy) + '</dl></div></div>';
-      html += exhibitSplits([d0], 'Exhibit 1: seconds per question');
+      html += exhibitSplits([d0], 'Figure 1: seconds per question');
       if (!b.practice) winColor = cssVar('--p2');
     }
     html += '<div class="savebar" id="saveBar"><span>Saving…</span></div>';
@@ -684,7 +686,7 @@
       '<button class="btn" id="share">Share</button><button class="btn ghost" id="toArena">Arena</button></div>';
     el.innerHTML = html;
     showScreen('results');
-    if (winColor) { sfx.win(); confetti([winColor, cssVar('--win'), '#ffffff', b.winner === 1 ? cssVar('--p1') : cssVar('--p2')]); }
+    if (winColor) { sfx.win(); confetti([winColor, cssVar('--win'), cssVar('--ink'), b.winner === 1 ? cssVar('--p1') : cssVar('--p2')]); }
 
     // Persist + leaderboard
     var bar = $('saveBar');
@@ -785,13 +787,13 @@
     var el = $('v-record');
     var paint = function (list) {
       var st = computeStats(list);
-      var html = '<p class="kicker"><b>03</b> ' + (ME ? esc(ME.name) + '’s record' : 'Your record · this device') + '</p><h2 class="title">Every battle, on the record</h2>';
+      var html = '<p class="kicker"><b>§3</b> ' + (ME ? esc(ME.name) + '’s record' : 'Your record · this device') + '</p><h2 class="title">Every battle, on the record</h2>';
       if (!ME) html += '<div class="savebar"><span>You’re not signed in, so this record only lives in this browser.</span><a class="btn" href="#/account" style="padding:8px 12px">Sign in</a></div>';
       if (!list.length) { el.innerHTML = html + '<div class="blank">No battles yet. <a href="#/">Go and pick a fight.</a></div>'; return; }
       html += '<div class="section" style="margin-top:18px">' + kpiRow(st) + '</div>';
       html += '<div class="grid2">';
       // Head to head
-      html += '<div class="panel"><p class="kicker"><b>A</b> Head to head</p>';
+      html += '<div class="panel"><p class="kicker"><b>§3.1</b> Head to head</p>';
       if (st.rivals.length) {
         html += '<table class="tbl"><thead><tr><th>Rival</th><th class="n">P</th><th class="n">W–L</th><th></th></tr></thead><tbody>' +
           st.rivals.slice(0, 12).map(function (r) {
@@ -801,11 +803,11 @@
       } else html += '<p class="hint">Play a Duel or Truth or Lie to start a rivalry.</p>';
       html += '</div>';
       // Sprint trend
-      html += '<div class="panel spark"><p class="kicker"><b>B</b> Sprint trend</p>' + sparkline(st.sprintSeries) +
+      html += '<div class="panel spark"><p class="kicker"><b>§3.2</b> Sprint trend</p>' + sparkline(st.sprintSeries) +
         '<p class="hint">' + (st.sprintSeries.length ? st.sprintSeries.length + (st.sprintSeries.length === 1 ? ' sprint' : ' sprints') + ' · best ' + st.bestSprint + (st.bestDaily != null ? ' · best Daily ' + st.bestDaily.toFixed(2) + ' s' : '') : 'No sprints yet.') + '</p></div>';
       html += '</div>';
       // History
-      html += '<div class="section"><p class="kicker"><b>C</b> History</p><div class="filters" id="recF">' +
+      html += '<div class="section"><p class="kicker"><b>§3.3</b> History</p><div class="filters" id="recF">' +
         [['all', 'All'], ['duel', 'Duels'], ['tol', 'Truth or Lie'], ['sprint', 'Sprint'], ['daily', 'Daily']].map(function (f) { return '<button data-f="' + f[0] + '" aria-pressed="' + (recFilter === f[0]) + '">' + f[1] + (f[0] !== 'all' && st.byGame[f[0]] ? ' · ' + st.byGame[f[0]] : '') + '</button>'; }).join('') +
         '</div><div class="list">' + list.filter(function (b) { return recFilter === 'all' || b.game === recFilter; }).slice(0, 200).map(itemHtml).join('') + '</div></div>';
       el.innerHTML = html;
@@ -870,7 +872,7 @@
   function renderAccount() {
     var el = $('v-account');
     if (!ME) {
-      el.innerHTML = '<div class="auth"><p class="kicker"><b>05</b> Account</p><h2 class="title">Sign in or sign up.<br><span class="serif" style="font-style:italic;color:var(--p1)">Same box.</span></h2>' +
+      el.innerHTML = '<div class="auth"><p class="kicker"><b>§5</b> Account</p><h2 class="title">Sign in or sign up.<br><span class="serif" style="font-style:italic;color:var(--p1)">Same box.</span></h2>' +
         '<p class="lede">Enter an email and a password. A new email creates your account on the spot, with no confirmation step. After that, every battle goes on your record.</p>' +
         '<form id="authF" novalidate><label class="sr" for="em">Email</label><input class="inp" id="em" type="email" autocomplete="username" inputmode="email" placeholder="you@example.com" required>' +
         '<label class="sr" for="pw">Password</label><input class="inp" id="pw" type="password" autocomplete="current-password" placeholder="Password (6+ characters)" minlength="6" required>' +
@@ -902,7 +904,7 @@
       };
     } else {
       var st = computeStats(localBattles());
-      el.innerHTML = '<div class="auth"><p class="kicker"><b>05</b> Account</p><h2 class="title">' + esc(ME.name) + '</h2><p class="lede" style="margin-bottom:14px">' + esc(ME.email) + ' · ' + st.total + ' battles on record</p>' +
+      el.innerHTML = '<div class="auth"><p class="kicker"><b>§5</b> Account</p><h2 class="title">' + esc(ME.name) + '</h2><p class="lede" style="margin-bottom:14px">' + esc(ME.email) + ' · ' + st.total + ' battles on record</p>' +
         '<div class="panel"><label class="lab mono" for="dn" style="font-size:.72rem;letter-spacing:.12em;color:var(--muted)">DISPLAY NAME (SHOWN ON BOARDS)</label>' +
         '<div class="row" style="margin-top:8px"><input class="inp" id="dn" maxlength="20" value="' + esc(ME.name) + '" style="flex:1;margin:0;min-width:0"><button class="btn" id="dnSave">Save</button></div><div class="err" id="dnErr"></div></div>' +
         '<div class="row" style="margin-top:14px"><a class="btn" href="#/record">View record</a><button class="btn ghost" id="logout">Sign out</button></div></div>' + settingsHtml();
@@ -920,19 +922,19 @@
     bindSettings();
   }
   function settingsHtml() {
-    return '<div class="section auth"><p class="kicker"><b>06</b> Preferences</p><div class="panel" style="padding:4px 18px">' +
+    return '<div class="section auth"><p class="kicker"><b>§6</b> Preferences</p><div class="panel" style="padding:4px 18px">' +
       '<div class="setrow"><div>Sound<small>Blips, buzzers and fanfare</small></div><button class="toggle" data-s="sound" aria-pressed="' + !!S.sound + '" aria-label="Sound"></button></div>' +
       '<div class="setrow"><div>Haptics<small>Vibrate on wrong answers (Android)</small></div><button class="toggle" data-s="haptics" aria-pressed="' + !!S.haptics + '" aria-label="Haptics"></button></div>' +
-      '<div class="setrow"><div>Light mode<small>Neon is the default</small></div><button class="toggle" data-s="theme" aria-pressed="' + (S.theme === 'light') + '" aria-label="Light mode"></button></div>' +
+      '<div class="setrow"><div>Blackboard mode<small>Chalk on slate. Paper is the default.</small></div><button class="toggle" data-s="theme" aria-pressed="' + (S.theme === 'night') + '" aria-label="Blackboard mode"></button></div>' +
       '</div><p class="foot">Tip: in Chrome or Safari, choose Add to Home Screen and it runs full-screen and offline.</p></div>';
   }
   function bindSettings() {
     qsa('[data-s]').forEach(function (t) {
       t.onclick = function () {
         var k = t.dataset.s;
-        if (k === 'theme') { S.theme = S.theme === 'light' ? 'dark' : 'light'; applyTheme(); }
+        if (k === 'theme') { S.theme = S.theme === 'night' ? 'paper' : 'night'; applyTheme(); }
         else S[k] = !S[k];
-        save(); t.setAttribute('aria-pressed', String(k === 'theme' ? S.theme === 'light' : S[k]));
+        save(); t.setAttribute('aria-pressed', String(k === 'theme' ? S.theme === 'night' : S[k]));
         if (k === 'sound' && S.sound) sfx.good();
       };
     });
