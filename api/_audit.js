@@ -44,6 +44,7 @@ export async function runAudit(req, actor, trigger) {
     totals: {
       new_users, sign_ins: counts.sign_in || 0, sign_ups: counts.sign_up || 0, failed_sign_ins: counts.sign_in_failed || 0,
       lockouts: counts.sign_in_locked || 0, battles: counts.battle_saved || 0, scores: counts.score_posted || 0,
+      live_games: counts.live_finish || 0, live_wrong_passwords: counts.live_join_failed || 0,
       chat_messages: counts.chat_message || 0, chat_blocked: counts.chat_blocked || 0, chat_flagged: flagged_new,
       chat_reports: counts.chat_report || 0, chat_deletes: counts.chat_delete || 0, chat_mutes: counts.chat_mute || 0,
       password_resets: counts.admin_password_reset || 0, role_changes: counts.admin_role_change || 0,

@@ -312,6 +312,18 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
 .toggle::after{content:"";position:absolute;top:4px;left:4px;width:13px;height:13px;background:var(--ink);transform:scale(0);transition:transform .15s}
 .toggle[aria-pressed="true"]::after{transform:scale(1)}
 
+/* ================= Live duel ================= */
+.game.live{grid-column:1/-1}
+.game.live h3 em{font-style:normal;color:var(--p1)}
+.blink::after{content:"_";animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.solo-top.lv{justify-content:space-between;gap:8px;padding:6px 10px}
+.lv-opp{pointer-events:auto;display:flex;align-items:center;gap:8px;min-width:0;background:var(--surface);border:1px solid var(--line2);padding:3px 10px;font-family:var(--caps);text-transform:lowercase;letter-spacing:.04em;font-size:.95rem;color:var(--muted);flex-wrap:wrap;justify-content:flex-end}
+.lv-opp .nm{color:var(--oc);max-width:9em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lv-bar{display:inline-block;width:70px;height:6px;background:var(--line);overflow:hidden}
+.lv-bar i{display:block;height:100%;width:0;background:var(--oc);transition:width .3s}
+.lv-st{font-family:var(--mono);text-transform:none;font-size:.85rem;color:var(--ink)}
+
 /* ================= Chat: an mIRC window (classic Win9x chrome in both themes, on purpose) ================= */
 .irc{--w95:#C0C0C0;--hi:#FFFFFF;--lo:#808080;--dk:#000000;background:var(--w95);color:#000;border:2px solid;border-color:var(--hi) var(--dk) var(--dk) var(--hi);box-shadow:inset 1px 1px 0 #DFDFDF,inset -1px -1px 0 var(--lo);font-family:var(--mono);font-size:14px;max-width:980px}
 .irc-title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px;padding:3px 4px 3px 6px;background:linear-gradient(90deg,#000080,#1084D0);color:#fff;font-weight:700;font-size:13px;letter-spacing:0}
@@ -405,6 +417,12 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
           <h3>The <em>Duel</em></h3>
           <p>Play face to face on a split screen, or take turns. Both players get the same set of questions and the fastest total time wins.</p>
         </button>
+        <button class="game live" data-go="live" style="--gc:var(--p1-glow)">
+          <span class="tag live">2 DEVICES</span>
+          <span class="n">ONLINE</span>
+          <h3>Live <em>Duel</em></h3>
+          <p>Race a friend on their own phone or tablet. Create a public or private game, wait in the lobby, then go head to head.</p>
+        </button>
         <button class="game" data-go="tol" style="--gc:rgba(184,255,60,.35)">
           <span class="tag">2P · BUZZER</span>
           <span class="n">SIDE GAME</span>
@@ -488,6 +506,9 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
       <p class="foot" id="kbdNote">On a keyboard, P1 types on the number row and P2 on the numpad.</p>
     </div>
   </section>
+
+  <!-- ===== Live duel (lobby + rooms) ===== -->
+  <section id="v-live" data-view class="hidden"></section>
 
   <!-- ===== Record ===== -->
   <section id="v-record" data-view class="hidden"></section>

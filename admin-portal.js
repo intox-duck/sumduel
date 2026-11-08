@@ -227,7 +227,8 @@
   // ---------------- activity (super) ----------------
   var LABEL = {
     sign_up: 'Signed up', sign_in: 'Signed in', sign_out: 'Signed out', sign_in_failed: 'Wrong password', sign_in_locked: 'Locked out', rename: 'Renamed',
-    battle_saved: 'Battle', score_posted: 'Score', chat_message: 'Chat', chat_blocked: 'Chat blocked', chat_report: 'Reported a message',
+    battle_saved: 'Battle', score_posted: 'Score', live_create: 'Live game created', live_join: 'Joined live game', live_join_failed: 'Wrong game password',
+    live_start: 'Live game started', live_finish: 'Live game finished', live_leave: 'Left live game', chat_message: 'Chat', chat_blocked: 'Chat blocked', chat_report: 'Reported a message',
     chat_delete: 'Removed a message', chat_mute: 'Muted', chat_unmute: 'Unmuted', admin_open: 'Opened admin', admin_password_reset: 'Reset password',
     admin_role_change: 'Changed role', admin_review: 'Reviewed flag', audit_run: 'Audit ran', audit_reviewed: 'Audit reviewed', role_set_cli: 'Role set (CLI)'
   };
@@ -235,6 +236,11 @@
     var d = r.detail || {};
     switch (r.action) {
       case 'battle_saved': return battleText({ game: d.game, winner: d.winner, day: d.day, practice: d.practice, players: [{ time: d.times ? d.times[0] : d.time, score: d.score && d.score.length ? d.score[0] : d.score, wrong: d.wrong && d.wrong.length ? d.wrong[0] : d.wrong }, { name: d.vs, time: d.times ? d.times[1] : null, score: d.score && d.score.length ? d.score[1] : null }] });
+      case 'live_create': return esc(d.code) + (d.name ? ' · ' + esc(d.name) : '') + (d.private ? ' · private' : '') + (d.rematch_of ? ' · rematch of ' + esc(d.rematch_of) : '');
+      case 'live_join': return esc(d.code) + ' · ' + esc(d.name) + (d.private ? ' · private' : '');
+      case 'live_join_failed': case 'live_leave': return esc(d.code) + (d.during ? ' · during ' + esc(d.during) : '');
+      case 'live_start': return esc(d.code) + ' · ' + esc(d.host) + ' vs ' + esc(d.guest);
+      case 'live_finish': return esc(d.code) + ' · ' + esc(d.host && d.host.name) + ' ' + (d.host && d.host.dnf ? 'DNF' : esc(d.host && d.host.time) + ' s') + ' vs ' + esc(d.guest && d.guest.name) + ' ' + (d.guest && d.guest.dnf ? 'DNF' : esc(d.guest && d.guest.time) + ' s') + ' · winner ' + esc(d.winner) + (d.reason !== 'finished' ? ' (' + esc(d.reason) + ')' : '');
       case 'score_posted': return esc(d.board) + ' · ' + esc(d.score) + (d.counted === false ? ' (not counted)' : '');
       case 'chat_message': return '#' + esc(d.channel) + ': ' + (d.kind === 'action' ? '* ' : '') + esc(d.text) + (d.flags ? ' <span class="pill bad">' + esc(d.flags.join(', ').replace(/_/g, ' ')) + '</span>' : '');
       case 'chat_blocked': return '#' + esc(d.channel) + ' <span class="pill bad">' + esc(d.reason) + '</span> ' + esc(d.text);
@@ -280,7 +286,7 @@
   // ---------------- audits (super) ----------------
   var TOT = [['new_users', 'new players'], ['sign_ins', 'sign-ins'], ['failed_sign_ins', 'wrong passwords'], ['lockouts', 'lockouts'], ['battles', 'battles'], ['scores', 'scores'],
     ['chat_messages', 'chat messages'], ['chat_blocked', 'blocked messages'], ['chat_flagged', 'flagged messages'], ['chat_reports', 'reports'], ['chat_deletes', 'removed'],
-    ['chat_mutes', 'mutes'], ['password_resets', 'password resets'], ['role_changes', 'role changes'], ['unreviewed_flags_total', 'flags waiting (all time)'], ['open_reports_total', 'open reports (all time)']];
+    ['chat_mutes', 'mutes'], ['live_games', 'live games'], ['password_resets', 'password resets'], ['role_changes', 'role changes'], ['unreviewed_flags_total', 'flags waiting (all time)'], ['open_reports_total', 'open reports (all time)']];
   function audits(p) {
     p.innerHTML = '<div class="kicker">§5 Audits</div><h1>audits <i>:</i> Safeguarding</h1>' +
       '<p class="lede">An audit runs automatically every morning (07:00 UTC) and covers everything since the previous one. It lists what needs attention, totals, blocked attempts to share personal details, and every action taken by admins. Run one now whenever you like.</p>' +

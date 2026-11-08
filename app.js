@@ -143,7 +143,9 @@
   function pending() { return store.get('sd_pending', []); }
   function recordBattle(b) {
     b.cid = b.cid || uid(); b.at = b.at || new Date().toISOString();
-    var list = localBattles(); list.unshift(b); setLocalBattles(list);
+    var list = localBattles();
+    if (list.some(function (x) { return x.cid === b.cid; })) return flush(); // already recorded (e.g. live result re-opened)
+    list.unshift(b); setLocalBattles(list);
     var p = pending(); p.push(b); store.set('sd_pending', p.slice(-LOCAL_MAX));
     return flush().then(function (ok) { return ok; });
   }
@@ -221,25 +223,26 @@
   // =====================================================================
   // Router
   // =====================================================================
-  var VIEWS = ['home', 'setup', 'record', 'boards', 'chat', 'account'];
+  var VIEWS = ['home', 'setup', 'live', 'record', 'boards', 'chat', 'account'];
   var GAMESCREENS = ['play', 'handoff', 'results'];
   var setupFor = 'duel';
   function showScreen(id) {
     VIEWS.forEach(function (v) { $('v-' + v).classList.toggle('hidden', v !== id); });
     GAMESCREENS.forEach(function (s) { $(s).classList.toggle('hidden', s !== id); });
     document.body.classList.toggle('ingame', GAMESCREENS.indexOf(id) >= 0);
-    var tab = id === 'setup' ? 'home' : id;
+    var tab = (id === 'setup' || id === 'live') ? 'home' : id;
     qsa('[data-tab]').forEach(function (a) { if (a.dataset.tab === tab) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
     if (GAMESCREENS.indexOf(id) < 0) window.scrollTo(0, 0);
   }
   function route() {
     var h = (location.hash || '#/').replace(/^#\/?/, '');
     if (G) abortGame();
-    chatStop();
+    chatStop(); liveStop();
     if (h === 'record') { showScreen('record'); renderRecord(); }
     else if (h === 'boards') { showScreen('boards'); renderBoards(); }
     else if (h === 'account') { showScreen('account'); renderAccount(); }
     else if (h === 'chat') { showScreen('chat'); renderChat(); }
+    else if (h === 'live' || h.indexOf('live/') === 0) { showScreen('live'); renderLive((h.split('/')[1] || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5) || null); }
     else if (h === 'duel' || h === 'tol') { setupFor = h; showScreen('setup'); renderSetup(); }
     else { showScreen('home'); renderHome(); }
   }
@@ -255,6 +258,7 @@
       if (g === 'duel' || g === 'tol') go(g);
       else if (g === 'sprint') startSoloGame('sprint');
       else if (g === 'daily') startSoloGame('daily');
+      else if (g === 'live') go('live');
     });
   });
   function renderHome() {
@@ -477,12 +481,14 @@
       sfx.good();
       var el = G.ui[pi].el; el.classList.add('good'); setTimeout(function () { el.classList.remove('good'); }, 120);
       if (G.kind !== 'sprint' && p.idx >= G.n) { finish(pi); return; }
+      if (G.kind === 'live') liveReport();
       paintQ(pi);
     } else if (p.input.length >= ans.length) {
       p.wrong++; p.input = ''; p.streak = 0; p.wrongBy[q.op] = (p.wrongBy[q.op] || 0) + 1;
       var e2 = G.ui[pi].el; e2.classList.remove('wrong'); void e2.offsetWidth; e2.classList.add('wrong');
       setTimeout(function () { e2.classList.remove('wrong'); }, 350);
       sfx.bad(); buzz(70); paintQ(pi);
+      if (G.kind === 'live') liveReport();
     } else paintQ(pi);
   }
   function finish(pi) {
@@ -491,6 +497,10 @@
     u.bar.style.width = '100%';
     u.cover.classList.remove('hidden'); u.big.style.fontSize = 'min(17vw,11vh)';
     var my = G.token;
+    if (G.kind === 'live') {
+      u.clock.textContent = elapsed(p).toFixed(1) + ' s'; u.big.textContent = elapsed(p).toFixed(1) + ' s';
+      u.sub.textContent = 'Done. Waiting for ' + G.oppName + '…'; sfx.done(); liveReport(true); return;
+    }
     if (G.kind === 'sprint') {
       u.big.textContent = p.idx; u.sub.textContent = 'correct in 60 s'; sfx.done(); wakeOff();
       setTimeout(function () { if (G && G.token === my) resultsSolo(); }, 1300); return;
@@ -866,6 +876,304 @@
       body.innerHTML = html;
       qsa('[data-play]', body).forEach(function (a) { a.onclick = function (e) { e.preventDefault(); startSoloGame(a.dataset.play); }; });
     }).catch(function () { body.innerHTML = '<div class="blank">The leaderboard is offline right now. Your games still save on this device.</div>'; });
+  }
+
+  // =====================================================================
+  // Live duel: two devices, server-timed, polled
+  // =====================================================================
+  var LV = { timer: null, offset: 0, rtt: 1e9, g: null, sending: false, again: false, finalSent: false };
+  var LCFG = Object.assign({ ops: ['+', '−', '×', '÷'], level: 'medium', n: 10, priv: false }, store.get('sd_live_cfg', {}));
+  function serverNow() { return Date.now() + LV.offset; }
+  function liveStop() { if (LV.timer) { clearTimeout(LV.timer); LV.timer = null; } }
+  // Keep the clock offset from the lowest-latency sample: that's the most accurate one.
+  function liveApi(path, body) {
+    var t0 = Date.now();
+    return api(path, body).then(function (j) {
+      var t1 = Date.now();
+      if (j && j.now && (t1 - t0) <= LV.rtt + 40) { LV.rtt = Math.min(LV.rtt, t1 - t0); LV.offset = new Date(j.now).getTime() - (t0 + t1) / 2; }
+      return j;
+    });
+  }
+  function cfgText(c) { return (c.ops || []).join(' ') + ' · ' + c.level + ' · ' + c.n + ' questions'; }
+  function liveOther(r) { return r === 'host' ? 'guest' : 'host'; }
+  function liveVisible(id) { return !$(id).classList.contains('hidden'); }
+
+  function renderLive(code) {
+    liveStop();
+    var el = $('v-live');
+    if (!ME) {
+      el.innerHTML = '<p class="kicker"><b>§2.5</b> Live duel</p><h2 class="title">Live duel</h2>' +
+        '<p class="lede">Race a friend on their own device. You need an account so the game knows who’s who.</p><a class="btn primary" href="#/account">Sign in to play</a>';
+      return;
+    }
+    if (code) return renderRoom(code);
+    el.innerHTML = '<p class="kicker"><b>§2.5</b> Live duel</p><h2 class="title">Live duel</h2>' +
+      '<p class="lede">Two devices, one race. Create a game and share its code, or join an open game below. Private games need their password.</p>' +
+      '<div id="lvActive"></div>' +
+      '<div class="grid2">' +
+        '<div class="panel"><p class="kicker"><b>A</b> Create a game</p>' +
+          '<div class="field"><span class="lab">Name</span><input class="inp" id="lvName" maxlength="30" placeholder="' + esc(ME.name) + '’s game"></div>' +
+          '<div class="field"><span class="lab">Operations</span><div class="ops" id="lvOps">' + ['+', '−', '×', '÷'].map(function (o) { return '<button type="button" data-v="' + o + '">' + o + '</button>'; }).join('') + '</div></div>' +
+          '<div class="field"><span class="lab">Difficulty</span><div class="seg" id="lvLevel"><button data-v="easy">Easy</button><button data-v="medium">Medium</button><button data-v="hard">Hard</button></div></div>' +
+          '<div class="field"><span class="lab">Questions</span><div class="seg" id="lvN"><button data-v="5">5</button><button data-v="10">10</button><button data-v="15">15</button><button data-v="20">20</button></div></div>' +
+          '<div class="setrow" style="border:0;padding-top:0"><div>Private game<small>Only people with the password can join</small></div><button class="toggle" id="lvPriv" aria-label="Private game"></button></div>' +
+          '<input class="inp hidden" id="lvPw" maxlength="50" placeholder="Game password (3+ characters)" autocomplete="off">' +
+          '<div class="err" id="lvErr" role="alert"></div><button class="btn primary block lg" id="lvCreateBtn">Create game</button></div>' +
+        '<div><div class="panel"><p class="kicker"><b>B</b> Join with a code</p>' +
+          '<div class="row"><input class="inp" id="lvCode" maxlength="5" placeholder="ABCDE" style="flex:1;margin:0;min-width:0;text-transform:uppercase;font-family:var(--mono)" autocomplete="off"><button class="btn" id="lvCodeBtn">Join</button></div>' +
+          '<input class="inp hidden" id="lvCodePw" maxlength="50" placeholder="Password (private games)" autocomplete="off" style="margin-top:10px">' +
+          '<div class="err" id="lvCodeErr" role="alert"></div></div>' +
+          '<div class="section" style="margin-top:22px"><p class="kicker"><b>C</b> Open games</p><div class="list" id="lvList"><div class="blank">Looking for games…</div></div></div></div>' +
+      '</div>';
+    var paintCfg = function () {
+      qsa('#lvOps button').forEach(function (b) { b.setAttribute('aria-pressed', String(LCFG.ops.indexOf(b.dataset.v) >= 0)); });
+      qsa('#lvLevel button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.v === LCFG.level)); });
+      qsa('#lvN button').forEach(function (b) { b.setAttribute('aria-pressed', String(Number(b.dataset.v) === LCFG.n)); });
+      $('lvPriv').setAttribute('aria-pressed', String(!!LCFG.priv)); $('lvPw').classList.toggle('hidden', !LCFG.priv);
+      store.set('sd_live_cfg', { ops: LCFG.ops, level: LCFG.level, n: LCFG.n, priv: LCFG.priv });
+    };
+    $('lvOps').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; var v = b.dataset.v;
+      if (LCFG.ops.indexOf(v) >= 0) { if (LCFG.ops.length > 1) LCFG.ops = LCFG.ops.filter(function (o) { return o !== v; }); } else LCFG.ops = LCFG.ops.concat([v]); paintCfg(); };
+    $('lvLevel').onclick = function (e) { var b = e.target.closest('button'); if (b) { LCFG.level = b.dataset.v; paintCfg(); } };
+    $('lvN').onclick = function (e) { var b = e.target.closest('button'); if (b) { LCFG.n = Number(b.dataset.v); paintCfg(); } };
+    $('lvPriv').onclick = function () { LCFG.priv = !LCFG.priv; paintCfg(); if (LCFG.priv) $('lvPw').focus(); };
+    paintCfg();
+    $('lvCreateBtn').onclick = function () {
+      var btn = this; btn.disabled = true; $('lvErr').textContent = '';
+      liveApi('/api/live', { action: 'create', name: $('lvName').value, cfg: { ops: LCFG.ops, level: LCFG.level, n: LCFG.n }, private: !!LCFG.priv, password: $('lvPw').value })
+        .then(function (j) { go('live/' + j.code); })
+        .catch(function (e) { $('lvErr').textContent = e.message; btn.disabled = false; });
+    };
+    var joinCode = function (code, pw, errEl) {
+      return liveApi('/api/live', { action: 'join', code: code, password: pw || '' }).then(function (j) { go('live/' + j.code); })
+        .catch(function (e) { errEl.textContent = e.message; if (/password/i.test(e.message)) return 'pw'; });
+    };
+    $('lvCode').oninput = function () { this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); };
+    $('lvCodeBtn').onclick = function () {
+      var c = $('lvCode').value; if (c.length !== 5) { $('lvCodeErr').textContent = 'Codes are 5 characters.'; return; }
+      joinCode(c, $('lvCodePw').value, $('lvCodeErr')).then(function (r) { if (r === 'pw') { $('lvCodePw').classList.remove('hidden'); $('lvCodePw').focus(); } });
+    };
+    $('lvList').onclick = function (e) {
+      var b = e.target.closest('button'); if (!b) return; var it = b.closest('.item'), code = it.dataset.code;
+      if (b.dataset.a === 'open') return go('live/' + code);
+      var pwEl = it.querySelector('input');
+      if (it.dataset.priv === '1' && !pwEl) {
+        var box = document.createElement('div'); box.className = 'row'; box.style.gridColumn = '1/-1';
+        box.innerHTML = '<input class="inp" maxlength="50" placeholder="Password" style="flex:1;margin:0;min-width:0" autocomplete="off"><button class="btn" data-a="join">Join</button><div class="err" style="width:100%"></div>';
+        it.appendChild(box); box.querySelector('input').focus(); return;
+      }
+      joinCode(code, pwEl ? pwEl.value : '', it.querySelector('.err') || $('lvCodeErr'));
+    };
+    pollLobby();
+  }
+  function pollLobby() {
+    liveStop();
+    if (!liveVisible('v-live') || !$('lvList')) return;
+    liveApi('/api/live?lobby=1').then(function (j) {
+      if (!$('lvList')) return;
+      $('lvActive').innerHTML = j.active ? '<div class="savebar ok" style="margin-bottom:18px"><span class="dot"></span><span>You’re in game <b class="mono">' + esc(j.active) + '</b>.</span><a class="btn" href="#/live/' + esc(j.active) + '">Back to the room</a></div>' : '';
+      var open = document.activeElement && $('lvList').contains(document.activeElement);
+      if (open) return; // don't wipe a password the player is typing
+      $('lvList').innerHTML = j.games.length ? j.games.map(function (g) {
+        return '<div class="item" data-code="' + esc(g.code) + '" data-priv="' + (g.private ? 1 : 0) + '"><span class="badge' + (g.private ? ' L' : '') + '">' + (g.private ? 'private' : 'public') + '</span>' +
+          '<div class="main"><b>' + esc(g.name) + '</b><small>' + esc(g.host) + ' · ' + esc(cfgText(g.cfg)) + ' · <span class="mono">' + esc(g.code) + '</span></small></div>' +
+          (g.mine ? '<button class="btn" data-a="open">Your room</button>' : '<button class="btn primary" data-a="join">Join</button>') + '</div>';
+      }).join('') : '<div class="blank">No open games right now. Create one and share the code.</div>';
+    }).catch(function (e) { if (e.status === 401) { setMe(null); renderLive(); } })
+      .then(function () { if (liveVisible('v-live') && $('lvList')) LV.timer = setTimeout(pollLobby, 3000); });
+  }
+
+  // ---------------- room ----------------
+  function renderRoom(code) {
+    var el = $('v-live');
+    el.innerHTML = '<button class="back" id="lvBack">← Live lobby</button><p class="kicker"><b>§2.5</b> Room <span class="mono" style="margin-left:.4em">' + esc(code) + '</span></p>' +
+      '<h2 class="title" id="lvTitle">…</h2><p class="series" id="lvCfg">&nbsp;</p><div id="lvRoom"><div class="blank">Connecting…</div></div>';
+    $('lvBack').onclick = function () {
+      var g = LV.g;
+      if (g && g.you && (g.status === 'open' || g.status === 'full')) liveApi('/api/live', { action: 'leave', code: code }).catch(function () {});
+      go('live');
+    };
+    LV.g = null; pollRoom(code);
+  }
+  function pollRoom(code) {
+    liveStop();
+    var inGame = G && G.kind === 'live' && G.code === code;
+    var onResults = inGame && liveVisible('results');
+    if (!inGame && !liveVisible('v-live')) return;
+    liveApi('/api/live?code=' + code).then(function (j) {
+      var g = j.game; LV.g = g;
+      if (G && G.kind === 'live' && G.code === code) return liveTick(g);
+      paintRoom(g);
+      if (g.status === 'playing' && g.questions) liveStartGame(g);
+      else if (g.status === 'done' && g.result) liveResults(g);
+    }).catch(function (e) {
+      if (e.status === 401) { setMe(null); return renderLive(); }
+      if (e.status === 404 || e.status === 400) { if ($('lvRoom')) $('lvRoom').innerHTML = '<div class="blank">No game with that code. <a href="#/live">Back to the lobby</a></div>'; LV.g = { status: 'gone' }; }
+    }).then(function () {
+      if (LV.g && LV.g.status === 'gone') return;
+      var still = (G && G.kind === 'live' && G.code === code) || ($('lvRoom') && liveVisible('v-live'));
+      if (!still) return;
+      var playing = LV.g && LV.g.status === 'playing';
+      LV.timer = setTimeout(function () { pollRoom(code); }, onResults ? 2500 : playing ? 900 : 1300);
+    });
+  }
+  function paintRoom(g) {
+    var room = $('lvRoom'); if (!room) return;
+    $('lvTitle').textContent = g.name; $('lvCfg').textContent = cfgText(g.cfg) + (g.private ? ' · private' : ' · public');
+    if (g.status === 'cancelled' || g.status === 'abandoned') { room.innerHTML = '<div class="blank">This game was closed. <a href="#/live">Back to the lobby</a></div>'; return; }
+    if (!g.you) {
+      if (g.status === 'open' && $('lvJoin')) return; // keep the password the visitor is typing
+      if (g.status !== 'open') { room.innerHTML = '<div class="blank">This game has already started or is full. <a href="#/live">Find another</a></div>'; return; }
+      room.innerHTML = '<div class="panel" style="max-width:460px"><p style="margin-top:0">Hosted by <b>' + esc(g.host.name) + '</b>.</p>' +
+        (g.private && !g.invited ? '<input class="inp" id="lvJoinPw" maxlength="50" placeholder="Password" autocomplete="off">' : '') +
+        '<div class="err" id="lvJoinErr"></div><button class="btn primary block lg" id="lvJoin">Join game</button></div>';
+      $('lvJoin').onclick = function () {
+        liveApi('/api/live', { action: 'join', code: g.code, password: $('lvJoinPw') ? $('lvJoinPw').value : '' })
+          .then(function () { pollRoom(g.code); }).catch(function (e) { $('lvJoinErr').textContent = e.message; });
+      };
+      return;
+    }
+    var me = g[g.you], opp = g[liveOther(g.you)];
+    var card = function (s, i, label) {
+      var st = 'style="--pc:' + COL[i].c + ';--pd:' + COL[i].d + ';--pg:' + COL[i].g + '"';
+      if (!s) return '<div class="card" ' + st + '><div class="whoc">' + label + '</div><div class="t blink">waiting</div><dl><dt>Share the code</dt><dd class="mono">' + esc(g.code) + '</dd></dl></div>';
+      return '<div class="card" ' + st + '><div class="whoc">' + label + (s.online ? '' : ' · offline') + '</div><div class="t">' + esc(s.name) + '</div><dl><dt>Status</dt><dd>' + (s.ready ? 'Ready ☒' : 'Not ready ☐') + '</dd></dl></div>';
+    };
+    // On every device: you are blue (P1), your opponent is pink (P2), matching the game and the results screen.
+    var myLabel = g.you === 'host' ? 'You · host' : 'You · challenger', oppLabel = g.you === 'host' ? 'Challenger' : 'Host';
+    var html = '<div class="cards">' + card(me, 0, myLabel) + card(opp, 1, oppLabel) + '</div>';
+    if (g.status === 'playing') {
+      var left = Math.max(0, Math.ceil((new Date(g.start_at).getTime() - serverNow()) / 1000));
+      html += '<div class="verdict" style="text-align:center">' + (left > 0 ? left : 'Go!') + '</div>';
+    } else if (g.status === 'open') {
+      html += '<div class="savebar"><span>Waiting for someone to join. Share the code <b class="mono">' + esc(g.code) + '</b>' + (g.private ? ' and the password' : '') + '.</span><button class="btn" id="lvCopy">Copy link</button></div>';
+    } else if (g.status === 'full') {
+      html += '<p class="lede" style="margin-bottom:14px">' + (me.ready && opp.ready ? 'Starting…' : me.ready ? 'Waiting for ' + esc(opp.name) + ' to get ready.' : 'Both players are here. Press ready when you are.') + '</p>' +
+        '<button class="btn ' + (me.ready ? '' : 'primary ') + 'block lg" id="lvReady">' + (me.ready ? 'Not ready yet' : 'I’m ready') + '</button>';
+    }
+    if (g.status === 'open' || g.status === 'full') html += '<div class="row" style="margin-top:12px"><button class="btn ghost" id="lvLeave">Leave room</button></div>';
+    room.innerHTML = html;
+    if ($('lvCopy')) $('lvCopy').onclick = function () {
+      var url = location.origin + '/#/live/' + g.code;
+      (navigator.share ? navigator.share({ title: 'Sum Duel', text: 'Join my Sum Duel game: ' + g.code, url: url }) : navigator.clipboard.writeText(url).then(function () { toast('Link copied'); }))
+        .catch(function () {});
+    };
+    if ($('lvReady')) $('lvReady').onclick = function () { ac(); liveApi('/api/live', { action: 'ready', code: g.code, ready: !me.ready }).then(function () { pollRoom(g.code); }).catch(function (e) { toast(e.message); }); };
+    if ($('lvLeave')) $('lvLeave').onclick = function () { liveApi('/api/live', { action: 'leave', code: g.code }).catch(function () {}).then(function () { go('live'); }); };
+  }
+
+  // ---------------- in game ----------------
+  function liveStartGame(g) {
+    abortGame(); token++;
+    var me = g[g.you], opp = g[liveOther(g.you)], ci = 0; // you are always P1 colours on your own device
+    LV.finalSent = false; LV.finalPending = false; LV.sending = false; LV.again = false;
+    G = { kind: 'live', token: token, mode: 'solo', n: g.cfg.n, names: [me.name], cfg: g.cfg, qs: g.questions, p: [newP()], ui: [], live: true,
+      code: g.code, id: g.id, role: g.you, oppName: opp.name, startAt: new Date(g.start_at).getTime(), started: false };
+    var p = G.p[0]; p.idx = me.idx || 0; p.wrong = me.wrong || 0;
+    var play = $('play'); play.innerHTML = '';
+    var half = makeHalf(0, false, true);
+    paintPlayer(half, ci);
+    var top = document.createElement('div'); top.className = 'solo-top lv';
+    var q = document.createElement('button'); q.className = 'chipbtn'; q.textContent = 'Quit';
+    q.onclick = function () {
+      if (!window.confirm('Leave the game? That counts as a loss.')) return;
+      var code = G.code; liveApi('/api/live', { action: 'leave', code: code }).catch(function () {});
+      abortGame(); go('live');
+    };
+    var strip = document.createElement('div'); strip.className = 'lv-opp'; strip.style.setProperty('--oc', COL[1 - ci].c);
+    strip.innerHTML = '<span class="nm">' + esc(opp.name) + '</span><span class="lv-bar"><i></i></span><span class="lv-st">0 / ' + g.cfg.n + '</span>';
+    top.appendChild(q); top.appendChild(strip); half.appendChild(top);
+    G.strip = strip;
+    play.appendChild(half); showScreen('play'); wakeOn();
+    if (me.done) { p.done = true; var u = G.ui[0]; u.cover.classList.remove('hidden'); u.big.textContent = '✓'; u.sub.textContent = 'Finished · waiting for ' + opp.name; LV.finalSent = true; }
+    else liveCountdown();
+    liveTick(g);
+  }
+  function liveCountdown() {
+    var my = G.token, lastShown = null;
+    (function step() {
+      if (!G || G.token !== my) return;
+      var u = G.ui[0], left = G.startAt - serverNow();
+      if (left > 0) {
+        var shown = left > 3000 ? 'Ready' : String(Math.ceil(left / 1000));
+        if (shown !== lastShown) { u.cover.classList.remove('hidden'); u.big.textContent = shown; u.sub.textContent = 'vs ' + G.oppName; if (shown !== 'Ready') sfx.tick(); lastShown = shown; }
+        setTimeout(step, 50); return;
+      }
+      sfx.go();
+      var p = G.p[0], now = performance.now();
+      p.start = now + left; p.last = p.start; p.running = true; G.started = true; // left <= 0: count any lateness
+      u.cover.classList.add('hidden'); paintQ(0); loop();
+    })();
+  }
+  function liveTick(g) {
+    if (!G || G.kind !== 'live') return;
+    var opp = g[liveOther(g.you)];
+    if (G.strip && opp) {
+      G.strip.querySelector('.lv-bar i').style.width = (opp.idx / g.cfg.n * 100) + '%';
+      G.strip.querySelector('.lv-st').innerHTML = opp.done ? 'done ✓' : (opp.idx + ' / ' + g.cfg.n + (opp.wrong ? ' · ' + opp.wrong + ' wrong' : ''));
+      var claim = G.strip.querySelector('.lv-claim');
+      if (g.opp_gone && !claim) {
+        var b = document.createElement('button'); b.className = 'chipbtn lv-claim'; b.textContent = 'Opponent left · claim win';
+        b.onclick = function () { liveApi('/api/live', { action: 'claim', code: g.code }).catch(function (e) { toast(e.message); }); };
+        G.strip.appendChild(b);
+      } else if (!g.opp_gone && claim) claim.remove();
+    }
+    if (g.status === 'done' && g.result) liveResults(g);
+    else if (g.status === 'cancelled' || g.status === 'abandoned') { abortGame(); toast('The game was closed.'); go('live'); }
+  }
+  function liveReport(final) {
+    if (!G || G.kind !== 'live') return;
+    if (final) LV.finalPending = true;
+    if (LV.sending) { LV.again = true; return; }
+    var p = G.p[0], code = G.code, body = { action: 'progress', code: code, idx: p.idx, wrong: p.wrong };
+    var isFinal = LV.finalPending && !LV.finalSent;
+    if (isFinal) { body.raw = +((p.end - p.start) / 1000).toFixed(3); body.extra = { splits: p.splits, bestStreak: p.bestStreak, wrongBy: p.wrongBy }; }
+    LV.sending = true;
+    var tries = 0;
+    (function send() {
+      liveApi('/api/live', body).then(function () {
+        if (isFinal) LV.finalSent = true;
+        LV.sending = false;
+        if (LV.again || (LV.finalPending && !LV.finalSent)) { LV.again = false; liveReport(); }
+      }).catch(function () {
+        if (++tries < 6 && G && G.code === code) setTimeout(send, 400 * tries); else LV.sending = false;
+      });
+    })();
+  }
+  function liveResults(g) {
+    if (G && G.kind === 'live' && G.resultFor === g.code) { liveRematchHint(g); return; }
+    var me = g.you, op = liveOther(me), r = g.result, mine = r[me], theirs = r[op];
+    var p = (G && G.kind === 'live' && G.code === g.code) ? G.p[0] : newP();
+    if (!G || G.kind !== 'live' || G.code !== g.code) { abortGame(); token++; G = { kind: 'live', token: token, code: g.code, live: false, p: [p], ui: [] }; }
+    G.resultFor = g.code; G.live = false; wakeOff();
+    var b = { cid: 'live-' + g.id, game: 'duel', mode: 'live', cfg: g.cfg, at: g.start_at, live: { code: g.code, reason: r.reason, role: me },
+      winner: r.winner == null ? -1 : r.winner === me ? 0 : 1,
+      players: [
+        { name: g[me].name, time: mine.time, raw: mine.raw, wrong: mine.wrong, dnf: mine.dnf || undefined, splits: p.splits, bestStreak: p.bestStreak, wrongBy: p.wrongBy },
+        { name: g[op].name, time: theirs.time, raw: theirs.raw, wrong: theirs.wrong, dnf: theirs.dnf || undefined, splits: theirs.splits || [], bestStreak: theirs.bestStreak || 0, wrongBy: {} }] };
+    renderResults(b, null);
+    var m = document.querySelector('#resBody .margin');
+    if (m && r.reason !== 'finished') {
+      var iWon = b.winner === 0;
+      m.textContent = r.reason === 'forfeit' ? (iWon ? g[op].name + ' left the game, so you win by forfeit.' : 'You left the game, so ' + g[op].name + ' wins.')
+        : 'Time ran out. ' + (b.winner < 0 ? 'Nobody finished.' : (iWon ? 'You got further.' : g[op].name + ' got further.'));
+    }
+    var kick = document.querySelector('#resBody .kicker b'); if (kick) kick.textContent = 'LIVE DUEL';
+    var hint = document.createElement('div'); hint.id = 'lvRe'; var bar = $('saveBar'); if (bar) bar.parentNode.insertBefore(hint, bar.nextSibling);
+    $('again').onclick = function () {
+      liveApi('/api/live', { action: 'rematch', code: g.code }).then(function (j) {
+        return liveApi('/api/live', { action: 'join', code: j.code }).catch(function () {}).then(function () { abortGame(); go('live/' + j.code); });
+      }).catch(function (e) { toast(e.message); });
+    };
+    liveRematchHint(g);
+  }
+  function liveRematchHint(g) {
+    var h = $('lvRe'); if (!h || !g.rematch_code) return;
+    if (h.dataset.code === g.rematch_code) return; h.dataset.code = g.rematch_code;
+    h.innerHTML = '<div class="savebar ok"><span class="dot"></span><span>' + esc(g[liveOther(g.you)].name) + ' wants a rematch.</span><button class="btn primary" id="lvReJoin">Join</button></div>';
+    $('lvReJoin').onclick = function () {
+      liveApi('/api/live', { action: 'join', code: g.rematch_code }).then(function (j) { abortGame(); go('live/' + j.code); }).catch(function (e) { toast(e.message); });
+    };
   }
 
   // =====================================================================

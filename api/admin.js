@@ -23,7 +23,7 @@ const ID = /^\d{1,18}$/;
 const likeEsc = s => s.replace(/[\\%_]/g, '\\$&');
 const KINDS = {
   auth: ['sign_up', 'sign_in', 'sign_out', 'sign_in_failed', 'sign_in_locked', 'rename'],
-  games: ['battle_saved', 'score_posted'],
+  games: ['battle_saved', 'score_posted', 'live_create', 'live_join', 'live_join_failed', 'live_start', 'live_finish', 'live_leave'],
   chat: ['chat_message', 'chat_blocked', 'chat_report', 'chat_delete', 'chat_mute', 'chat_unmute'],
   admin: ['admin_open', 'admin_password_reset', 'admin_role_change', 'admin_review', 'audit_run', 'audit_reviewed', 'role_set_cli'],
 };

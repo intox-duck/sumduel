@@ -8,6 +8,15 @@ Live: **https://sumduel.app** (`www.sumduel.app` 308-redirects to the apex; `sum
 
 ## ACTIVE TASK / session handoff (updated 2026-11-08)
 
+- **v2.3 (latest): Live Duel.** Two players race on **separate devices**. Anyone signed in can create a game, public or **private with a password**. Players wait in a lobby or room, both press Ready, and a server-timed countdown starts. Results, both battle records and a rematch flow are handled server-side. It's built on the **existing Neon database**: the owner said "Use it" after asking for a new Neon instance (see the next bullet). QA:
+  - 49/49 API checks (`qa/test3.mjs`);
+  - the 61 v2.2 checks re-run;
+  - a two-browser end-to-end test (`qa/shots5.mjs`): a desktop and a phone browser play a full private game through the UI, including a wrong password, the win shown on both devices, and the rematch invite and join.
+- **Neon provenance (corrected 2026-11-08):**
+  - The Neon Marketplace integration (`icfg_EyO6QHtjMfDAPR08XyR45pyR`, free plan) was installed on the team on **2026-04-22** under the owner's Vercel user.
+  - The `sumduel-db` database was added on **2026-11-07 at 23:18:36 UTC**, 6 minutes after the Vercel project was created. `.env.local` was written by `vercel env pull` at 23:18:50. That matches the previous Claude session provisioning it with the **Vercel CLI** (`vercel` v54.9.0, installed at `/mnt/c/Users/10850k/AppData/Roaming/npm/vercel` and logged in).
+  - **The Vercel MCP tools can't create Neon stores** (only Blob and Edge Config), **but the CLI can**: `vercel integration add neon`. An earlier message in this session wrongly said a Neon database couldn't be created at all.
+
 - **Situation:** v2.2 replaces the v2.1 Google-sign-in admin portal (which was never switched on) with **roles stored in Neon**. It also adds a full **activity log**, an **mIRC-style chat** with safeguarding filters, a **flag review queue** and **daily automated safeguarding audits**. The owner is giving the site to their 9-year-old daughter as a gift. The owner is a hidden **super admin**. The daughter will be an **admin** (mostly a player, plus moderation and password resets), and her actions are visible to the owner.
 - **Roles now:** `james.s.king@gmail.com` (user id 7) = `super_admin`, set with `npm run role` on 2026-11-08. **The daughter's account doesn't exist yet.** Once she signs up, the owner promotes her in `/admin` → Players → role dropdown → Admin (or with `npm run role -- <her email> admin`).
 - **Why not Google sign-in any more:** the owner judged OAuth client setup "too hardcore" for a family app and asked for super admin mapped from the database. The risk this reopens: player sign-up has no email confirmation. It's mitigated because the super_admin role sits on the **existing account row (id 7)**, which the owner already created on 2026-11-08 09:01 UTC, not on an email string. Nobody can re-register that email. The account is protected by its password plus the 10-failures-per-15-minutes lockout. Advise the owner to use a strong password.
@@ -37,7 +46,7 @@ Live: **https://sumduel.app** (`www.sumduel.app` 308-redirects to the apex; `sum
 
 ## 1. Architecture & module layout
 
-A static single-page app plus six Vercel serverless functions (Hobby limit 12). There's **no build step** and no framework.
+A static single-page app plus seven Vercel serverless functions (Hobby limit 12). There's **no build step** and no framework.
 
 | Path | Role |
 |---|---|
@@ -54,13 +63,15 @@ A static single-page app plus six Vercel serverless functions (Hobby limit 12). 
 | `api/board.js` | Leaderboards. Logs `score_posted`. |
 | `api/chat.js` | Chat (poll, send, report, delete, mute). Exports `CHANNELS`. |
 | `api/admin.js` | Admin API (role-gated, see §7). |
+| `api/live.js` | Live Duel API: lobby, create, join (with password), ready, progress, leave, claim, rematch. |
+| `api/_questions.js` | Server copy of `makeQuestions` and `RANGES`. **Keep it identical to `app.js`.** |
 | `api/audit-cron.js` | Vercel cron target. Checks `Authorization: Bearer $CRON_SECRET`, then calls `runAudit`. |
 | `scripts/migrate.js` | Idempotent schema (`npm run migrate`). |
 | `scripts/role.js` | `npm run role -- <email> <player|admin|super_admin>`. **The only way to create a super_admin.** Logs `role_set_cli`. |
 | `vercel.json` | Clean URLs, `lhr1`, headers (strict CSP + noindex + no-store on `/admin*`, immutable `/fonts/*`), and `crons: [{ path: /api/audit-cron, schedule: "0 7 * * *" }]`. |
 
 ### Client views (hash router)
-`#/` Arena · `#/duel`, `#/tol` setup · `#/record` · `#/boards` · **`#/chat`** · `#/account`. The game screens aren't routed. `route()` calls `chatStop()` on every navigation, so polling only runs while the chat view is open.
+`#/` Arena · `#/duel`, `#/tol` setup · **`#/live` (lobby) and `#/live/CODE` (room)** · `#/record` · `#/boards` · `#/chat` · `#/account`. The game screens aren't routed. `route()` calls `chatStop()` and `liveStop()` on every navigation, so polling only runs while that view is open. Leaving a live game by navigating away doesn't forfeit, but after 25 s of silence the opponent can claim the win.
 
 ## 2. Code & data workflow
 
@@ -113,6 +124,28 @@ There's no retention limit: everything is kept.
 - **Super admin also gets:** a role dropdown (player ↔ admin; never super_admin), Details per player (scores, battles, chat messages incl. removed, activity), and the true roles in every list.
 - **Password reset:** the admin sets or generates a password. This ends the target's sessions (except the caller's own) and clears `auth_fails`. Nothing is emailed.
 
+### Live Duel (`#/live`, `api/live.js`, `live_games`)
+- **Lobby (`#/live`):** create a game (name, operations, difficulty, 5/10/15/20 questions, public or private + password of 3–50 characters, scrypt-hashed), join by 5-character code, or pick from the open-games list (polled every 3 s). Private games ask for the password inline.
+  - One active game per player: creating or joining leaves your other lobby.
+  - Game names go through the chat safeguarding filter: PII and links are blocked, profanity is masked.
+- **Room (`#/live/CODE`):** polled every 1.3 s. Both player cards (**you are always blue, your opponent pink, on every device**), Ready toggles, Copy link / share sheet, Leave.
+  - Statuses: `open` → `full` → `playing` → `done`, or `cancelled` / `abandoned`.
+  - Housekeeping on each lobby poll: a lobby whose host has been silent for 60 s is abandoned; a silent guest is dropped back to `open`; a game where both players have been silent for 5 min is abandoned.
+- **Start:** when both are ready, the server generates seeded questions (`_questions.js`) and sets `start_at = now() + 5 s`.
+  - Questions, including answers, are only sent from 3.5 s before GO.
+  - Each client estimates its clock offset from the lowest-latency poll (`LV.offset`) and counts down to `start_at` on the game cover. Late arrivals start with their elapsed time already counted.
+- **Play:** reuses the solo play screen and keypad (`makeHalf`, `press`, `finish`). The opponent strip in the top bar shows their progress bar, `idx / n`, wrong count and "done ✓", polled every 0.9 s.
+  - Each correct or wrong answer sends `progress` (queued, retried, only moves forward).
+  - The final report carries the device stopwatch time plus splits, best streak and wrong answers per operation.
+- **Result (decided on the server, once, through a conditional update):**
+  - **Time:** the device time is used if it's within −5 s / +1 s of the server-measured time, otherwise the server time is used; then +3 s per wrong answer.
+  - **Winner:** both finished → lower time (a gap under 5 ms is a draw); one finished → that player; timeout (`max(120, n×20)` s) → whoever got further.
+  - **Forfeits:** `leave` mid-game is a forfeit, and so is `claim` after 25 s of opponent silence.
+  - Each player gets a `battles` row from their own perspective (`cid live-<id>`, `mode:'live'`), so the client's re-save dedupes. The result also carries both players' splits for the chart.
+- **Rematch:** either player creates a new game with the same settings, name and password, with the other player as `invited_id`. The old game's `rematch_code` shows the opponent a "wants a rematch → Join" bar on their results screen. The invited player skips the password.
+- **Logging:** `live_create`, `live_join`, `live_join_failed` (10 per 10 min → 429), `live_start`, `live_finish` (both players' times and the winner), `live_leave`. These appear in the activity log under "Games & scores" and as totals in audits.
+- **Budget:** 2 players × about 1 call per second during a game. A 1-minute game is about 150 calls in total, which is fine on Hobby.
+
 ### Safeguarding audits (`audit_reports`)
 - **Triggers:** the Vercel cron runs daily at **07:00 UTC** (Hobby crons can drift up to about an hour), and the super_admin can run one on demand.
 - **Window:** from the previous report's end to the DB's `now()`, capped at 7 days.
@@ -137,6 +170,7 @@ There's no retention limit: everything is kept.
   - `chat_reports(id, message_id, reporter_id, reason, at, resolved_at)`
   - `chat_presence(user_id, channel, seen_at)`
   - `audit_reports(id, created_at, trigger, period_start, period_end, data jsonb, reviewed_at, reviewed_by)`
+- **v2.3 table:** `live_games(id, code unique, name, host_id, guest_id, invited_id, is_private, pass_hash, cfg, status, host_/guest_ready, host_/guest_seen, questions, start_at, host_/guest_idx, _wrong, _done_at, _raw, _extra, result, rematch_code, created_at, updated_at)`
 
 ## 3. Reasons for change
 - **v1 → v2:** frictionless accounts, Neon (no free Upstash), side games, `e.code` keys, accessibility fixes.
@@ -146,6 +180,12 @@ There's no retention limit: everything is kept.
 - **Admins can't touch admin or super accounts:** without that, the daughter (admin) could reset the owner's password and take over the super_admin account.
 - **Chat safeguarding:** the users are children. Personal details and links are blocked outright; grooming and wellbeing signals are flagged for an adult instead of silently blocked, so context is kept. Nothing is hard-deleted.
 - **Audit window on DB time:** QA found a 3 s drift between the function host and Neon, which dropped fresh events from audits.
+- **Live Duel design (v2.3):**
+  - Polling instead of websockets, because Vercel functions can't hold sockets and the owner asked to stay on Neon/Vercel.
+  - The server owns the clock and the verdict, so a child's device can't fake a win by editing JavaScript beyond about 1 s of time.
+  - Questions are withheld until just before GO, so nobody can practise them in the lobby.
+  - Battles are written server-side, so the record exists even if a device closes on the results screen.
+  - You = blue on every device, because the results screen and the record always treat the device's owner as player 0.
 - **v2.1 service worker fix:** only `/` is cached, so other pages can't overwrite the shell.
 
 ## 4. Styling & design system
@@ -159,7 +199,7 @@ There's no retention limit: everything is kept.
   - `--mono` "SD Lean Mono" for headings, numbers, questions, keypad, equations, logo, kickers and chat.
   - `em` in mono headings is upright and coloured.
 - **Motifs:**
-  - Kickers are Lean comments (`-- §n`): §1 arena, §2 games, §3 numbers/record, §4 boards, **§5 chat**, **§6 account**, **§7 preferences**. Admin portal: §1 Players … §5 Audits, with headings in Lean type-signature style (`players : List User`).
+  - Kickers are Lean comments (`-- §n`): §1 arena, §2 games, **§2.5 live duel** (lobby A/B/C sub-sections, rooms), §3 numbers/record, §4 boards, §5 chat, §6 account, §7 preferences. The Arena has a full-width "Live Duel" card (ONLINE · 2 DEVICES) under the main event. Admin portal: §1 Players … §5 Audits, with headings in Lean type-signature style (`players : List User`).
   - "Definition 1.1" lede with a QED box; numbered equations; "Exercise n" cards; booktabs tables; "Figure n" captions; ballot-box toggles.
 - **Chat window exception:** `.irc` deliberately uses **classic Win9x/mIRC chrome in both themes**:
   - grey `#C0C0C0` bevels; title bar gradient `#000080 → #1084D0`; white log;
@@ -186,6 +226,7 @@ There's no retention limit: everything is kept.
   - `qa/server.mjs` mounts `api/*.js` (including `audit-cron` with `CRON_SECRET=test-cron-secret`) and serves static files.
   - `qa/test2.mjs` holds the 61 checks; it creates `qa.*.<tag>@example.com` users, sets roles via SQL, and cleans up after itself.
   - `qa/shots4.mjs` takes the screenshots.
+  - `qa/test3.mjs` holds the 49 live API checks. `qa/shots5.mjs` runs two browser contexts (desktop paper + phone blackboard) through a full private live game with a rematch.
   - `qa/cleanup2.mjs` deletes every `qa.%@example.com` user and its logs, plus **all** `audit_reports`, so don't run it once real audits exist.
   - Browser: `playwright-core@1.56.1` with the cached `chromium_headless_shell-1208`.
 
