@@ -1,8 +1,7 @@
 /* Sum Duel service worker: offline app shell. Bump VERSION on every deploy that changes shell files. */
-const VERSION = 'sd-v2.6.0';
+const VERSION = 'sd-v2.7.0';
 const SHELL = ['/', '/app.js', '/icon.svg', '/manifest.webmanifest',
-  '/fonts/sd-lmroman-regular.woff2', '/fonts/sd-lmroman-italic.woff2', '/fonts/sd-lmroman-bold.woff2',
-  '/fonts/sd-lmroman-caps.woff2', '/fonts/sd-leanmono-regular.woff2', '/fonts/sd-leanmono-bold.woff2'];
+  '/fonts/nunito-latin-wght.woff2', '/fonts/nunito-latin-wght-italic.woff2', '/fonts/fredoka-latin-wght.woff2'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

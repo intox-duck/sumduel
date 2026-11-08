@@ -225,7 +225,7 @@
   // =====================================================================
   // Chat is switched off (2026-11-08, owner's request). Its code stays dormant; see api/_features.js to bring it back.
   var CHAT_ON = false;
-  var VIEWS = ['home', 'setup', 'live', 'record', 'boards', 'chat', 'account'];
+  var VIEWS = ['home', 'setup', 'live', 'record', 'boards', 'players', 'chat', 'account'];
   var GAMESCREENS = ['play', 'handoff', 'results'];
   var setupFor = 'duel';
   function showScreen(id) {
@@ -244,6 +244,7 @@
     if (ME && ME.mustChange && h !== 'account') { location.hash = '#/account'; return; }
     if (h === 'record') { showScreen('record'); renderRecord(); }
     else if (h === 'boards') { showScreen('boards'); renderBoards(); }
+    else if (h === 'players') { showScreen('players'); renderPlayers(); }
     else if (h === 'account') { showScreen('account'); renderAccount(); }
     else if (h === 'chat' && CHAT_ON) { showScreen('chat'); renderChat(); }
     else if (h === 'live' || h.indexOf('live/') === 0) { showScreen('live'); renderLive((h.split('/')[1] || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5) || null); }
@@ -266,13 +267,179 @@
       else if (g === 'little') startLittle();
     });
   });
+  // =====================================================================
+  // v2.7 visuals shared by the home leaderboard and the players dashboard
+  // =====================================================================
+  var BLOB_CLS = ['il-p1', 'il-p2', 'il-sun', 'il-win'];
+  function blobIdx(name) { var h = 0; name = String(name || ''); for (var i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0; return Math.abs(h) % BLOB_CLS.length; }
+  // A small round character as an avatar; the colour follows the player's name, never their rank.
+  function avatar(name, size) {
+    var c = BLOB_CLS[blobIdx(name)], s = size || 44;
+    return '<svg class="ava" width="' + s + '" height="' + s + '" viewBox="0 0 60 60" aria-hidden="true">' +
+      '<ellipse class="' + c + '" cx="30" cy="32" rx="26" ry="24"/>' +
+      '<ellipse class="il-hi" cx="20" cy="20" rx="6" ry="3.5" transform="rotate(-30 20 20)"/>' +
+      '<circle class="il-w" cx="22" cy="29" r="5.4"/><circle class="il-w" cx="38" cy="29" r="5.4"/>' +
+      '<circle class="il-ink" cx="23" cy="29.5" r="2.6"/><circle class="il-ink" cx="39" cy="29.5" r="2.6"/>' +
+      '<circle class="il-blush" cx="15" cy="37" r="3"/><circle class="il-blush" cx="45" cy="37" r="3"/>' +
+      '<path class="il-line" style="stroke-width:2.2px" d="M26 38q4 4 8 0"/></svg>';
+  }
+  function ago(iso) {
+    if (!iso) return 'not played yet';
+    var s = (Date.now() - new Date(iso).getTime()) / 1000;
+    if (s < 90) return 'played just now';
+    if (s < 3600) return 'played ' + Math.round(s / 60) + ' min ago';
+    if (s < 86400) return 'played ' + Math.round(s / 3600) + ' h ago';
+    if (s < 86400 * 30) return 'played ' + Math.round(s / 86400) + ' d ago';
+    return 'played ' + fmtDate(iso);
+  }
+  // One shared tooltip for every [data-tip] mark (bars, W/L/D segments).
+  var tipEl = null;
+  function tipShow(e) {
+    var t = e.target.closest && e.target.closest('[data-tip]');
+    if (!t) { tipHide(); return; }
+    if (!tipEl) { tipEl = document.createElement('div'); tipEl.className = 'tip'; tipEl.setAttribute('role', 'tooltip'); document.body.appendChild(tipEl); }
+    tipEl.textContent = t.getAttribute('data-tip'); tipEl.classList.add('on');
+    var x = e.clientX, y = e.clientY, w = tipEl.offsetWidth;
+    tipEl.style.left = Math.max(8, Math.min(innerWidth - w - 8, x - w / 2)) + 'px';
+    tipEl.style.top = Math.max(8, y - tipEl.offsetHeight - 14) + 'px';
+    qsa('.hov').forEach(function (h) { if (h !== t) h.classList.remove('hov'); }); t.classList.add('hov');
+  }
+  function tipHide() { if (tipEl) tipEl.classList.remove('on'); qsa('.hov').forEach(function (h) { h.classList.remove('hov'); }); }
+  document.addEventListener('pointermove', function (e) { if (e.target.closest && e.target.closest('.has-tips')) tipShow(e); else if (tipEl && tipEl.classList.contains('on')) tipHide(); });
+  document.addEventListener('pointerdown', function (e) { if (e.target.closest && e.target.closest('.has-tips [data-tip]')) tipShow(e); });
+  document.addEventListener('scroll', tipHide, { passive: true });
+
+  // =====================================================================
+  // Home leaderboard (v2.7): today's Daily (fastest) and Sprint (most correct), top 5 each, public
+  // =====================================================================
+  var homeBoardSeq = 0;
+  function renderHomeBoard() {
+    var el = $('homeBoard'), my = ++homeBoardSeq, day = utcDay();
+    el.innerHTML = '<div class="hb-head"><p class="kicker">Top players</p><a class="more" href="#/boards">All boards →</a></div>' +
+      '<div class="hb-grid"><div class="panel hb" id="hbDaily"><div class="skel"></div></div><div class="panel hb" id="hbSprint"><div class="skel"></div></div></div>';
+    var paint = function (id, title, sub, j, daily) {
+      if (my !== homeBoardSeq) return;
+      var box = $(id); if (!box) return;
+      var rows = (j && j.rows) || [];
+      var fmt = function (r) { return daily ? Number(r.score).toFixed(2) + ' s' : r.score + ' correct'; };
+      var html = '<div class="hb-title"><h3>' + title + '</h3><span>' + sub + '</span></div>';
+      if (!rows.length) {
+        html += '<div class="hb-empty">' + avatar('?', 56) + '<p>Nobody on this board yet.</p><button class="btn primary" data-play="' + (daily ? 'daily' : 'sprint') + '">' + (daily ? 'Play today’s Daily' : 'Set the first score') + '</button></div>';
+      } else {
+        var order = [1, 0, 2].filter(function (i) { return rows[i]; });
+        html += '<ol class="podium" aria-label="Top three">' + order.map(function (i) {
+          var r = rows[i];
+          return '<li class="pod p' + r.rank + (r.me ? ' me' : '') + '"><span class="pav">' + avatar(r.name, i === 0 ? 58 : 46) + '</span>' +
+            '<span class="pn">' + esc(r.name) + '</span><span class="ps">' + fmt(r) + '</span>' +
+            '<span class="pb"><b>' + r.rank + '</b></span></li>';
+        }).join('') + '</ol>';
+        if (rows.length > 3) html += '<ol class="hb-rest" start="4">' + rows.slice(3, 5).map(function (r) {
+          return '<li' + (r.me ? ' class="me"' : '') + '><span class="rk">' + r.rank + '</span>' + avatar(r.name, 28) + '<span class="nm">' + esc(r.name) + '</span><span class="sc">' + fmt(r) + '</span></li>';
+        }).join('') + '</ol>';
+        if (j.mine && j.mine.rank > 5) html += '<p class="hint">You’re #' + j.mine.rank + ' with ' + fmt(j.mine) + '.</p>';
+      }
+      box.innerHTML = html;
+      qsa('[data-play]', box).forEach(function (b) { b.onclick = function () { ac(); startSoloGame(b.dataset.play); }; });
+    };
+    api('/api/board?b=daily&d=' + day).then(function (j) { paint('hbDaily', 'Today’s Daily', 'fastest time', j, true); })
+      .catch(function () { paint('hbDaily', 'Today’s Daily', 'offline right now', null, true); });
+    api('/api/board?b=sprint').then(function (j) { paint('hbSprint', 'Sprint', 'most correct in 60 s', j, false); })
+      .catch(function () { paint('hbSprint', 'Sprint', 'offline right now', null, false); });
+  }
+
+  // =====================================================================
+  // Players dashboard (v2.7): every player's report, visible to signed-in players only
+  // =====================================================================
+  var PL = { sort: 'battles', q: '', data: null };
+  var GAME_NAMES = { duel: 'Duel', live: 'Live', tol: 'Truth or Lie', sprint: 'Sprint', daily: 'Daily' };
+  function renderPlayers() {
+    var el = $('v-players');
+    var head = '<p class="kicker"><b>5</b> Players</p><h2 class="title">Everyone’s reports</h2>';
+    if (!ME) {
+      el.innerHTML = head + '<div class="pl-locked panel">' + avatar('Sum', 72) + avatar('Duel', 72) +
+        '<p>Sign in to see how every player is doing: games played, wins, best Sprint and fastest Daily.</p><a class="btn primary" href="#/account">Sign in</a></div>';
+      return;
+    }
+    el.innerHTML = head + '<p class="lede">Every player’s games, wins and best scores. Only signed-in players can see this page, and it shows display names only.</p><div id="plBody"><div class="skel tall"></div></div>';
+    api('/api/board?b=players').then(function (j) { PL.data = j; if (!$('v-players').classList.contains('hidden')) paintPlayers(); })
+      .catch(function (e) {
+        if (e.status === 401) { setMe(null); renderPlayers(); return; }
+        $('plBody').innerHTML = '<div class="blank">The player reports are offline right now. Try again in a minute.</div>';
+      });
+  }
+  // Drawn at the container's real width so axis text stays 12 px on phones (no viewBox shrink).
+  function dayChart(days, width) {
+    var W = Math.max(300, Math.min(1000, width || 700)), H = W < 500 ? 190 : 220, L = 30, R = 6, T = 14, B = 28;
+    var every = W < 500 ? 3 : 2;
+    var max = Math.max(4, Math.max.apply(null, days.map(function (d) { return d.n; })));
+    var step = Math.ceil(max / 4); max = step * 4;
+    var bw = (W - L - R) / days.length, gap = Math.max(4, bw * 0.28);
+    var y = function (v) { return T + (H - T - B) * (1 - v / max); };
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Battles per day for the last 14 days">';
+    for (var g = 0; g <= 4; g++) {
+      var gy = y(g * step);
+      svg += '<line class="ch-grid' + (g === 0 ? ' base' : '') + '" x1="' + L + '" x2="' + (W - R) + '" y1="' + gy + '" y2="' + gy + '"/>' +
+        '<text class="ch-ax" x="' + (L - 8) + '" y="' + (gy + 4) + '" text-anchor="end">' + g * step + '</text>';
+    }
+    days.forEach(function (d, i) {
+      var x = L + i * bw + gap / 2, w = bw - gap, top = y(d.n), base = y(0), h = base - top, r = Math.min(4, w / 2, h);
+      var dt = new Date(d.d + 'T12:00:00Z');
+      var lab = dt.toLocaleDateString(undefined, W < 500 ? { day: 'numeric', month: 'short', timeZone: 'UTC' } : { weekday: 'short', day: 'numeric', timeZone: 'UTC' });
+      var tip = dt.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' }) + ': ' + d.n + (d.n === 1 ? ' battle' : ' battles');
+      svg += '<g class="ch-col" data-tip="' + esc(tip) + '"><rect class="ch-hit" x="' + (L + i * bw) + '" y="' + T + '" width="' + bw + '" height="' + (H - T - B + 6) + '"/>';
+      if (d.n > 0) svg += '<path class="ch-bar" d="M' + x + ' ' + base + 'V' + (top + r) + 'q0 -' + r + ' ' + r + ' -' + r + 'h' + (w - 2 * r) + 'q' + r + ' 0 ' + r + ' ' + r + 'V' + base + 'z"/>';
+      svg += '</g>';
+      if ((days.length - 1 - i) % every === 0) svg += '<text class="ch-ax" x="' + (x + w / 2) + '" y="' + (H - 9) + '" text-anchor="middle">' + esc(lab) + '</text>';
+    });
+    return svg + '</svg>';
+  }
+  function paintPlayers() {
+    var j = PL.data, body = $('plBody'); if (!j || !body) return;
+    var t = j.totals, total14 = j.days.reduce(function (a, d) { return a + d.n; }, 0);
+    var list = j.players.filter(function (p) { return !PL.q || p.name.toLowerCase().indexOf(PL.q) >= 0; });
+    var key = { battles: function (p) { return -p.battles; }, wins: function (p) { return -p.w; },
+      sprint: function (p) { return p.bestSprint == null ? 1e9 : -p.bestSprint; }, daily: function (p) { return p.bestDaily == null ? 1e9 : p.bestDaily; },
+      recent: function (p) { return p.lastAt ? -new Date(p.lastAt).getTime() : 1e15; } }[PL.sort];
+    list = list.slice().sort(function (a, b) { return key(a) - key(b) || a.name.localeCompare(b.name); });
+    var tile = function (k, v, s) { return '<div class="stat"><span class="k">' + k + '</span><span class="v">' + v + '</span>' + (s ? '<span class="s">' + s + '</span>' : '') + '</div>'; };
+    var html = '<div class="stats">' + tile('Players', t.players) + tile('Battles', t.battles, 'all time') + tile('This week', t.week, 'battles') + tile('Played today', t.today, t.today === 1 ? 'player' : 'players') + '</div>';
+    html += '<div class="panel chart has-tips"><div class="ch-title"><h3>Battles per day</h3><span>last 14 days · ' + total14 + ' in total</span></div>' + dayChart(j.days, body.clientWidth - 38) +
+      '<details class="tview"><summary>Show as a table</summary><table class="tbl"><thead><tr><th>Day</th><th class="n">Battles</th></tr></thead><tbody>' +
+      j.days.map(function (d) { return '<tr><td>' + esc(d.d) + '</td><td class="n">' + d.n + '</td></tr>'; }).join('') + '</tbody></table></details></div>';
+    html += '<div class="pl-tools"><input class="inp" id="plQ" type="search" placeholder="Find a player" aria-label="Find a player" value="' + esc(PL.q) + '">' +
+      '<div class="filters" id="plSort" role="group" aria-label="Sort players">' + [['battles', 'Most games'], ['wins', 'Most wins'], ['sprint', 'Best Sprint'], ['daily', 'Fastest Daily'], ['recent', 'Recent']].map(function (s) {
+        return '<button data-s="' + s[0] + '" aria-pressed="' + (PL.sort === s[0]) + '">' + s[1] + '</button>';
+      }).join('') + '</div></div>';
+    html += '<div class="legend wld-legend" aria-hidden="true"><span style="--c:var(--c-win)">Wins</span><span style="--c:var(--c-loss)">Losses</span><span style="--c:var(--c-draw)">Draws</span><small>Duels, Live Duels and Truth or Lie</small></div>';
+    html += list.length ? '<div class="pl-grid has-tips">' + list.map(playerCard).join('') + '</div>' : '<div class="blank">No player called “' + esc(PL.q) + '”.</div>';
+    body.innerHTML = html;
+    $('plSort').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; PL.sort = b.dataset.s; paintPlayers(); };
+    var q = $('plQ'); q.oninput = function () { PL.q = q.value.trim().toLowerCase(); var pos = q.selectionStart; paintPlayers(); var n = $('plQ'); n.focus(); try { n.setSelectionRange(pos, pos); } catch (er) {} };
+  }
+  function playerCard(p) {
+    var played = p.w + p.l + p.d;
+    var seg = function (cls, n, word) { return n ? '<i class="' + cls + '" style="flex:' + n + '" data-tip="' + esc(p.name) + ': ' + n + ' ' + word + (n === 1 ? '' : (word === 'loss' ? 'es' : 's')) + '"></i>' : ''; };
+    var games = Object.keys(GAME_NAMES).filter(function (k) { return p.games[k]; }).sort(function (a, b) { return p.games[b] - p.games[a]; });
+    var since = new Date(p.since).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+    return '<article class="pcard' + (p.me ? ' me' : '') + '">' +
+      '<header>' + avatar(p.name, 52) + '<div><h3>' + esc(p.name) + (p.me ? ' <span class="badge">you</span>' : '') + '</h3><p>Joined ' + esc(since) + ' · ' + esc(ago(p.lastAt)) + '</p></div></header>' +
+      '<dl class="pstats"><div><dt>Games</dt><dd>' + p.battles + '</dd></div><div><dt>Wins</dt><dd>' + p.w + '</dd></div>' +
+      '<div><dt>Sprint</dt><dd>' + (p.bestSprint == null ? '–' : p.bestSprint) + '</dd></div><div><dt>Daily</dt><dd>' + (p.bestDaily == null ? '–' : p.bestDaily.toFixed(1) + ' s') + '</dd></div></dl>' +
+      (played ? '<div class="wld" role="img" aria-label="' + p.w + ' wins, ' + p.l + ' losses, ' + p.d + ' draws">' + seg('w', p.w, 'win') + seg('l', p.l, 'loss') + seg('d', p.d, 'draw') + '</div>' +
+        '<p class="wld-t">' + p.w + ' W · ' + p.l + ' L · ' + p.d + ' D' + ' <span>' + Math.round(p.w / played * 100) + '% won</span></p>'
+        : '<p class="wld-t none">No duels yet</p>') +
+      (games.length ? '<p class="gmix">' + games.map(function (k) { return '<span>' + GAME_NAMES[k] + ' <b>' + p.games[k] + '</b></span>'; }).join('') + '</p>' : '') +
+      '</article>';
+  }
+
   function renderHome() {
     var day = utcDay(), played = localBattles().some(function (b) { return b.game === 'daily' && b.day === day; });
     var tag = $('dailyTag'); tag.textContent = played ? 'DONE ✓' : 'TODAY'; tag.classList.toggle('live', !played);
     var st = computeStats(localBattles());
+    renderHomeBoard();
     var el = $('homeStats');
     if (!st.total) { el.innerHTML = ''; return; }
-    el.innerHTML = '<p class="kicker"><b>3</b> Your numbers</p>' + kpiRow(st) +
+    el.innerHTML = '<p class="kicker">Your numbers</p>' + kpiRow(st) +
       (ME ? '' : '<p class="foot">These stats only live on this device for now. <a href="#/account">Sign in</a> to keep them for good.</p>');
   }
   function kpiRow(st) {
@@ -1592,13 +1759,13 @@
   function renderAccount() {
     var el = $('v-account');
     if (ME && ME.mustChange) {
-      el.innerHTML = '<div class="auth"><p class="kicker"><b>5</b> Account</p><h2 class="title">Hi ' + esc(ME.name) + '!</h2>' +
+      el.innerHTML = '<div class="auth"><p class="kicker"><b>6</b> Account</p><h2 class="title">Hi ' + esc(ME.name) + '!</h2>' +
         '<p class="lede">Your account starts with a temporary password. Before you play, pick your own secret one that only you know. Use at least 8 characters. Tip: three random words, like <i>pebble-rocket-toast</i>.</p>' +
         pwFormHtml(true) + '</div>';
       bindPwForm(true); return;
     }
     if (!ME) {
-      el.innerHTML = '<div class="auth"><p class="kicker"><b>5</b> Account</p><h2 class="title">Sign in or sign up.<br><span class="serif" style="font-style:italic;color:var(--p1)">Same box.</span></h2>' +
+      el.innerHTML = '<div class="auth"><p class="kicker"><b>6</b> Account</p><h2 class="title">Sign in or sign up.<br><span class="serif" style="font-style:italic;color:var(--p1)">Same box.</span></h2>' +
         '<p class="lede">Type your email and a password. If you’re new, this makes your account straight away. After that, every game you play is saved to your record.</p>' +
         '<form id="authF" novalidate><label class="sr" for="em">Email</label><input class="inp" id="em" type="email" autocomplete="username" inputmode="email" placeholder="you@example.com" required>' +
         '<label class="sr" for="pw">Password</label><input class="inp" id="pw" type="password" autocomplete="current-password" placeholder="Password (6+ characters)" minlength="6" required>' +
@@ -1630,7 +1797,7 @@
       };
     } else {
       var st = computeStats(localBattles());
-      el.innerHTML = '<div class="auth"><p class="kicker"><b>5</b> Account</p><h2 class="title">' + esc(ME.name) + '</h2><p class="lede" style="margin-bottom:14px">' + esc(ME.email) + ' · ' + st.total + ' battles on record</p>' +
+      el.innerHTML = '<div class="auth"><p class="kicker"><b>6</b> Account</p><h2 class="title">' + esc(ME.name) + '</h2><p class="lede" style="margin-bottom:14px">' + esc(ME.email) + ' · ' + st.total + ' battles on record</p>' +
         '<div class="panel"><label class="flab" for="dn">Display name<small>shown on the boards</small></label>' +
         '<div class="row" style="margin-top:8px"><input class="inp" id="dn" maxlength="20" value="' + esc(ME.name) + '" style="flex:1;margin:0;min-width:0"><button class="btn" id="dnSave">Save</button></div><div class="err" id="dnErr"></div></div>' +
         '<details class="panel pwbox" style="margin-top:14px"><summary>Change password</summary>' + pwFormHtml(false) + '</details>' +
@@ -1650,7 +1817,7 @@
     bindSettings();
   }
   function settingsHtml() {
-    return '<div class="section auth"><p class="kicker"><b>6</b> Preferences</p><div class="panel" style="padding:4px 18px">' +
+    return '<div class="section auth"><p class="kicker"><b>7</b> Preferences</p><div class="panel" style="padding:4px 18px">' +
       '<div class="setrow"><div>Sound<small>Blips, buzzers and fanfare</small></div><button class="toggle" data-s="sound" aria-pressed="' + !!S.sound + '" aria-label="Sound"></button></div>' +
       '<div class="setrow"><div>Haptics<small>Vibrate on wrong answers (Android)</small></div><button class="toggle" data-s="haptics" aria-pressed="' + !!S.haptics + '" aria-label="Haptics"></button></div>' +
       '<div class="setrow"><div>Night mode<small>Dark blue, like the sea at night</small></div><button class="toggle" data-s="theme" aria-pressed="' + (S.theme === 'night') + '" aria-label="Night mode"></button></div>' +

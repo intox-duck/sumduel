@@ -7,6 +7,8 @@ Quick maths, head to head: **https://sumduel.app**
 - **Sprint**: as many as you can in 60 s, with a global leaderboard.
 - **The Daily**: 20 questions, the same for everyone that day, first attempt counts.
 - **Live Duel**: race a friend on their own device; public or private (password) games, server-timed.
+- **Home leaderboard**: today's Daily and Sprint top 5, with podiums, on the Arena.
+- **Players dashboard**: once signed in, everyone's game report (games, wins, best scores, activity chart), by display name only.
 - **Little Ones**: a picture level for 4-year-olds: count, find the side with more, tiny sums. Spoken prompts, no clock.
 - **Accounts**: email + password, no confirmation. Every battle goes on your record, with head-to-head stats against each rival.
 

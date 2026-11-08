@@ -2,6 +2,10 @@
 // GET  /api/board?b=sprint | daily[&d=YYYY-MM-DD]  -> { board, rows:[{rank,name,score,me}], mine }
 // POST /api/board {b:'sprint', score}              -> keeps personal best (higher is better)
 // POST /api/board {b:'daily', d, score}            -> first attempt of the day counts (lower seconds is better)
+// GET  /api/board?b=players                         -> signed-in players only: every player's report (v2.7 dashboard).
+//      Display names and game stats only: never emails, roles, IPs or chat. Shape:
+//      { totals:{players,battles,week,today}, days:[{d,n}] (last 14 UTC days), players:[{id,name,since,battles,
+//        games:{duel,live,tol,sprint,daily}, w,l,d, bestSprint, bestDaily, lastAt, me}] }
 import { route, send, fail, db, currentUser, requireUser, utcDay, logEvent } from './_lib.js';
 
 const TOP = 25;
@@ -20,6 +24,8 @@ function boardKey(b, d) {
 
 export default route(['GET', 'POST'], async (req, res) => {
   const sql = db();
+
+  if (req.method === 'GET' && req.query?.b === 'players') return playersReport(req, res, sql);
 
   if (req.method === 'GET') {
     const b = String(req.query?.b || 'sprint');
@@ -76,3 +82,46 @@ export default route(['GET', 'POST'], async (req, res) => {
 
   fail(res, 400, 'Unknown board');
 });
+
+// v2.7: the players dashboard. Anyone signed in can read it; it lists every player's game report.
+async function playersReport(req, res, sql) {
+  const u = await requireUser(req, res); if (!u) return;
+  const rows = await sql`
+    select u.id::text as id, u.name, u.created_at as since,
+      count(b.id)::int as battles,
+      count(*) filter (where b.game = 'duel' and coalesce(b.data->>'mode','') <> 'live')::int as duel,
+      count(*) filter (where b.game = 'duel' and b.data->>'mode' = 'live')::int as live,
+      count(*) filter (where b.game = 'tol')::int as tol,
+      count(*) filter (where b.game = 'sprint')::int as sprint,
+      count(*) filter (where b.game = 'daily')::int as daily,
+      count(*) filter (where b.game in ('duel','tol') and b.data->>'winner' = '0')::int as w,
+      count(*) filter (where b.game in ('duel','tol') and b.data->>'winner' = '1')::int as l,
+      count(*) filter (where b.game in ('duel','tol') and b.data->>'winner' = '-1')::int as d,
+      max(b.played_at) as last_at,
+      (select max(score) from scores s where s.user_id = u.id and s.board = 'sprint') as best_sprint,
+      (select min(score) from scores s where s.user_id = u.id and s.board like 'daily:%') as best_daily
+    from users u left join battles b on b.user_id = u.id
+    group by u.id order by count(b.id) desc, u.created_at asc limit 500`;
+  const days = await sql`
+    select to_char(d::date, 'YYYY-MM-DD') as d, coalesce(n, 0)::int as n
+    from generate_series((now() at time zone 'utc')::date - 13, (now() at time zone 'utc')::date, interval '1 day') d
+    left join (select (played_at at time zone 'utc')::date as day, count(*) as n from battles
+               where played_at > now() - interval '15 days' group by 1) x on x.day = d::date
+    order by d`;
+  const [t] = await sql`select
+      (select count(*) from users)::int as players,
+      (select count(*) from battles)::int as battles,
+      (select count(*) from battles where played_at > now() - interval '7 days')::int as week,
+      (select count(distinct user_id) from battles where played_at >= (now() at time zone 'utc')::date)::int as today`;
+  send(res, 200, {
+    totals: t, days,
+    players: rows.map(r => ({
+      id: r.id, name: r.name, since: r.since, battles: r.battles,
+      games: { duel: r.duel, live: r.live, tol: r.tol, sprint: r.sprint, daily: r.daily },
+      w: r.w, l: r.l, d: r.d,
+      bestSprint: r.best_sprint == null ? null : Number(r.best_sprint),
+      bestDaily: r.best_daily == null ? null : Number(r.best_daily),
+      lastAt: r.last_at, me: r.id === String(u.id),
+    })),
+  });
+}

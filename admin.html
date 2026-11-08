@@ -9,22 +9,20 @@
 <title>Sum Duel Admin</title>
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
-<link rel="preload" href="/fonts/sd-lmroman-regular.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="/fonts/sd-leanmono-regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/nunito-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/fredoka-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
 <style>
-@font-face{font-family:"SD LM Roman";src:url(/fonts/sd-lmroman-regular.woff2) format("woff2");font-weight:300 500;font-style:normal;font-display:swap}
-@font-face{font-family:"SD LM Roman";src:url(/fonts/sd-lmroman-italic.woff2) format("woff2");font-weight:300 500;font-style:italic;font-display:swap}
-@font-face{font-family:"SD LM Roman";src:url(/fonts/sd-lmroman-bold.woff2) format("woff2");font-weight:600 900;font-style:normal;font-display:swap}
-@font-face{font-family:"SD LM Caps";src:url(/fonts/sd-lmroman-caps.woff2) format("woff2");font-weight:300 900;font-display:block}
-@font-face{font-family:"SD Lean Mono";src:url(/fonts/sd-leanmono-regular.woff2) format("woff2");font-weight:300 500;font-display:swap}
-@font-face{font-family:"SD Lean Mono";src:url(/fonts/sd-leanmono-bold.woff2) format("woff2");font-weight:600 900;font-display:swap}
+@font-face{font-family:"Nunito";src:url(/fonts/nunito-latin-wght.woff2) format("woff2");font-weight:200 1000;font-style:normal;font-display:swap}
+@font-face{font-family:"Nunito";src:url(/fonts/nunito-latin-wght-italic.woff2) format("woff2");font-weight:200 1000;font-style:italic;font-display:swap}
+@font-face{font-family:"Fredoka";src:url(/fonts/fredoka-latin-wght.woff2) format("woff2");font-weight:300 700;font-style:normal;font-display:swap}
 :root{
   --bg:#FFF8EE; --surface:#FFFFFF; --surface2:#FFF3E6;
   --ink:#22223B; --muted:#4A4E69; --faint:#70758F; --line:rgba(34,34,59,.13); --line2:rgba(34,34,59,.34);
   --p1:#0F7C8C; --p2:#D6336C; --win:#2B8A3E; --bad:#C92A2A; --on-accent:#FFFFFF;
-  --serif:"SD LM Roman","Latin Modern Roman",Georgia,serif;
-  --caps:"SD LM Caps","Latin Modern Roman Caps",Georgia,serif;
-  --mono:"SD Lean Mono","JuliaMono","DejaVu Sans Mono",ui-monospace,Menlo,monospace;
+  --serif:"Nunito",ui-rounded,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --caps:"Nunito",ui-rounded,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"Fredoka","Nunito",ui-rounded,system-ui,sans-serif;
+  --num:"Nunito",ui-rounded,system-ui,sans-serif;
   color-scheme:light;
 }
 :root[data-theme="night"]{
@@ -43,7 +41,7 @@ body{min-height:100vh;background:var(--bg);color:var(--ink);font-family:var(--se
 .logo{display:inline-flex;align-items:center;gap:8px}
 .logo .mk{width:1.25em;height:1.25em;flex:none}
 .mk-bar{fill:var(--ink)} .mk-a{fill:var(--p1)} .mk-b{fill:var(--p2)}
-.logo sup{font-family:var(--caps);font-weight:400;font-size:.8rem;letter-spacing:.04em;text-transform:lowercase;color:var(--muted);margin-left:10px;vertical-align:baseline}
+.logo sup{font-family:var(--caps);font-weight:400;font-size:.8rem;letter-spacing:.04em;text-transform:none;color:var(--muted);margin-left:10px;vertical-align:baseline}
 .who{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:.8rem;color:var(--muted);min-width:0}
 .who span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .kicker{font-family:var(--mono);font-size:1rem;font-weight:700;display:flex;align-items:baseline;gap:.7em;margin:0 0 10px}
@@ -55,7 +53,7 @@ p.lede{color:var(--muted);max-width:60ch;margin:0 0 24px;text-align:left;hyphens
 .qed::after{content:"";display:inline-block;width:.62em;height:.62em;border:1px solid currentColor;margin-left:.6em;vertical-align:-.02em}
 code{font-family:var(--mono);font-size:.9em}
 .panel{background:var(--surface);border:1px solid var(--line2);padding:20px}
-button{font:inherit;cursor:pointer;white-space:nowrap;border-radius:2px;border:1px solid var(--ink);background:transparent;color:var(--ink);padding:7px 14px;font-family:var(--caps);font-size:1rem;letter-spacing:.05em;text-transform:lowercase}
+button{font:inherit;cursor:pointer;white-space:nowrap;border-radius:2px;border:1px solid var(--ink);background:transparent;color:var(--ink);padding:7px 14px;font-family:var(--caps);font-size:1rem;letter-spacing:.05em;text-transform:none}
 button:hover{background:var(--surface2)}
 button:focus-visible,input:focus-visible{outline:2px solid var(--p1);outline-offset:2px}
 button.primary{background:var(--ink);color:var(--bg)}
@@ -91,22 +89,22 @@ summary::marker{color:var(--faint)}
 .tbl{overflow-x:auto;margin-top:8px}
 table{width:100%;min-width:560px;border-collapse:collapse;font-size:.92rem;border-top:1.6px solid var(--ink);border-bottom:1.6px solid var(--ink)}
 th,td{text-align:left;padding:6px 10px;vertical-align:top}
-th{font-family:var(--caps);font-weight:400;letter-spacing:.04em;text-transform:lowercase;border-bottom:.8px solid var(--ink)}
+th{font-family:var(--caps);font-weight:400;letter-spacing:.04em;text-transform:none;border-bottom:.8px solid var(--ink)}
 td{color:var(--muted);overflow-wrap:anywhere}
 td:nth-child(2),td:nth-child(4),td:nth-child(5){font-family:var(--mono);font-size:.82rem}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--surface);border:1px solid var(--ink);color:var(--ink);padding:8px 16px;font-size:.98rem;max-width:calc(100% - 32px);opacity:0;pointer-events:none;transition:opacity .2s}
 .toast.show{opacity:1}
 a{color:var(--p1)}
-.back{font-family:var(--caps);text-transform:lowercase;letter-spacing:.05em;color:var(--muted);text-decoration:none;font-size:1rem;white-space:nowrap}
+.back{font-family:var(--caps);text-transform:none;letter-spacing:.05em;color:var(--muted);text-decoration:none;font-size:1rem;white-space:nowrap}
 @media (max-width:560px){ #whoName{display:none} }
 .tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line2);margin-bottom:24px}
 .tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 12px;color:var(--muted)}
 .tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink);background:transparent}
 .tabs b{font-family:var(--mono);font-weight:700;color:var(--bad);margin-left:6px;text-transform:none}
-.pill{display:inline-block;font-family:var(--caps);font-size:.85rem;letter-spacing:.04em;text-transform:lowercase;padding:0 6px;border:1px solid var(--line2);color:var(--muted)}
+.pill{display:inline-block;font-family:var(--caps);font-size:.85rem;letter-spacing:.04em;text-transform:none;padding:0 6px;border:1px solid var(--line2);color:var(--muted)}
 .pill.admin{color:var(--p1);border-color:var(--p1)} .pill.super_admin{color:var(--p2);border-color:var(--p2)}
 .pill.bad{color:var(--bad);border-color:var(--bad)} .pill.warn{color:#8E5D07;border-color:#8E5D07} .pill.ok{color:var(--win);border-color:var(--win)}
-select{font:inherit;font-family:var(--caps);text-transform:lowercase;letter-spacing:.04em;background:transparent;color:var(--ink);border:1px solid var(--line2);border-radius:2px;padding:6px 8px}
+select{font:inherit;font-family:var(--caps);text-transform:none;letter-spacing:.04em;background:transparent;color:var(--ink);border:1px solid var(--line2);border-radius:2px;padding:6px 8px}
 .acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .detail{margin-top:12px;padding:14px;border:1px solid var(--line2);background:var(--surface)}
 .detail h3,.card h3{font-family:var(--mono);font-size:1rem;margin:14px 0 6px}
@@ -120,7 +118,7 @@ select{font:inherit;font-family:var(--caps);text-transform:lowercase;letter-spac
 .metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:0 18px;border-top:1.6px solid var(--ink);border-bottom:1.6px solid var(--ink);padding:8px 0;margin:10px 0}
 .metrics div{padding:4px 0}
 .metrics b{display:block;font-family:var(--mono);font-size:1.4rem;font-weight:400}
-.metrics span{font-family:var(--caps);text-transform:lowercase;letter-spacing:.04em;color:var(--muted);font-size:.9rem}
+.metrics span{font-family:var(--caps);text-transform:none;letter-spacing:.04em;color:var(--muted);font-size:.9rem}
 .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
 .filters input{flex:1 1 220px}
 .more{margin-top:12px}

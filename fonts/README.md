@@ -1,11 +1,10 @@
 # Fonts
 
-Self-hosted web fonts, subset to the characters Sum Duel uses (Latin, digits, maths operators).
-Subsetting counts as modification, so every file has a new name (`sd-` prefix) as the licences ask.
+Self-hosted web fonts (v2.7). They're the unmodified Latin variable subsets published by Fontsource, so the original family names are kept.
 
-| File | Source | Licence |
-|---|---|---|
-| `sd-lmroman-{regular,italic,bold}.woff2`, `sd-lmroman-caps.woff2` | Latin Modern Roman 10 / Roman Caps 10 (GUST e-foundry, CTAN `fonts/lm`) | GUST Font License (LPPL 1.3c), see `GUST-FONT-LICENSE.txt` |
-| `sd-leanmono-{regular,bold}.woff2` | JuliaMono v0.63.2 by cormullion. Internal name changed to "SD Lean Mono" because "JuliaMono" is an OFL Reserved Font Name | SIL OFL 1.1, see `JuliaMono-OFL.txt` |
+| File | Family | Use | Source | Licence |
+|---|---|---|---|---|
+| `nunito-latin-wght.woff2`, `nunito-latin-wght-italic.woff2` | Nunito (variable, weights 200–1000) | Body text, labels, buttons, tabular numbers (`--serif`, `--caps`, `--num`) | `@fontsource-variable/nunito@5.2.7` | SIL OFL 1.1, see `Nunito-OFL.txt` |
+| `fredoka-latin-wght.woff2` | Fredoka (variable, weights 300–700) | Headings, logo, questions, keypad, big numbers (`--mono`) | `@fontsource-variable/fredoka@5.2.10` | SIL OFL 1.1, see `Fredoka-OFL.txt` |
 
-To rebuild, use `pyftsubset` from fonttools with `--flavor=woff2`. The unicode ranges are in master-ref.md §4.
+Glyphs outside the Latin subset (→ ✦ ⌫ ≤) fall back to the system font.

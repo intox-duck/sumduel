@@ -8,7 +8,29 @@ Live: **https://sumduel.app** (`www.sumduel.app` 308-redirects to the apex; `sum
 
 ## ACTIVE TASK / session handoff (updated 2026-11-08)
 
-- **v2.6 (latest): chat switched off, adversarial design review, new logo and site artefacts.** The owner asked to "turn off all chat features and do one adversarial design review using claude design and update all site artefacts, including the logo and push".
+- **v2.7 (latest): new fonts, illustrations, a home leaderboard and a players dashboard.** The owner said: "I don't like the font or the lack of visuals, show a leaderboard on the homescreen, all users reports are shown on a public facing dashboard once players login."
+  - **Fonts:** Nunito (body, labels, buttons, tabular numbers) and Fredoka (headings, logo, questions, keypad, big numbers). Both are self-hosted under `/fonts`: the unmodified Fontsource Latin variable files, SIL OFL. They replace Latin Modern and JuliaMono, which are deleted from the repo along with their licences.
+    - Labels are no longer lowercased into small caps (`text-transform:none` everywhere); they use Nunito 800.
+    - Glyphs outside the Latin subset (→ ✦ ⌫ ≤) fall back to the system font.
+  - **Visuals:** original inline-SVG illustrations, coloured only by `.il-*` CSS classes, so both themes work:
+    - a hero scene: two round sea creatures, teal "7 × 6?" and pink "42!", with a sun and waves; it bobs gently, and the animation is off under reduced motion;
+    - a picture per game card: blobs (Duel), two phones and a bolt (Live), tick and cross bubbles (Truth or Lie), a stopwatch (Sprint), a calendar with a sun (Daily), a fish, star and shell (Little Ones);
+    - blob avatars (`avatar(name)`, colour chosen by a hash of the name).
+  - **Home leaderboard (`#homeBoard`, `renderHomeBoard()`):** public, so guests see it too. Today's Daily (fastest) and Sprint (most correct), each a podium for the top 3 plus rows 4–5, "You're #n" when you're outside the top 5, and an empty state with a play button. It uses the existing public `GET /api/board`.
+  - **Players dashboard (`#/players`, new "Players" tab; the tab bar is back to 5):** visible to **signed-in players only**. Signed out, it shows a sign-in prompt.
+    - **How "all users reports" was read:** every player's *game report*. It shows **display names only**: no emails, roles, IPs, chat, or the safeguarding audit reports, which stay super_admin-only. The hidden super_admin (shown as "DaddyKing") appears as an ordinary player, so the role stays hidden. Real players, including Imogen, are listed by display name.
+    - **Contents:** totals (players, battles, this week, played today); a "Battles per day" bar chart for the last 14 days (single series; drawn at the container's real width so the axis text stays 12 px; hover tooltip; "Show as a table"); a search box and sort (most games / most wins / best Sprint / fastest Daily / recent); one card per player with games, wins, best Sprint, fastest Daily, a W/L/D bar (wins, losses, draws; text label "7 W · 3 L · 0 D" + % won), a game mix, joined date and last played.
+    - **API:** `GET /api/board?b=players` (in `board.js`, so no new function; `requireUser`, so 401 when signed out).
+  - **Chart colours** (validated with the dataviz `validate_palette.js`):
+    - wins `--c-win`: day `#00879B` / night `#21A2B5`;
+    - losses `--c-loss`: day `#D6336C` / night `#D94C82`;
+    - draws `--c-draw`, the neutral midpoint: day `#868CA3` / night `#7D86A8`.
+    - Results: CVD ΔE 10.4 (day) and 8.0 (night); ≥ 3:1 against the chart surface.
+  - Kicker numbers: Players 5, Account 6, Preferences 7; the home "Top players" and "Your numbers" kickers have no number. Service worker `sd-v2.7.0`.
+  - **QA:** screenshots on phone (day) and desktop (day and night) with 5 seeded `qa.design.s*` players (since deleted; the live boards were empty before and after). The Little Ones run still passes; no console errors.
+  - **Test-harness gotcha:** the screenshot scripts inject an emoji fallback font by overriding `--serif/--mono/--caps`. Keep their family names in step with the real fonts, or every screenshot shows fallback fonts (that happened once this session).
+
+- **v2.6: chat switched off, adversarial design review, new logo and site artefacts.** The owner asked to "turn off all chat features and do one adversarial design review using claude design and update all site artefacts, including the logo and push".
   - **Chat off (reversible):**
     - The switch is `api/_features.js` → `CHAT_ENABLED = false`. When it's false:
       - `/api/chat` returns 404 "Chat is turned off" for every method;
@@ -96,7 +118,7 @@ A static single-page app plus seven Vercel serverless functions (Hobby limit 12;
 | `api/_audit.js` | `runAudit(req, actor, trigger)`: builds and stores a safeguarding report. |
 | `api/auth.js` | Player auth (`enter`, `logout`, `rename`). Logs sign_up, sign_in, sign_in_failed, sign_in_locked, sign_out and rename. |
 | `api/battles.js` | Own battles GET; idempotent POST. Logs `battle_saved` with a compact summary. |
-| `api/board.js` | Leaderboards. Logs `score_posted`. |
+| `api/board.js` | Leaderboards (public GET), score POSTs (logs `score_posted`), and **`?b=players`**: the v2.7 players dashboard data (signed-in only; display names and stats only). |
 | `api/chat.js` | Chat (poll, send, report, delete, mute). Exports `CHANNELS`. **Switched off (v2.6):** returns 404 while `CHAT_ENABLED` is false. |
 | `api/_features.js` | Feature switches. `CHAT_ENABLED = false` (v2.6). |
 | `icon.svg`, `icon-maskable.svg` | The v2.6 seaside ÷ mark (a rounded tile; a full-bleed maskable version with the artwork at 86 % in the safe circle). |
@@ -110,7 +132,7 @@ A static single-page app plus seven Vercel serverless functions (Hobby limit 12;
 | `vercel.json` | Clean URLs, `lhr1`, headers (strict CSP + noindex + no-store on `/admin*`, immutable `/fonts/*`), and `crons: [{ path: /api/audit-cron, schedule: "0 7 * * *" }]`. |
 
 ### Client views (hash router)
-`#/` Arena · `#/duel`, `#/tol` setup · **`#/live` (lobby) and `#/live/CODE` (room)** · `#/record` · `#/boards` · `#/chat` (off in v2.6; it falls through to home) · `#/account`. The game screens aren't routed. `route()` calls `chatStop()` and `liveStop()` on every navigation, so polling only runs while that view is open. Leaving a live game by navigating away doesn't forfeit, but after 25 s of silence the opponent can claim the win.
+`#/` Arena · `#/duel`, `#/tol` setup · **`#/live` (lobby) and `#/live/CODE` (room)** · `#/record` · `#/boards` · **`#/players` (v2.7 dashboard, signed-in only)** · `#/chat` (off in v2.6; it falls through to home) · `#/account`. The game screens aren't routed. `route()` calls `chatStop()` and `liveStop()` on every navigation, so polling only runs while that view is open. Leaving a live game by navigating away doesn't forfeit, but after 25 s of silence the opponent can claim the win.
 
 ## 2. Code & data workflow
 
@@ -265,7 +287,7 @@ There's no retention limit: everything is kept.
 ## 4. Styling & design system
 - **Approach:** hand-written CSS inline in `index.html` and `admin.html` (shared tokens). No framework.
 - **Audience (v2.4):** the owner's daughter (9, reasoning at about 11) and her friends. Keep wording short and plain, keep it colourful but calm. Never put her name or home town in public page text.
-- **Layers:** the v2.1 textbook base (Latin Modern + Lean Mono, booktabs, numbered equations) plus a **v2.4 "friendly layer"**: a CSS block at the end of the `index.html` styles that overrides radii, button and segment colours, header wave, background dots and kicker star. Remove that block to get the plain textbook look back.
+- **Layers:** a **v2.7 layer** (last before the reduced-motion rule: type tuning, `.il-*` illustration colours, `.gart` card art, `.hb*` home board, `.stats`/`.chart`/`.pcard`/`.wld` dashboard, `.tip`, chart tokens `--c-win/--c-loss/--c-draw` and `--il-*`), on top of the v2.6 review layer, on top of the v2.1 textbook base (Latin Modern + Lean Mono, booktabs, numbered equations) plus a **v2.4 "friendly layer"**: a CSS block at the end of the `index.html` styles that overrides radii, button and segment colours, header wave, background dots and kicker star. Remove that block to get the plain textbook look back.
 - **Themes:** `paper` (default, "seaside day") and `night` ("Night by the sea", the Account → Night mode toggle; stored in localStorage `sumduel.theme`). Old `dark`/`light` values fall back to paper.
 - **Day tokens:** `--bg #FFF8EE` (warm sand-cream), `--surface #FFFFFF`, `--surface2 #FFF3E6`, `--ink #22223B`, `--muted #4A4E69`, `--faint #70758F`, `--line rgba(34,34,59,.13)`, `--line2 rgba(34,34,59,.34)`, `--p1 #0F7C8C` (sea teal), `--p2 #D6336C` (raspberry), deep tints `#DDF3F4`/`#FCE4EC`, `--win #2B8A3E`, `--warn #B35C00`, `--bad #C92A2A`, `--sun #F4B400`, `--on-accent #FFFFFF`. `--p1-glow`/`--p2-glow` are `transparent`, which neutralises the glows `app.js` writes inline.
 - **Night tokens:** `--bg #13203A` (navy), `--surface #1A2A48`, `--ink #F5F3FF`, `--p1 #5CD3E0`, `--p2 #FF8FB8`, `--win #8CE99A`, `--bad #FF8787`, `--on-accent #13203A`. `theme-color` meta: day `#FFF8EE`, night `#13203A`.
@@ -276,11 +298,13 @@ There's no retention limit: everything is kept.
   - a teal scalloped wave under the sticky header (`.top::after` radial gradients); a 22 px polka-dot background;
   - kicker marker ✦ in pink with plain numbers (no `§`, no `--`);
   - game cards labelled "Game n ·"; home lede "How it works: …" (no "Definition", no QED box).
-- **Type:**
-  - `--serif` "SD LM Roman" for prose;
-  - `--caps` "SD LM Caps" (always lowercased → even small caps) for labels, buttons and nav;
-  - `--mono` "SD Lean Mono" for headings, numbers, questions, keypad, equations, logo, kickers and chat.
-  - `em` in mono headings is upright and coloured.
+- **Type (v2.7):** the token names are historical; read them as roles.
+  - `--serif` = Nunito, for prose.
+  - `--caps` = Nunito, for labels, buttons, nav and kickers (weight 800, `letter-spacing .02em`, no case transform).
+  - `--mono` = Fredoka, for headings (weight 600), the logo, questions, the keypad, big numbers and SVG text.
+  - `--num` = Nunito with `tabular-nums`, for clocks, tables, stats and scores.
+  - `em` in headings is upright and coloured. No italics for hints (v2.7 removed them).
+  - **Do not** go back to Latin Modern / JuliaMono: the owner rejected that look.
 - **Motifs:**
   - Section numbers: 1 arena, 2 games, 2.5 live duel (lobby A/B/C, rooms), 3 numbers/record, 4 boards, 5 chat, 6 account, 7 preferences. The Arena has a full-width "Live Duel" card (ONLINE · 2 DEVICES) under the main event. The admin portal uses §1 Players … §5 Audits with Lean type-signature headings (`players : List User`) and the same seaside tokens, pills and ✦.
   - Kept from the textbook base: numbered equations, booktabs tables, "Figure n" captions, ballot-box toggles (now rounded, teal).
@@ -306,7 +330,7 @@ There's no retention limit: everything is kept.
 ## 5. Frameworks, libraries & tooling
 - Runtime dependency: `@neondatabase/serverless@^1.2` (server only). Clients have zero dependencies.
 - Node ≥ 20 (Vercel uses 26.x), ESM.
-- **Fonts:** about 145 KB total, immutable cache. Built with fonttools `pyftsubset --flavor=woff2`. Ranges and sources are in `fonts/README.md` and the v2.1 notes: Latin Modern from CTAN; JuliaMono v0.63.2 renamed "SD Lean Mono".
+- **Fonts (v2.7):** about 110 KB total, immutable cache: `nunito-latin-wght.woff2`, `nunito-latin-wght-italic.woff2` (`@fontsource-variable/nunito@5.2.7`) and `fredoka-latin-wght.woff2` (`@fontsource-variable/fredoka@5.2.10`). They're unmodified, so the original names are kept. Sources and licences are in `fonts/README.md`.
 - **npm scripts:** `migrate`, `role`.
 - **Local QA (session scratchpad, not in the repo):**
   - `qa/server.mjs` mounts `api/*.js` (including `audit-cron` with `CRON_SECRET=test-cron-secret`) and serves static files.

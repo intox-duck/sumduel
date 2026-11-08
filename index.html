@@ -23,19 +23,14 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<link rel="preload" href="/fonts/sd-lmroman-regular.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="/fonts/sd-lmroman-caps.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="/fonts/sd-leanmono-regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/nunito-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/fredoka-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/app.js" as="script">
 <style>
-/* ================= Fonts: Latin Modern (Computer Modern's successor) for prose, Lean Mono for display + numbers ================= */
-@font-face{font-family:"SD LM Roman";src:url(/fonts/sd-lmroman-regular.woff2) format("woff2");font-weight:300 500;font-style:normal;font-display:swap}
-@font-face{font-family:"SD LM Roman";src:url(/fonts/sd-lmroman-italic.woff2) format("woff2");font-weight:300 500;font-style:italic;font-display:swap}
-@font-face{font-family:"SD LM Roman";src:url(/fonts/sd-lmroman-bold.woff2) format("woff2");font-weight:600 900;font-style:normal;font-display:swap}
-@font-face{font-family:"SD LM Caps";src:url(/fonts/sd-lmroman-caps.woff2) format("woff2");font-weight:300 900;font-style:normal;font-display:block}
-/* "SD Lean Mono" = JuliaMono (Lean 4's recommended editor font), subset + renamed per its OFL Reserved Font Name */
-@font-face{font-family:"SD Lean Mono";src:url(/fonts/sd-leanmono-regular.woff2) format("woff2");font-weight:300 500;font-style:normal;font-display:swap}
-@font-face{font-family:"SD Lean Mono";src:url(/fonts/sd-leanmono-bold.woff2) format("woff2");font-weight:600 900;font-style:normal;font-display:swap}
+/* ================= Fonts (v2.7): Nunito (body, labels, numbers) + Fredoka (display, questions). Rounded, friendly, self-hosted, SIL OFL ================= */
+@font-face{font-family:"Nunito";src:url(/fonts/nunito-latin-wght.woff2) format("woff2");font-weight:200 1000;font-style:normal;font-display:swap}
+@font-face{font-family:"Nunito";src:url(/fonts/nunito-latin-wght-italic.woff2) format("woff2");font-weight:200 1000;font-style:italic;font-display:swap}
+@font-face{font-family:"Fredoka";src:url(/fonts/fredoka-latin-wght.woff2) format("woff2");font-weight:300 700;font-style:normal;font-display:swap}
 
 /* ================= Tokens: "seaside day" (default, v2.4) ================= */
 :root{
@@ -44,9 +39,10 @@
   --p1:#0F7C8C; --p1-deep:#DDF3F4; --p1-glow:transparent;
   --p2:#D6336C; --p2-deep:#FCE4EC; --p2-glow:transparent;
   --win:#2B8A3E; --warn:#B35C00; --bad:#C92A2A; --sun:#F4B400; --sun-deep:#FFF3C4; --sun-ink:#7A5200; --on-accent:#FFFFFF;
-  --serif:"SD LM Roman","Latin Modern Roman","CMU Serif",Georgia,"Times New Roman",serif;
-  --caps:"SD LM Caps","Latin Modern Roman Caps",Georgia,serif;
-  --mono:"SD Lean Mono","JuliaMono","DejaVu Sans Mono",ui-monospace,Menlo,Consolas,monospace;
+  --serif:"Nunito",ui-rounded,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --caps:"Nunito",ui-rounded,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"Fredoka","Nunito",ui-rounded,system-ui,sans-serif;
+  --num:"Nunito",ui-rounded,system-ui,sans-serif;
   --sans:var(--serif);
   --r:16px; --r-sm:12px;
   --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
@@ -75,7 +71,7 @@ a{color:var(--p1)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
 .serif{font-family:var(--serif);font-weight:400}
-.sc{font-family:var(--caps);text-transform:lowercase;letter-spacing:.04em}
+.sc{font-family:var(--caps);text-transform:none;letter-spacing:.04em}
 /* amsthm-style end-of-proof box */
 .qed::after{content:"";display:inline-block;width:.62em;height:.62em;border:1px solid currentColor;margin-left:.6em;vertical-align:-.02em}
 .thm{font-weight:700;color:var(--ink)}
@@ -92,7 +88,7 @@ a{color:var(--p1)}
 .logo .mk{width:1.25em;height:1.25em;flex:none}
 .mk-bar{fill:var(--ink)} .mk-a{fill:var(--p1)} .mk-b{fill:var(--p2)}
 .nav{display:flex;gap:2px;margin-left:auto}
-.nav a{display:flex;align-items:center;gap:8px;padding:8px 12px;color:var(--muted);text-decoration:none;font-family:var(--caps);font-size:1.02rem;text-transform:lowercase;letter-spacing:.04em}
+.nav a{display:flex;align-items:center;gap:8px;padding:8px 12px;color:var(--muted);text-decoration:none;font-family:var(--caps);font-size:1.02rem;text-transform:none;letter-spacing:.04em}
 .nav a[aria-current="page"]{color:var(--ink);box-shadow:inset 0 -1.5px 0 var(--ink)}
 .nav svg{width:17px;height:17px;flex:none}
 .who{text-decoration:none;color:var(--ink);display:flex;align-items:center;gap:8px;border:1px solid var(--line2);background:var(--surface);border-radius:0;padding:4px 12px 4px 4px;font-size:.95rem;max-width:200px}
@@ -103,9 +99,9 @@ main{max-width:1080px;margin:0 auto;padding:26px 18px calc(96px + var(--safe-b))
 @media (max-width:759px){
   .nav{display:none}
   .who{margin-left:auto}
-  .tabbar{display:grid;grid-template-columns:repeat(4,1fr);position:fixed;left:0;right:0;bottom:0;z-index:20;
+  .tabbar{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;left:0;right:0;bottom:0;z-index:20;
     padding:6px 6px calc(6px + var(--safe-b));background:var(--bg);border-top:1px solid var(--line2)}
-  .tabbar a{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;color:var(--faint);text-decoration:none;font-family:var(--caps);font-size:.85rem;text-transform:lowercase;letter-spacing:.04em}
+  .tabbar a{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;color:var(--faint);text-decoration:none;font-family:var(--caps);font-size:.85rem;text-transform:none;letter-spacing:.04em}
   .tabbar a[aria-current="page"]{color:var(--ink)}
   .tabbar a[aria-current="page"] svg{color:var(--p1)}
   .tabbar svg{width:22px;height:22px}
@@ -128,7 +124,7 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
 .section{margin:38px 0}
 .foot{color:var(--faint);font-size:.88rem;margin-top:12px;font-style:italic}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;border:1px solid var(--ink);background:transparent;border-radius:var(--r);padding:12px 18px;
-  font-family:var(--caps);font-size:1.1rem;text-transform:lowercase;letter-spacing:.05em;text-decoration:none;color:var(--ink)}
+  font-family:var(--caps);font-size:1.1rem;text-transform:none;letter-spacing:.05em;text-decoration:none;color:var(--ink)}
 .btn:hover{background:var(--surface2)}
 .btn.primary{color:var(--bg);background:var(--ink);border-color:var(--ink)}
 .btn.primary:hover{background:var(--muted)}
@@ -147,17 +143,17 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
 .eqn .l{display:grid;grid-template-columns:minmax(0,1fr) auto 3.4em;align-items:baseline;gap:10px;padding:5px 0}
 .eqn .l::after{counter-increment:eq;content:"(1." counter(eq) ")";text-align:right;font-size:.7em;color:var(--faint)}
 .eqn .a{color:var(--p1)} .eqn .b{color:var(--p2)}
-.eqn small{font-family:var(--caps);font-size:.8em;color:var(--muted);text-transform:lowercase;letter-spacing:.04em}
+.eqn small{font-family:var(--caps);font-size:.8em;color:var(--muted);text-transform:none;letter-spacing:.04em}
 .games{display:grid;gap:14px;grid-template-columns:1fr;counter-reset:ex}
 @media (min-width:640px){ .games{grid-template-columns:1fr 1fr} .game.daily{grid-column:1/-1} }
 @media (min-width:980px){ .games{grid-template-columns:repeat(3,1fr)} .game.daily{grid-column:auto} }
 .game{position:relative;display:flex;flex-direction:column;gap:6px;text-align:left;border:1px solid var(--line2);border-radius:0;padding:18px 18px 16px;background:var(--surface);overflow:hidden;min-height:150px;color:var(--ink);transition:background .2s}
 .game:hover{background:var(--surface2)}
-.game .n{font-family:var(--caps);font-size:.95rem;letter-spacing:.04em;text-transform:lowercase;color:var(--muted)}
+.game .n{font-family:var(--caps);font-size:.95rem;letter-spacing:.04em;text-transform:none;color:var(--muted)}
 .game .n::before{counter-increment:ex;content:"Game " counter(ex) " \00B7  ";font-family:var(--serif);font-weight:700;text-transform:none;letter-spacing:0;color:var(--ink)}
 .game h3{font-family:var(--mono);font-weight:700;font-size:1.4rem;line-height:1.15;margin:2px 0 4px;letter-spacing:-.02em}
 .game p{color:var(--muted);margin:0;font-size:1rem;max-width:42ch}
-.game .tag{position:absolute;top:16px;right:16px;font-family:var(--caps);font-size:.82rem;letter-spacing:.04em;text-transform:lowercase;padding:2px 7px;border:1px solid var(--line2);color:var(--muted)}
+.game .tag{position:absolute;top:16px;right:16px;font-family:var(--caps);font-size:.82rem;letter-spacing:.04em;text-transform:none;padding:2px 7px;border:1px solid var(--line2);color:var(--muted)}
 .game .tag.live{color:var(--win);border-color:currentColor}
 .game.hero-card{grid-column:1/-1;min-height:180px;border-width:1px;box-shadow:inset 0 0 0 3px var(--surface),inset 0 0 0 4px var(--line2)}
 .game.hero-card h3{font-weight:400;font-size:clamp(1.9rem,5vw,2.6rem)}
@@ -165,7 +161,7 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
 .kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:0 18px;border-top:1.5px solid var(--ink);border-bottom:1.5px solid var(--ink)}
 @media (min-width:760px){ .kpis{grid-template-columns:repeat(4,1fr)} }
 .kpi{padding:12px 2px}
-.kpi .k{font-family:var(--caps);font-size:.92rem;letter-spacing:.04em;text-transform:lowercase;color:var(--muted)}
+.kpi .k{font-family:var(--caps);font-size:.92rem;letter-spacing:.04em;text-transform:none;color:var(--muted)}
 .kpi .v{font-family:var(--mono);font-size:2rem;letter-spacing:-.03em;line-height:1.1;margin-top:2px}
 .kpi .s{font-size:.9rem;color:var(--muted);font-style:italic}
 .kpi.c1 .v{color:var(--p1)} .kpi.c2 .v{color:var(--p2)}
@@ -173,12 +169,12 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
 /* ================= Setup form ================= */
 .setup{max-width:560px}
 .field{margin-bottom:24px}
-.field > .lab{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--caps);font-size:1rem;letter-spacing:.04em;text-transform:lowercase;color:var(--muted);margin-bottom:8px}
+.field > .lab{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--caps);font-size:1rem;letter-spacing:.04em;text-transform:none;color:var(--muted);margin-bottom:8px}
 .names{display:grid;gap:10px}
 .name{display:flex;align-items:center;background:transparent;border:0;border-bottom:1px solid var(--line2)}
 .name:focus-within{border-color:var(--c);box-shadow:0 1px 0 var(--c)}
 .name::before{content:"";align-self:stretch;width:3px;background:var(--c)}
-.name .tagp{font-family:var(--caps);font-size:.95rem;color:var(--c);padding-left:12px;text-transform:lowercase;letter-spacing:.04em}
+.name .tagp{font-family:var(--caps);font-size:.95rem;color:var(--c);padding-left:12px;text-transform:none;letter-spacing:.04em}
 .name input{flex:1;border:0;background:transparent;font-size:1.12rem;padding:12px 12px;min-width:0;outline:none}
 .chipsr{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .chipsr button{border:1px solid var(--line2);background:transparent;color:var(--muted);border-radius:var(--r);padding:3px 10px;font-size:.95rem;font-style:italic}
@@ -191,7 +187,7 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
 .ops button{background:transparent;border:1px solid var(--line2);font-family:var(--serif);font-size:1.6rem;padding:6px 0;color:var(--ink)}
 .ops button[aria-pressed="true"]{color:var(--bg);background:var(--ink);border-color:var(--ink)}
 .hint{color:var(--muted);font-size:.95rem;margin:8px 2px 0;font-style:italic}
-.back{display:inline-flex;align-items:center;gap:6px;color:var(--muted);text-decoration:none;font-family:var(--caps);text-transform:lowercase;letter-spacing:.04em;font-size:1rem;margin-bottom:14px;border:0;background:none;padding:0}
+.back{display:inline-flex;align-items:center;gap:6px;color:var(--muted);text-decoration:none;font-family:var(--caps);text-transform:none;letter-spacing:.04em;font-size:1rem;margin-bottom:14px;border:0;background:none;padding:0}
 
 /* ================= Play (paper, like a worksheet) ================= */
 #play{display:flex;flex-direction:column;height:100vh;height:100dvh;background:var(--bg);position:relative}
@@ -201,7 +197,7 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
 .half::after{content:"";position:absolute;inset:0;background:var(--bad);opacity:0;pointer-events:none;transition:opacity .3s}
 .half.wrong::after{opacity:.14;transition:none}
 .half.good .ans{color:var(--win);border-color:var(--win)}
-.hud{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--caps);font-size:1rem;gap:10px;color:var(--muted);text-transform:lowercase;letter-spacing:.04em}
+.hud{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--caps);font-size:1rem;gap:10px;color:var(--muted);text-transform:none;letter-spacing:.04em}
 .hud .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--pc)}
 .clock{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:1.35rem;font-weight:700;color:var(--ink);text-transform:none}
 .bar{height:2px;background:var(--line);margin:8px 0 0;overflow:hidden}
@@ -211,7 +207,7 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
 .ans{font-family:var(--mono);font-size:min(9.5vw,6vh);line-height:1.15;min-width:3ch;text-align:center;border-bottom:1.5px solid var(--pc);color:var(--pc);font-variant-numeric:tabular-nums}
 .ans.empty{color:var(--faint)}
 .solo .q{font-size:min(14vw,9vh)} .solo .ans{font-size:min(11vw,7vh)}
-.streak{font-family:var(--caps);font-size:1rem;color:var(--win);letter-spacing:.04em;text-transform:lowercase;min-height:1.3em}
+.streak{font-family:var(--caps);font-size:1rem;color:var(--win);letter-spacing:.04em;text-transform:none;min-height:1.3em}
 .pen{position:absolute;right:6px;top:4px;font-family:var(--mono);font-size:1.3rem;opacity:0;color:var(--bad)}
 .half.wrong .pen{animation:pen .9s ease-out}
 @keyframes pen{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-18px)}}
@@ -219,14 +215,14 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
 @keyframes shake{20%{transform:translateX(-10px)}40%{transform:translateX(9px)}60%{transform:translateX(-6px)}80%{transform:translateX(4px)}}
 .cover{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 45%, var(--pd), var(--bg) 70%);text-align:center;z-index:2;padding:12px;color:var(--ink)}
 .cover .big{font-family:var(--mono);font-size:min(26vw,17vh);line-height:1;color:var(--pc)}
-.cover .sub{font-family:var(--caps);font-size:1.15rem;letter-spacing:.05em;text-transform:lowercase;color:var(--muted);margin-top:10px}
+.cover .sub{font-family:var(--caps);font-size:1.15rem;letter-spacing:.05em;text-transform:none;color:var(--muted);margin-top:10px}
 .pad{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(4,1fr);gap:6px;height:50%;min-height:150px}
 .solo .pad{height:44%;max-width:520px;width:100%;margin:0 auto}
 .pad button{border:1px solid var(--line2);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--mono);font-size:min(7vw,4.2vh);font-variant-numeric:tabular-nums}
 .pad button:active,.pad button.hit{background:var(--pc);color:var(--bg);border-color:var(--pc)}
 .pad .fn{color:var(--muted);font-size:min(5vw,3.2vh)}
 .mid{flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:10px;height:42px;background:var(--bg);border-top:3px double var(--line2);border-bottom:3px double var(--line2)}
-.chipbtn{border:1px solid var(--line2);background:var(--surface);color:var(--ink);border-radius:var(--r);padding:3px 14px;font-family:var(--caps);font-size:1rem;letter-spacing:.04em;text-transform:lowercase}
+.chipbtn{border:1px solid var(--line2);background:var(--surface);color:var(--ink);border-radius:var(--r);padding:3px 14px;font-family:var(--caps);font-size:1rem;letter-spacing:.04em;text-transform:none}
 .solo-top{position:absolute;left:0;right:0;top:calc(4px + var(--safe-t));display:flex;justify-content:center;padding:6px;z-index:3;pointer-events:none}
 .solo-top .chipbtn{pointer-events:auto}
 .solo{padding-top:calc(46px + var(--safe-t));padding-bottom:calc(12px + var(--safe-b))}
@@ -240,13 +236,13 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
 .tol-score i{width:12px;height:12px;border:1px solid var(--pc);opacity:.6}
 .tol-score i.on{background:var(--pc);opacity:1}
 .tol-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;height:42%}
-.tol-btns button{border-radius:var(--r);font-family:var(--caps);font-size:min(7.5vw,4.6vh);letter-spacing:.05em;text-transform:lowercase;border:1.5px solid;background:var(--surface)}
+.tol-btns button{border-radius:var(--r);font-family:var(--caps);font-size:min(7.5vw,4.6vh);letter-spacing:.05em;text-transform:none;border:1.5px solid;background:var(--surface)}
 .tol-btns .t{color:var(--win);border-color:var(--win)}
 .tol-btns .f{color:var(--bad);border-color:var(--bad)}
 .tol-btns .t:active,.tol-btns .t.hit{background:var(--win);color:var(--bg)}
 .tol-btns .f:active,.tol-btns .f.hit{background:var(--bad);color:var(--bg)}
 .half.locked .tol-btns{opacity:.3;pointer-events:none}
-.tol-flash{font-family:var(--caps);font-size:1.15rem;letter-spacing:.05em;min-height:1.3em;text-transform:lowercase}
+.tol-flash{font-family:var(--caps);font-size:1.15rem;letter-spacing:.05em;min-height:1.3em;text-transform:none}
 
 /* ================= Handoff ================= */
 #handoff{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;min-height:100vh;min-height:100dvh;
@@ -261,12 +257,12 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
 .verdict{font-family:var(--mono);font-weight:400;font-size:clamp(2.2rem,9vw,3.8rem);line-height:1.05;letter-spacing:-.03em;margin:6px 0 10px}
 .verdict em{font-style:normal}
 .margin{color:var(--muted);font-size:1.12rem;margin:0 0 6px}
-.series{font-family:var(--caps);font-size:1rem;letter-spacing:.04em;color:var(--faint);margin:0 0 22px;text-transform:lowercase}
+.series{font-family:var(--caps);font-size:1rem;letter-spacing:.04em;color:var(--faint);margin:0 0 22px;text-transform:none}
 .cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
 .cards.one{grid-template-columns:1fr}
 .card{padding:14px 16px;background:var(--surface);border:1px solid var(--line2);border-top:3px solid var(--pc)}
 .card.lose{opacity:.62}
-.card .whoc{font-family:var(--caps);font-size:1rem;letter-spacing:.04em;text-transform:lowercase;color:var(--pc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .whoc{font-family:var(--caps);font-size:1rem;letter-spacing:.04em;text-transform:none;color:var(--pc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .card .t{font-family:var(--mono);letter-spacing:-.03em;font-size:clamp(1.5rem,6.4vw,2.1rem);font-variant-numeric:tabular-nums;margin:4px 0 10px}
 .card dl{margin:0;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 8px;font-size:.95rem;border-top:1px solid var(--line);padding-top:8px}
 .card dt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -285,7 +281,7 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
 
 /* ================= Record (booktabs tables) ================= */
 .tbl{width:100%;border-collapse:collapse;font-size:1rem;border-top:1.6px solid var(--ink);border-bottom:1.6px solid var(--ink)}
-.tbl th{font-family:var(--caps);font-weight:400;font-size:.98rem;letter-spacing:.04em;text-transform:lowercase;color:var(--ink);text-align:left;padding:7px 10px;border-bottom:.8px solid var(--ink)}
+.tbl th{font-family:var(--caps);font-weight:400;font-size:.98rem;letter-spacing:.04em;text-transform:none;color:var(--ink);text-align:left;padding:7px 10px;border-bottom:.8px solid var(--ink)}
 .tbl td{padding:8px 10px;border-bottom:0}
 .tbl td.n,.tbl th.n{text-align:right;font-variant-numeric:tabular-nums}
 .tbl tr.me td{background:var(--p1-deep)}
@@ -294,14 +290,14 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
 .wl i{display:block;height:100%}
 .list{display:grid;gap:0;border-top:1px solid var(--line2)}
 .item{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;border-bottom:1px solid var(--line);padding:10px 4px;background:transparent}
-.badge{font-family:var(--caps);font-size:.85rem;letter-spacing:.04em;padding:1px 6px;border:1px solid var(--line2);color:var(--muted);text-transform:lowercase;white-space:nowrap}
+.badge{font-family:var(--caps);font-size:.85rem;letter-spacing:.04em;padding:1px 6px;border:1px solid var(--line2);color:var(--muted);text-transform:none;white-space:nowrap}
 .badge.W{color:var(--win);border-color:currentColor} .badge.L{color:var(--bad);border-color:currentColor} .badge.D{color:var(--warn);border-color:currentColor}
 .item .main{min-width:0}
 .item .main b{display:block;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .item .main small{color:var(--faint);font-size:.88rem;font-style:italic}
 .item .r{font-family:var(--serif);font-size:1rem;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
-.filters button{border:1px solid var(--line2);background:transparent;color:var(--muted);border-radius:var(--r);padding:4px 12px;font-family:var(--caps);font-size:.98rem;letter-spacing:.04em;text-transform:lowercase}
+.filters button{border:1px solid var(--line2);background:transparent;color:var(--muted);border-radius:var(--r);padding:4px 12px;font-family:var(--caps);font-size:.98rem;letter-spacing:.04em;text-transform:none}
 .filters button[aria-pressed="true"]{color:var(--bg);background:var(--ink);border-color:var(--ink)}
 .blank{border:1px dashed var(--line2);padding:26px;text-align:center;color:var(--muted);font-style:italic}
 .grid2{display:grid;gap:14px;grid-template-columns:1fr}
@@ -328,7 +324,7 @@ h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
 .blink::after{content:"_";animation:blink 1s steps(1) infinite}
 @keyframes blink{50%{opacity:0}}
 .solo-top.lv{justify-content:space-between;gap:8px;padding:6px 10px}
-.lv-opp{pointer-events:auto;display:flex;align-items:center;gap:8px;min-width:0;background:var(--surface);border:1px solid var(--line2);padding:3px 10px;font-family:var(--caps);text-transform:lowercase;letter-spacing:.04em;font-size:.95rem;color:var(--muted);flex-wrap:wrap;justify-content:flex-end}
+.lv-opp{pointer-events:auto;display:flex;align-items:center;gap:8px;min-width:0;background:var(--surface);border:1px solid var(--line2);padding:3px 10px;font-family:var(--caps);text-transform:none;letter-spacing:.04em;font-size:.95rem;color:var(--muted);flex-wrap:wrap;justify-content:flex-end}
 .lv-opp .nm{color:var(--oc);max-width:9em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lv-bar{display:inline-block;width:70px;height:6px;background:var(--line);overflow:hidden}
 .lv-bar i{display:block;height:100%;width:0;background:var(--oc);transition:width .3s}
@@ -418,7 +414,7 @@ body{background-image:radial-gradient(var(--line) 1px, transparent 1.3px);backgr
 .chipbtn,.lv-opp{border-radius:999px}
 .tabbar a[aria-current="page"] svg{color:var(--p2)}
 .nav a[aria-current="page"]{box-shadow:inset 0 -2px 0 var(--p2)}
-.pwbox summary{cursor:pointer;font-family:var(--caps);text-transform:lowercase;letter-spacing:.05em;color:var(--ink)}
+.pwbox summary{cursor:pointer;font-family:var(--caps);text-transform:none;letter-spacing:.05em;color:var(--ink)}
 .pwbox[open] summary{margin-bottom:10px}
 
 /* ================= v2.5 Little Ones: picture level for 4-year-olds =================
@@ -491,12 +487,162 @@ body{background-image:radial-gradient(var(--line) 1px, transparent 1.3px);backgr
 /* Phone: the decorative equation block pushed every game below the fold; hide it there. */
 @media (max-width:639px){ .hero .eqn{display:none} .hero{gap:0} .hero .lede{margin-bottom:6px} }
 /* Account: field labels match the rest of the forms (small caps), no dead space under the name field. */
-.flab{display:block;font-family:var(--caps);font-size:1rem;letter-spacing:.04em;text-transform:lowercase;color:var(--muted)}
+.flab{display:block;font-family:var(--caps);font-size:1rem;letter-spacing:.04em;text-transform:none;color:var(--muted)}
 .flab small{font-family:var(--serif);font-style:italic;text-transform:none;letter-spacing:0;font-size:.9rem;color:var(--faint);margin-left:6px}
 .panel .err:empty{min-height:0;margin:0}
 .who .av svg{width:15px;height:15px}
 /* Account actions: an even grid instead of a ragged 2 + 1 wrap. */
 .acts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+
+/* ================= v2.7: friendly type, illustrations, home leaderboard, players dashboard =================
+   Fonts: Nunito (body/labels/numbers) + Fredoka (display). Illustrations are inline SVG coloured by .il-* classes. */
+:root{
+  --c-win:#00879B; --c-loss:#D6336C; --c-draw:#868CA3;   /* chart colours, validated (CVD ΔE 10.4, ≥3:1 on white) */
+  --il-hi:rgba(255,255,255,.45); --il-shade:rgba(34,34,59,.12); --il-bubble:#FFFFFF; --il-cloud:#FFFFFF; --il-sea:#BFE6EA; --il-sea2:#8FD3DB;
+}
+:root[data-theme="night"]{
+  --c-win:#21A2B5; --c-loss:#D94C82; --c-draw:#7D86A8;   /* validated against #1A2A48 (ΔE 8.0) */
+  --il-hi:rgba(255,255,255,.3); --il-shade:rgba(0,0,0,.3); --il-bubble:#20335A; --il-cloud:#294070; --il-sea:#163C52; --il-sea2:#1E5068;
+}
+body{font-size:17px;line-height:1.55;font-weight:500}
+b,strong,.thm{font-weight:800}
+.kicker{font-family:var(--caps);font-weight:800;font-size:.95rem;letter-spacing:.02em}
+.kicker b{font-weight:900;color:var(--p2)}
+h1.display{font-weight:600;letter-spacing:-.01em;line-height:1.05}
+h2.title,#handoff h2,.verdict{font-weight:600;letter-spacing:-.01em}
+.game h3{font-weight:600;letter-spacing:0;font-size:1.5rem}
+.game.hero-card h3{font-weight:600}
+.game .n{font-weight:800;font-size:.8rem;letter-spacing:.06em;color:var(--faint)}
+.game .n::before{font-family:var(--caps);font-weight:800;color:var(--ink)}
+.game p{font-size:1rem;line-height:1.5}
+.game .tag,.badge,.chipbtn,.filters button,.seg button,.btn,.nav a,.tabbar a,.lab,.field > .lab,.flab,.card .whoc,.hud,.cover .sub,.kpi .k{font-weight:800;letter-spacing:.02em}
+.btn{font-family:var(--caps);font-weight:800}
+.hint,.blank,.foot,.item .main small,.setrow small{font-style:normal}
+.clock,.card .t,.kpi .v,.mono,.tbl td.n,.item .r,.card dd,.lv-st{font-family:var(--num);font-variant-numeric:tabular-nums;font-weight:800}
+.card .t,.kpi .v{font-family:var(--mono);font-weight:600}
+.q,.tol-eq{font-weight:500;letter-spacing:0}
+.ans{font-weight:600}
+.pad button{font-weight:500}
+.logo{font-weight:600}
+.lede{font-weight:500}
+@media (max-width:979px) and (min-width:760px){ .nav a svg{display:none} .nav a{padding:8px 9px} }
+
+/* ---- illustration palette (CSS classes only: no var() in SVG attributes) ---- */
+.il-p1{fill:var(--p1)} .il-p2{fill:var(--p2)} .il-sun{fill:var(--sun)} .il-win{fill:var(--win)} .il-ink{fill:var(--ink)}
+.il-w{fill:#FFFFFF} .il-hi{fill:var(--il-hi)} .il-shade{fill:var(--il-shade)} .il-blush{fill:var(--p2);opacity:.28}
+.il-p1 + .il-hi{} .il-sea{fill:var(--il-sea)} .il-sea2{fill:var(--il-sea2)} .il-cloud{fill:var(--il-cloud)}
+.il-line{fill:none;stroke:var(--ink);stroke-linecap:round}
+.il-ray path,.il-ray{fill:none;stroke:var(--sun);stroke-width:5;stroke-linecap:round}
+.il-bubble rect,.il-bubble path{fill:var(--il-bubble);stroke:var(--line2);stroke-width:2}
+.il-t{font-family:var(--mono);font-weight:600;font-size:26px;fill:var(--ink)} .il-t.p2{fill:var(--p2)} .il-t.sm{font-size:22px;fill:var(--p1)} .il-t.sm.p2{fill:var(--p2)}
+.il-spark{fill:var(--sun)}
+.il-tick{fill:none;stroke:#FFFFFF;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+.il-p2w{fill:var(--p2);opacity:.85} .il-hand{fill:none;stroke:var(--ink);stroke-width:5;stroke-linecap:round}
+.il-edge{stroke:var(--line2);stroke-width:2} .il-p2line{fill:none;stroke:#FFFFFF;stroke-width:3;stroke-linecap:round;opacity:.7}
+.ava .il-p1 + .il-hi,.ava{flex:none;display:block}
+
+/* ---- hero illustration ---- */
+.hero-art{display:block;width:100%;max-width:440px;height:auto;margin:0 auto}
+.hero-art .bob{transform-box:fill-box;transform-origin:50% 100%;animation:bob 3.2s ease-in-out infinite}
+.hero-art .bob + .bob{animation-delay:-1.6s}
+@keyframes bob{50%{transform:translateY(-6px)}}
+.hero-art .il-spark{transform-box:fill-box;transform-origin:center;animation:twinkle 2.4s ease-in-out infinite}
+.hero-art .il-spark.s2{animation-delay:-1.2s}
+@keyframes twinkle{50%{transform:scale(.6);opacity:.6}}
+@media (max-width:639px){ .hero .hero-art{max-width:300px;margin-top:4px} .hero .eqn{display:none} }
+
+/* ---- game card art ---- */
+.game{padding-right:18px}
+.game p{max-width:calc(100% - 92px)}
+.gart{position:absolute;right:14px;bottom:12px;width:84px;height:84px;pointer-events:none}
+.gart svg{width:100%;height:100%;display:block}
+.game:hover .gart{transform:rotate(-4deg) scale(1.05);transition:transform .2s}
+.game.hero-card .gart,.game.live .gart,.game.little .gart{width:118px;height:118px;right:22px;bottom:50%;transform:translateY(50%)}
+.game.hero-card p,.game.live p,.game.little p{max-width:calc(100% - 160px)}
+.game.hero-card:hover .gart,.game.live:hover .gart,.game.little:hover .gart{transform:translateY(50%) rotate(-4deg) scale(1.05)}
+@media (max-width:520px){ .gart{width:68px;height:68px;right:10px;bottom:10px} .game p,.game.hero-card p,.game.live p,.game.little p{max-width:calc(100% - 66px)}
+  .game.hero-card .gart,.game.live .gart,.game.little .gart{width:84px;height:84px;right:12px;bottom:12px;transform:none} }
+
+/* ---- home leaderboard ---- */
+.hb-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.hb-head .more{font-family:var(--caps);font-weight:800;text-decoration:none;color:var(--p1)}
+.hb-grid{display:grid;gap:14px;grid-template-columns:1fr}
+@media (min-width:760px){ .hb-grid{grid-template-columns:1fr 1fr} }
+.hb{display:flex;flex-direction:column;gap:10px;box-shadow:0 4px 0 var(--line)}
+.hb-title{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.hb-title h3{font-family:var(--mono);font-weight:600;font-size:1.3rem;margin:0}
+.hb-title span{color:var(--faint);font-size:.92rem;font-weight:700}
+.podium{list-style:none;margin:6px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:end}
+.pod{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0;text-align:center}
+.pod .pn{font-weight:800;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pod .ps{font-family:var(--num);font-variant-numeric:tabular-nums;font-size:.9rem;color:var(--muted);font-weight:700}
+.pod .pb{width:100%;border-radius:12px 12px 4px 4px;display:grid;place-items:center;margin-top:6px;background:var(--surface2);border:1px solid var(--line2)}
+.pod .pb b{font-family:var(--mono);font-weight:600;font-size:1.4rem;color:var(--ink)}
+.pod.p1 .pb{height:74px;background:var(--sun);border-color:var(--sun)} .pod.p1 .pb b{color:#22223B}
+.pod.p2 .pb{height:52px;background:var(--p1-deep)} .pod.p3 .pb{height:38px;background:var(--p2-deep)}
+.pod.me .pn{color:var(--p1)}
+.pav{display:block;animation:bob 3.2s ease-in-out infinite}
+.pod.p1 .pav{animation-delay:-.8s} .pod.p3 .pav{animation-delay:-1.9s}
+.hb-rest{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+.hb-rest li{display:grid;grid-template-columns:1.6em 28px minmax(0,1fr) auto;align-items:center;gap:10px;padding:7px 2px;border-bottom:1px solid var(--line)}
+.hb-rest .rk{font-family:var(--num);font-weight:800;color:var(--faint);text-align:right}
+.hb-rest .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hb-rest .sc{font-family:var(--num);font-variant-numeric:tabular-nums;font-weight:800}
+.hb-rest li.me .nm{color:var(--p1)}
+.hb-empty{display:flex;flex-direction:column;align-items:center;gap:8px;padding:10px 0 4px;text-align:center;color:var(--muted)}
+.hb-empty p{margin:0}
+.skel{height:180px;border-radius:12px;background:linear-gradient(90deg,var(--surface2),var(--bg2),var(--surface2));background-size:200% 100%;animation:skel 1.2s linear infinite}
+.skel.tall{height:420px}
+@keyframes skel{to{background-position:-200% 0}}
+
+/* ---- players dashboard ---- */
+.stats{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr));margin:6px 0 16px}
+@media (min-width:760px){ .stats{grid-template-columns:repeat(4,minmax(0,1fr))} }
+.stat{background:var(--surface);border:1px solid var(--line2);border-radius:var(--r);padding:12px 16px;display:flex;flex-direction:column;box-shadow:0 4px 0 var(--line)}
+.stat .k{font-weight:800;font-size:.9rem;color:var(--muted)}
+.stat .v{font-family:var(--mono);font-weight:600;font-size:2.2rem;line-height:1.1}
+.stat .s{font-size:.85rem;color:var(--faint);font-weight:700}
+.chart{margin-bottom:18px}
+.ch-title{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.ch-title h3{font-family:var(--mono);font-weight:600;font-size:1.25rem;margin:0}
+.ch-title span{color:var(--faint);font-size:.9rem;font-weight:700}
+.chart svg{display:block;width:100%;height:auto}
+.ch-grid{stroke:var(--line);stroke-width:1} .ch-grid.base{stroke:var(--line2)}
+.ch-ax{font-family:var(--num);font-size:12px;font-weight:700;fill:var(--faint)}
+.ch-bar{fill:var(--c-win)} .ch-hit{fill:transparent}
+.ch-col.hov .ch-bar{fill:var(--p1)} .ch-col.hov .ch-hit{fill:var(--line)}
+.tview{margin-top:6px} .tview summary{cursor:pointer;color:var(--muted);font-weight:700;font-size:.92rem}
+.tview .tbl{margin-top:8px;max-width:320px}
+.pl-tools{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:4px 0 10px}
+.pl-tools .inp{max-width:240px;margin:0}
+.pl-tools .filters{margin:0}
+@media (max-width:520px){ .pl-tools .filters{flex-wrap:nowrap;overflow-x:auto;max-width:100%;padding-bottom:4px} .pl-tools .filters button{white-space:nowrap} .pl-tools .inp{max-width:none} }
+.wld-legend{flex-wrap:wrap;align-items:baseline}
+.wld-legend small{color:var(--faint)}
+.pl-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(270px,1fr))}
+.pcard{background:var(--surface);border:1px solid var(--line2);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:10px;box-shadow:0 4px 0 var(--line)}
+.pcard.me{border-color:var(--p1);box-shadow:0 4px 0 var(--p1-deep)}
+.pcard header{display:flex;gap:12px;align-items:center;min-width:0}
+.pcard header div{min-width:0}
+.pcard h3{font-family:var(--mono);font-weight:600;font-size:1.25rem;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pcard header p{margin:0;color:var(--faint);font-size:.88rem;font-weight:600}
+.pstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:0;border-top:1px solid var(--line);padding-top:10px}
+.pstats div{min-width:0}
+.pstats dt{font-size:.74rem;font-weight:800;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pstats dd{margin:0;font-family:var(--num);font-variant-numeric:tabular-nums;font-weight:800;font-size:1.15rem}
+.wld{display:flex;gap:2px;height:12px;border-radius:4px;overflow:hidden}
+.wld i{display:block;min-width:4px}
+.wld .w{background:var(--c-win)} .wld .l{background:var(--c-loss)} .wld .d{background:var(--c-draw)}
+.wld i.hov{filter:brightness(1.12)}
+.wld-t{margin:-4px 0 0;font-family:var(--num);font-variant-numeric:tabular-nums;font-weight:800;font-size:.95rem}
+.wld-t span{color:var(--faint);font-weight:700;margin-left:6px} .wld-t.none{color:var(--faint);font-weight:700;margin:0}
+.gmix{display:flex;flex-wrap:wrap;gap:6px;margin:0}
+.gmix span{border:1px solid var(--line2);border-radius:999px;padding:1px 10px;font-size:.85rem;font-weight:700;color:var(--muted)}
+.gmix b{color:var(--ink);font-family:var(--num)}
+.pl-locked{display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;padding:28px 18px}
+.pl-locked .ava{display:inline-block} .pl-locked p{max-width:40ch;margin:0;color:var(--muted)}
+.tip{position:fixed;z-index:60;pointer-events:none;background:var(--ink);color:var(--bg);font-size:.88rem;font-weight:700;padding:5px 10px;border-radius:10px;opacity:0;transition:opacity .12s;white-space:nowrap}
+.tip.on{opacity:1}
 
 @media (prefers-reduced-motion: reduce){
   *{animation-duration:.001ms!important;transition-duration:.001ms!important}
@@ -511,6 +657,7 @@ body{background-image:radial-gradient(var(--line) 1px, transparent 1.3px);backgr
     <a href="#/" data-tab="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12h16M12 4v16"/></svg>Arena</a>
     <a href="#/record" data-tab="record"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Record</a>
     <a href="#/boards" data-tab="boards"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H3a3 3 0 0 0 4 4M17 6h4a3 3 0 0 1-4 4"/></svg>Boards</a>
+    <a href="#/players" data-tab="players"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.8"/><path d="M15.5 14.2A5 5 0 0 1 21.5 19"/></svg>Players</a>
     <a href="#/account" data-tab="account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Account</a>
   </nav>
   <a class="who" href="#/account" id="who"><span class="av">?</span><span>Sign in</span></a>
@@ -525,11 +672,7 @@ body{background-image:radial-gradient(var(--line) 1px, transparent 1.3px);backgr
         <h1 class="display">Quick maths,<br><em>head</em> to <em class="m">head.</em></h1>
         <p class="lede"><span class="thm">How it works:</span> two players, the same questions, separate clocks. Every wrong answer adds 3 seconds, so be quick <em>and</em> careful. Sign in and every game is saved to your record.</p>
       </div>
-      <div class="eqn" aria-hidden="true">
-        <div class="l"><span>17 × 6 =</span><span class="a">102</span></div>
-        <div class="l"><span>144 ÷ 12 =</span><span class="b">12</span></div>
-        <div class="l"><small>Margin of victory</small><span>0.84 s</span></div>
-      </div>
+      <svg class="hero-art" viewBox="0 0 440 290" role="img" aria-label="Two round sea creatures, one teal and one pink, face each other. The teal one asks 7 times 6, the pink one shouts 42."><circle class="il-sun" cx="370" cy="62" r="34"/><g class="il-ray"><path d="M370 12v-8M370 120v-8M320 62h-8M428 62h-8M335 27l-6-6M405 97l6 6M405 27l6-6M335 97l-6 6"/></g><path class="il-cloud" d="M48 74a18 18 0 0 1 30-14a22 22 0 0 1 40 6a14 14 0 0 1 2 28H52a14 14 0 0 1-4-20z"/><path class="il-sea" d="M0 238 q10.0 -10 20.0 0 t20.0 0 q10.0 -10 20.0 0 t20.0 0 q10.0 -10 20.0 0 t20.0 0 q10.0 -10 20.0 0 t20.0 0 q10.0 -10 20.0 0 t20.0 0 q10.0 -10 20.0 0 t20.0 0 q10.0 -10 20.0 0 t20.0 0 q10.0 -10 20.0 0 t20.0 0 q10.0 -10 20.0 0 t20.0 0 q10.0 -10 20.0 0 t20.0 0 q10.0 -10 20.0 0 t20.0 0 V318 H0 Z"/><path class="il-sea2" d="M0 256 q14.0 -10 28.0 0 t28.0 0 q14.0 -10 28.0 0 t28.0 0 q14.0 -10 28.0 0 t28.0 0 q14.0 -10 28.0 0 t28.0 0 q14.0 -10 28.0 0 t28.0 0 q14.0 -10 28.0 0 t28.0 0 q14.0 -10 28.0 0 t28.0 0 q14.0 -10 28.0 0 t28.0 0 V336 H0 Z"/><g class="bob"><ellipse class="il-shade" cx="130" cy="228.8" rx="46.4" ry="7.0"/><ellipse class="il-p1" cx="105.6" cy="221.9" rx="15.0" ry="9.0"/><ellipse class="il-p1" cx="154.4" cy="221.9" rx="15.0" ry="9.0"/><ellipse class="il-p1" cx="130" cy="172" rx="58.0" ry="53.9"/><ellipse class="il-hi" cx="108.0" cy="145.9" rx="12.8" ry="7.5" transform="rotate(-30 108.0 145.9)"/><circle class="il-w" cx="116.6" cy="166.2" r="12.2"/><circle class="il-w" cx="151.4" cy="166.2" r="12.2"/><circle class="il-ink" cx="122.6" cy="167.4" r="5.8"/><circle class="il-ink" cx="157.4" cy="167.4" r="5.8"/><circle class="il-blush" cx="101.1" cy="183.6" r="7.0"/><circle class="il-blush" cx="164.9" cy="183.6" r="7.0"/><path class="il-line" style="stroke-width:3.4px" d="M125.1 184.8 q9.9 9.9 19.7 0"/></g><g class="bob"><ellipse class="il-shade" cx="312" cy="228.8" rx="46.4" ry="7.0"/><ellipse class="il-p2" cx="287.6" cy="221.9" rx="15.0" ry="9.0"/><ellipse class="il-p2" cx="336.4" cy="221.9" rx="15.0" ry="9.0"/><ellipse class="il-p2" cx="312" cy="172" rx="58.0" ry="53.9"/><ellipse class="il-hi" cx="290.0" cy="145.9" rx="12.8" ry="7.5" transform="rotate(-30 290.0 145.9)"/><circle class="il-w" cx="290.6" cy="166.2" r="12.2"/><circle class="il-w" cx="325.4" cy="166.2" r="12.2"/><circle class="il-ink" cx="284.6" cy="167.4" r="5.8"/><circle class="il-ink" cx="319.4" cy="167.4" r="5.8"/><circle class="il-blush" cx="277.1" cy="183.6" r="7.0"/><circle class="il-blush" cx="340.9" cy="183.6" r="7.0"/><path class="il-line" style="stroke-width:3.4px" d="M297.1 184.8 q9.9 9.9 19.7 0"/></g><g class="il-bubble"><rect x="40" y="38" width="112" height="52" rx="22"/><path d="M96 88l10 16 6-16z"/></g><text class="il-t" x="96" y="73" text-anchor="middle">7 × 6?</text><g class="il-bubble b2"><rect x="262" y="70" width="92" height="52" rx="22"/><path d="M300 120l4 16 12-16z"/></g><text class="il-t p2" x="308" y="105" text-anchor="middle">42!</text><path class="il-spark" d="M221 128l5 12 12 5-12 5-5 12-5-12-12-5 12-5z"/><path class="il-spark s2" d="M196 92l3 7 7 3-7 3-3 7-3-7-7-3 7-3z"/></svg>
     </div>
 
     <div class="section">
@@ -540,40 +683,47 @@ body{background-image:radial-gradient(var(--line) 1px, transparent 1.3px);backgr
           <span class="n">MAIN EVENT</span>
           <h3>The <em>Duel</em></h3>
           <p>Play face to face on a split screen, or take turns. Both players get the same set of questions and the fastest total time wins.</p>
+          <span class="gart" aria-hidden="true"><svg viewBox="0 0 96 96"><g class="bob"><ellipse class="il-shade" cx="30" cy="75.9" rx="19.5" ry="2.9"/><ellipse class="il-p1" cx="19.8" cy="72.9" rx="6.3" ry="3.8"/><ellipse class="il-p1" cx="40.2" cy="72.9" rx="6.3" ry="3.8"/><ellipse class="il-p1" cx="30" cy="52" rx="24.4" ry="22.7"/><ellipse class="il-hi" cx="20.7" cy="41.0" rx="5.4" ry="3.2" transform="rotate(-30 20.7 41.0)"/><circle class="il-w" cx="24.4" cy="49.6" r="5.1"/><circle class="il-w" cx="39.0" cy="49.6" r="5.1"/><circle class="il-ink" cx="26.9" cy="50.1" r="2.4"/><circle class="il-ink" cx="41.5" cy="50.1" r="2.4"/><circle class="il-blush" cx="17.9" cy="56.9" r="2.9"/><circle class="il-blush" cx="44.7" cy="56.9" r="2.9"/><path class="il-line" style="stroke-width:1.4px" d="M28.0 57.4 q4.1 4.1 8.3 0"/></g><g class="bob"><ellipse class="il-shade" cx="68" cy="75.9" rx="19.5" ry="2.9"/><ellipse class="il-p2" cx="57.8" cy="72.9" rx="6.3" ry="3.8"/><ellipse class="il-p2" cx="78.2" cy="72.9" rx="6.3" ry="3.8"/><ellipse class="il-p2" cx="68" cy="52" rx="24.4" ry="22.7"/><ellipse class="il-hi" cx="58.7" cy="41.0" rx="5.4" ry="3.2" transform="rotate(-30 58.7 41.0)"/><circle class="il-w" cx="59.0" cy="49.6" r="5.1"/><circle class="il-w" cx="73.6" cy="49.6" r="5.1"/><circle class="il-ink" cx="56.5" cy="50.1" r="2.4"/><circle class="il-ink" cx="71.1" cy="50.1" r="2.4"/><circle class="il-blush" cx="53.3" cy="56.9" r="2.9"/><circle class="il-blush" cx="80.1" cy="56.9" r="2.9"/><path class="il-line" style="stroke-width:1.4px" d="M61.8 57.4 q4.1 4.1 8.3 0"/></g><path class="il-spark" d="M49 10l3 8 8 3-8 3-3 8-3-8-8-3 8-3z"/></svg></span>
         </button>
         <button class="game live" data-go="live" style="--gc:var(--p1-glow)">
           <span class="tag live">2 DEVICES</span>
           <span class="n">ONLINE</span>
           <h3>Live <em>Duel</em></h3>
           <p>Race a friend on their own phone or tablet. Create a public or private game, wait in the lobby, then go head to head.</p>
+          <span class="gart" aria-hidden="true"><svg viewBox="0 0 96 96"><rect class="il-p1" x="8" y="20" width="32" height="56" rx="7"/><rect class="il-w" x="12" y="27" width="24" height="38" rx="3"/><rect class="il-p2" x="56" y="20" width="32" height="56" rx="7"/><rect class="il-w" x="60" y="27" width="24" height="38" rx="3"/><path class="il-sun" d="M52 30l-12 20h9l-5 18 14-23h-9l6-15z"/><text class="il-t sm" x="24" y="52" text-anchor="middle">9</text><text class="il-t sm p2" x="72" y="52" text-anchor="middle">9</text></svg></span>
         </button>
         <button class="game" data-go="tol" style="--gc:rgba(184,255,60,.35)">
           <span class="tag">2P · BUZZER</span>
           <span class="n">SIDE GAME</span>
           <h3>Truth or Lie</h3>
           <p>One equation flashes up and you call it true or false. The first right call scores and a wrong call locks you out. First to seven wins.</p>
+          <span class="gart" aria-hidden="true"><svg viewBox="0 0 96 96"><rect class="il-win" x="6" y="14" width="50" height="40" rx="18"/><path class="il-win" d="M18 52l-4 14 14-12z"/><path class="il-tick" d="M19 34l8 8 16-16"/><rect class="il-p2" x="42" y="44" width="48" height="38" rx="17"/><path class="il-p2" d="M78 80l6 12-14-10z"/><path class="il-tick" d="M57 55l18 16M75 55L57 71"/></svg></span>
         </button>
         <button class="game" data-go="sprint">
           <span class="tag">SOLO · 60 S</span>
           <span class="n">SIDE GAME</span>
           <h3>Sprint</h3>
           <p>Answer as many as you can in sixty seconds while keeping your streak alive. Your best score goes on the global board.</p>
+          <span class="gart" aria-hidden="true"><svg viewBox="0 0 96 96"><rect class="il-ink" x="40" y="6" width="16" height="9" rx="3"/><path class="il-ink" d="M70 20l7-7 5 5-7 7z"/><circle class="il-p1" cx="48" cy="54" r="36"/><circle class="il-w" cx="48" cy="54" r="28"/><path class="il-p2w" d="M48 54V26a28 28 0 0 1 24.2 41.9z"/><path class="il-hand" d="M48 54l14-16"/><circle class="il-ink" cx="48" cy="54" r="4"/></svg></span>
         </button>
         <button class="game daily" data-go="daily" style="--gc:var(--p2-glow)">
           <span class="tag live" id="dailyTag">TODAY</span>
           <span class="n">EVERY 24 H</span>
           <h3>The Daily</h3>
           <p>Twenty questions, and everyone on Earth gets the same set. Only your first attempt counts.</p>
+          <span class="gart" aria-hidden="true"><svg viewBox="0 0 96 96"><rect class="il-w il-edge" x="10" y="16" width="76" height="70" rx="12"/><rect class="il-p2" x="10" y="16" width="76" height="22" rx="12"/><rect class="il-p2" x="10" y="28" width="76" height="10"/><rect class="il-ink" x="26" y="8" width="7" height="16" rx="3.5"/><rect class="il-ink" x="63" y="8" width="7" height="16" rx="3.5"/><circle class="il-sun" cx="48" cy="62" r="13"/><g class="il-ray"><path d="M48 41v-3M48 86v-3M27 62h-3M72 62h-3M33 47l-2-2M65 79l2 2M63 47l2-2M33 77l-2 2"/></g></svg></span>
         </button>
         <button class="game little" data-go="little">
           <span class="tag sun">AGE 4+ · NO CLOCK</span>
           <span class="n">LITTLE ONES</span>
           <h3>Count with <em>me</em></h3>
           <p>Count the fish, find the side with more, and add tiny groups. Big buttons and a friendly voice that reads everything out. Made for 4-year-olds.</p>
-          <span class="little-row" aria-hidden="true">🐟 🐚 🦀 🐙 ⭐</span>
+          <span class="gart" aria-hidden="true"><svg viewBox="0 0 96 96"><path class="il-p1" d="M14 46c10-14 30-16 44 0c-14 16-34 14-44 0z"/><path class="il-p1" d="M56 46l14-10v20z"/><circle class="il-w" cx="26" cy="43" r="4"/><circle class="il-ink" cx="27" cy="43" r="2"/><path class="il-sun" d="M60 64l5 11 12 1-9 8 3 12-11-6-11 6 3-12-9-8 12-1z" transform="translate(4 -18) scale(.9)"/><path class="il-p2" d="M22 70a16 16 0 0 1 32 0z"/><path class="il-p2line" d="M38 56v14M30 58l3 12M46 58l-3 12"/><path class="il-sea" d="M0 84 q6.0 -10 12.0 0 t12.0 0 q6.0 -10 12.0 0 t12.0 0 q6.0 -10 12.0 0 t12.0 0 q6.0 -10 12.0 0 t12.0 0 V164 H0 Z"/></svg></span>
         </button>
       </div>
     </div>
+
+    <div class="section" id="homeBoard"></div>
 
     <div class="section" id="homeStats"></div>
   </section>
@@ -655,6 +805,9 @@ body{background-image:radial-gradient(var(--line) 1px, transparent 1.3px);backgr
     <div id="boardBody"></div>
   </section>
 
+  <!-- ===== Players dashboard (v2.7, signed-in only) ===== -->
+  <section id="v-players" data-view class="hidden"></section>
+
   <!-- ===== Chat ===== -->
   <section id="v-chat" data-view class="hidden"></section>
 
@@ -676,6 +829,7 @@ body{background-image:radial-gradient(var(--line) 1px, transparent 1.3px);backgr
   <a href="#/" data-tab="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12h16M12 4v16"/></svg>Arena</a>
   <a href="#/record" data-tab="record"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Record</a>
   <a href="#/boards" data-tab="boards"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H3a3 3 0 0 0 4 4M17 6h4a3 3 0 0 1-4 4"/></svg>Boards</a>
+  <a href="#/players" data-tab="players"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.8"/><path d="M15.5 14.2A5 5 0 0 1 21.5 19"/></svg>Players</a>
   <a href="#/account" data-tab="account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Account</a>
 </nav>
 
