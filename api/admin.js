@@ -18,6 +18,7 @@
 import { route, send, fail, db, currentUser, hashPassword, logEvent, isMod, isSuper } from './_lib.js';
 import { runAudit } from './_audit.js';
 import { CHANNELS } from './chat.js';
+import { CHAT_ENABLED } from './_features.js';
 
 const ID = /^\d{1,18}$/;
 const likeEsc = s => s.replace(/[\\%_]/g, '\\$&');
@@ -36,10 +37,11 @@ export default route(['GET', 'POST'], async (req, res) => {
 
   if (req.method === 'GET') {
     await logEvent(req, u, 'admin_open');
-    return send(res, 200, { role: u.role, me: { name: u.name, email: u.email } });
+    return send(res, 200, { role: u.role, me: { name: u.name, email: u.email }, features: { chat: CHAT_ENABLED } });
   }
 
   const { action } = req.body;
+  if (!CHAT_ENABLED && ['chat', 'mutes', 'flags', 'review'].includes(action)) return fail(res, 404, 'Chat is turned off');
   const maskRole = r => (sup ? r : (r === 'super_admin' ? 'player' : r));
 
   if (action === 'users') {

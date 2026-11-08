@@ -8,6 +8,7 @@
 <meta name="color-scheme" content="light dark">
 <title>Sum Duel Admin</title>
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="preload" href="/fonts/sd-lmroman-regular.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/fonts/sd-leanmono-regular.woff2" as="font" type="font/woff2" crossorigin>
 <style>
@@ -39,6 +40,9 @@ body{min-height:100vh;background:var(--bg);color:var(--ink);font-family:var(--se
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 0 12px;border-bottom:1px solid var(--line2);margin-bottom:28px}
 .logo{font-family:var(--mono);font-weight:700;font-size:1.3rem;letter-spacing:-.02em;line-height:1;color:var(--ink);text-decoration:none}
 .logo i{font-style:normal;color:var(--p2)}
+.logo{display:inline-flex;align-items:center;gap:8px}
+.logo .mk{width:1.25em;height:1.25em;flex:none}
+.mk-bar{fill:var(--ink)} .mk-a{fill:var(--p1)} .mk-b{fill:var(--p2)}
 .logo sup{font-family:var(--caps);font-weight:400;font-size:.8rem;letter-spacing:.04em;text-transform:lowercase;color:var(--muted);margin-left:10px;vertical-align:baseline}
 .who{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:.8rem;color:var(--muted);min-width:0}
 .who span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -46,7 +50,7 @@ body{min-height:100vh;background:var(--bg);color:var(--ink);font-family:var(--se
 .kicker::before{content:"--";font-weight:400;color:var(--faint)}
 h1{font-family:var(--mono);font-weight:400;font-size:clamp(2rem,6vw,3.2rem);line-height:1.08;letter-spacing:-.03em;margin:4px 0 12px}
 h1 i{font-style:normal;color:var(--p1)}
-p.lede{color:var(--muted);max-width:60ch;margin:0 0 24px;text-align:justify;hyphens:auto}
+p.lede{color:var(--muted);max-width:60ch;margin:0 0 24px;text-align:left;hyphens:manual}
 .thm{font-weight:700;color:var(--ink)} .thm span{font-weight:400}
 .qed::after{content:"";display:inline-block;width:.62em;height:.62em;border:1px solid currentColor;margin-left:.6em;vertical-align:-.02em}
 code{font-family:var(--mono);font-size:.9em}
@@ -133,7 +137,7 @@ button.primary{background:var(--p2);border-color:var(--p2);color:var(--on-accent
 <body>
 <div class="wrap">
   <header class="top">
-    <a class="logo" href="/">Sum<i>Duel</i><sup>Admin</sup></a>
+    <a class="logo" href="/"><svg class="mk" viewBox="0 0 512 512" aria-hidden="true"><rect class="mk-bar" x="124" y="235" width="264" height="42" rx="21"/><circle class="mk-a" cx="256" cy="150" r="46"/><circle class="mk-b" cx="256" cy="362" r="46"/></svg><span>Sum<i>Duel</i></span><sup>Admin</sup></a>
     <div class="who" id="who" hidden><span id="whoName"></span><a class="back" href="/">Back to the game</a></div>
   </header>
   <main>

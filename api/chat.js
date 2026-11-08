@@ -6,6 +6,7 @@
 // POST /api/chat {action:'mute', userId, minutes} -> admin / super_admin; minutes 0 = unmute
 import { route, send, fail, db, requireUser, logEvent, isMod, isSuper } from './_lib.js';
 import { screen } from './_safety.js';
+import { CHAT_ENABLED } from './_features.js';
 
 export const CHANNELS = {
   lobby: 'Be kind. No phone numbers, emails, addresses or links. Every message is logged and checked by moderators.',
@@ -15,6 +16,7 @@ const RATE_N = 5, RATE_SECS = 10, ONLINE_SECS = 40;
 const MUTE_MAX_MIN = 60 * 24 * 365;
 
 export default route(['GET', 'POST'], async (req, res) => {
+  if (!CHAT_ENABLED) return fail(res, 404, 'Chat is turned off');
   const u = await requireUser(req, res); if (!u) return;
   const sql = db();
   const mod = isMod(u);

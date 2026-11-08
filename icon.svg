@@ -1,13 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <filter id="g" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <pattern id="p" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0v32" fill="none" stroke="#1A2B52" stroke-width="2"/></pattern>
-  </defs>
-  <rect width="512" height="512" fill="#050B18"/>
-  <rect width="512" height="512" fill="url(#p)"/>
-  <g filter="url(#g)" stroke-linecap="round" stroke-width="40" fill="none">
-    <path d="M150 256h212" stroke="#EAF0FF"/>
-    <circle cx="256" cy="150" r="30" fill="#00E5FF" stroke="none"/>
-    <circle cx="256" cy="362" r="30" fill="#FF2E88" stroke="none"/>
+  <title>Sum Duel</title>
+  <!-- v2.6 seaside mark: a division sign whose dots are the two players (teal vs raspberry), on sand with a scalloped sea. Flat, no glow. -->
+  <defs><clipPath id="t"><rect width="512" height="512" rx="112"/></clipPath></defs>
+  <g clip-path="url(#t)">
+    <rect width="512" height="512" fill="#FFF8EE"/>
+    <path d="M0 460 a32 32 0 0 1 64 0 a32 32 0 0 1 64 0 a32 32 0 0 1 64 0 a32 32 0 0 1 64 0 a32 32 0 0 1 64 0 a32 32 0 0 1 64 0 a32 32 0 0 1 64 0 a32 32 0 0 1 64 0 V512 H0 Z" fill="#BFE6EA"/>
   </g>
+  <rect x="124" y="235" width="264" height="42" rx="21" fill="#22223B"/>
+  <circle cx="256" cy="150" r="46" fill="#0F7C8C"/>
+  <circle cx="256" cy="362" r="46" fill="#D6336C"/>
 </svg>

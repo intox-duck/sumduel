@@ -8,7 +8,7 @@
     if (st && st.theme === 'night') document.documentElement.setAttribute('data-theme', 'night');
   } catch (e) { /* storage blocked: paper */ }
 
-  var ROLE = null, TAB = 'players';
+  var ROLE = null, TAB = 'players', CHAT = false;
 
   function api(body) {
     var o = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin' } : { credentials: 'same-origin' };
@@ -49,13 +49,14 @@
 
   // ---------------- tabs ----------------
   function tabs() {
-    var list = [['players', 'Players'], ['chat', 'Chat']];
-    if (SUPER()) list.push(['flags', 'Flags'], ['activity', 'Activity'], ['audits', 'Audits']);
+    var list = [['players', 'Players']];
+    if (CHAT) list.push(['chat', 'Chat']);
+    if (SUPER()) { if (CHAT) list.push(['flags', 'Flags']); list.push(['activity', 'Activity'], ['audits', 'Audits']); }
     $('tabs').innerHTML = list.map(function (t) {
       return '<button role="tab" data-t="' + t[0] + '" aria-selected="' + (t[0] === TAB) + '">' + t[1] + (t[0] === 'flags' ? '<b id="flagN"></b>' : '') + '</button>';
     }).join('');
     $('tabs').onclick = function (e) { var b = e.target.closest('[data-t]'); if (b) { TAB = b.dataset.t; tabs(); render(); } };
-    if (SUPER()) api({ action: 'flags' }).then(function (j) { var n = $('flagN'); if (n) n.textContent = j.rows.length ? j.rows.length : ''; }).catch(function () {});
+    if (SUPER() && CHAT) api({ action: 'flags' }).then(function (j) { var n = $('flagN'); if (n) n.textContent = j.rows.length ? j.rows.length : ''; }).catch(function () {});
   }
   function render() {
     var p = $('pane'); p.innerHTML = '<p class="muted">Loading…</p>';
@@ -65,7 +66,7 @@
   // ---------------- players ----------------
   function players(p) {
     p.innerHTML = '<div class="kicker">§1 Players</div><h1>players <i>:</i> List User</h1>' +
-      '<p class="lede">Search for a player. ' + (SUPER() ? 'You can reset anyone’s password, make players admins, mute them, and open their full history.' : 'You can reset a player’s password or mute them in chat.') + '</p>' +
+      '<p class="lede">Search for a player. ' + (SUPER() ? 'You can reset anyone’s password, make players admins' + (CHAT ? ', mute them' : '') + ' and open their full history.' : 'You can reset a player’s password' + (CHAT ? ' or mute them in chat' : '') + '.') + '</p>' +
       '<div class="bar"><input id="q" type="search" placeholder="Search email or name" aria-label="Search players"><span class="count" id="count"></span></div><ul class="users" id="users"></ul>';
     var t; $('q').oninput = function () { clearTimeout(t); var v = this.value; t = setTimeout(function () { loadUsers(v); }, 220); };
     $('users').onclick = onUserClick; $('users').onchange = onUserChange;
@@ -87,10 +88,10 @@
       '<div class="row"><div><div class="em">' + esc(u.email) + ' ' + (u.role !== 'player' ? '<span class="pill ' + esc(u.role) + '">' + esc(u.role.replace('_', ' ')) + '</span>' : '') +
       (muted ? ' <span class="pill bad">muted until ' + esc(when(u.muted_until)) + '</span>' : '') + '</div>' +
       '<div class="meta"><span><b>' + esc(u.name) + '</b></span><span>Joined ' + esc(when(u.created_at)) + '</span><span>Last sign-in ' + esc(when(u.last_sign_in)) + '</span>' +
-      '<span>' + u.battles + ' battles</span><span>' + u.messages + ' chat messages</span><span>' + u.sessions + ' active session' + (u.sessions === 1 ? '' : 's') + '</span></div></div>' +
+      '<span>' + u.battles + ' battles</span>' + (CHAT || u.messages ? '<span>' + u.messages + ' chat messages</span>' : '') + '<span>' + u.sessions + ' active session' + (u.sessions === 1 ? '' : 's') + '</span></div></div>' +
       '<div class="acts">' +
         (canPw ? '<button data-act="pw">Set password</button>' : '') +
-        (!u.self && (SUPER() || u.role === 'player') ? '<select data-act="mute" aria-label="Mute ' + esc(u.name) + '"><option value="">Mute…</option><option value="10">10 min</option><option value="60">1 hour</option><option value="1440">1 day</option><option value="10080">1 week</option><option value="0">Unmute</option></select>' : '') +
+        (CHAT && !u.self && (SUPER() || u.role === 'player') ? '<select data-act="mute" aria-label="Mute ' + esc(u.name) + '"><option value="">Mute…</option><option value="10">10 min</option><option value="60">1 hour</option><option value="1440">1 day</option><option value="10080">1 week</option><option value="0">Unmute</option></select>' : '') +
         (SUPER() && u.role !== 'super_admin' ? '<select data-act="role" aria-label="Role for ' + esc(u.name) + '"><option value="player"' + (u.role === 'player' ? ' selected' : '') + '>Player</option><option value="admin"' + (u.role === 'admin' ? ' selected' : '') + '>Admin</option></select>' : '') +
         (SUPER() ? '<button data-act="detail">Details</button>' : '') +
       '</div></div></li>';
@@ -318,7 +319,7 @@
 
   // ---------------- boot ----------------
   api().then(function (j) {
-    ROLE = j.role;
+    ROLE = j.role; CHAT = !!(j.features && j.features.chat);
     $('loading').hidden = true; $('dash').hidden = false;
     $('whoName').textContent = j.me.name + (SUPER() ? ' · super admin' : ' · admin'); $('who').hidden = false;
     tabs(); render();

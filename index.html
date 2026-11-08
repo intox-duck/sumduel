@@ -6,13 +6,20 @@
 <meta name="theme-color" content="#FFF8EE">
 <meta name="color-scheme" content="light dark">
 <title>Sum Duel</title>
-<meta name="description" content="Head-to-head mental maths on one phone. Duel a friend, play Truth or Lie, chase the 60-second Sprint and the Daily. Every battle on your record.">
-<meta property="og:title" content="Sum Duel: head-to-head mental maths">
-<meta property="og:description" content="Two players, one phone. Same questions, separate clocks. Keep a record of every battle.">
+<meta name="description" content="Quick maths, head to head. Duel a friend on one phone or race them live on two, play Truth or Lie, chase the 60-second Sprint and the Daily, and count along in Little Ones for 4-year-olds. Every battle on your record.">
+<meta property="og:title" content="Sum Duel: quick maths, head to head">
+<meta property="og:description" content="Duel a friend on one phone or two. Same questions, separate clocks, and every battle on your record. Plus a picture level for 4-year-olds.">
 <meta property="og:url" content="https://sumduel.app">
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="Sum Duel">
+<meta property="og:image" content="https://sumduel.app/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Sum Duel logo: a division sign with a teal and a pink dot, and the words Quick maths, head to head.">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/icon.svg">
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -81,6 +88,9 @@ a{color:var(--p1)}
 .logo .s{color:var(--ink)}
 .logo .d{font-style:normal;color:var(--p2)}
 .logo sup{font-family:var(--mono);font-size:.55rem;color:var(--faint);margin-left:6px}
+.logo{align-items:center!important;gap:8px!important}
+.logo .mk{width:1.25em;height:1.25em;flex:none}
+.mk-bar{fill:var(--ink)} .mk-a{fill:var(--p1)} .mk-b{fill:var(--p2)}
 .nav{display:flex;gap:2px;margin-left:auto}
 .nav a{display:flex;align-items:center;gap:8px;padding:8px 12px;color:var(--muted);text-decoration:none;font-family:var(--caps);font-size:1.02rem;text-transform:lowercase;letter-spacing:.04em}
 .nav a[aria-current="page"]{color:var(--ink);box-shadow:inset 0 -1.5px 0 var(--ink)}
@@ -93,7 +103,7 @@ main{max-width:1080px;margin:0 auto;padding:26px 18px calc(96px + var(--safe-b))
 @media (max-width:759px){
   .nav{display:none}
   .who{margin-left:auto}
-  .tabbar{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;left:0;right:0;bottom:0;z-index:20;
+  .tabbar{display:grid;grid-template-columns:repeat(4,1fr);position:fixed;left:0;right:0;bottom:0;z-index:20;
     padding:6px 6px calc(6px + var(--safe-b));background:var(--bg);border-top:1px solid var(--line2)}
   .tabbar a{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;color:var(--faint);text-decoration:none;font-family:var(--caps);font-size:.85rem;text-transform:lowercase;letter-spacing:.04em}
   .tabbar a[aria-current="page"]{color:var(--ink)}
@@ -113,7 +123,7 @@ h1.display em{font-style:normal;color:var(--p1)}
 h1.display em.m{color:var(--p2)}
 h2.title{font-family:var(--mono);font-weight:400;font-size:clamp(1.6rem,4.8vw,2.4rem);line-height:1.1;letter-spacing:-.03em;margin:4px 0 8px}
 h2.title .serif{font-family:var(--mono)!important;font-style:normal!important}
-.lede{color:var(--muted);font-size:1.08rem;max-width:58ch;margin:0 0 26px;text-align:justify;hyphens:auto}
+.lede{color:var(--muted);font-size:1.08rem;max-width:58ch;margin:0 0 26px;text-align:left;hyphens:manual}
 .panel{background:var(--surface);border:1px solid var(--line2);border-radius:0;padding:18px}
 .section{margin:38px 0}
 .foot{color:var(--faint);font-size:.88rem;margin-top:12px;font-style:italic}
@@ -475,6 +485,19 @@ body{background-image:radial-gradient(var(--line) 1px, transparent 1.3px);backgr
 .lt-endbtns{display:grid;gap:12px;width:min(100%,360px)}
 @media (min-width:760px){ .lt-scene{--sz:min(12vw,12vh)} .lt-scene.add,.lt-scene.more{--sz:min(8vw,9vh)} .lt-side{max-width:340px} }
 
+/* ================= v2.6 design-review fixes ================= */
+/* Phone: game tags flow above the eyebrow instead of floating over it (fixed a collision on "Game 6"). */
+@media (max-width:520px){ .game .tag{position:static;align-self:flex-start;margin-bottom:2px} }
+/* Phone: the decorative equation block pushed every game below the fold; hide it there. */
+@media (max-width:639px){ .hero .eqn{display:none} .hero{gap:0} .hero .lede{margin-bottom:6px} }
+/* Account: field labels match the rest of the forms (small caps), no dead space under the name field. */
+.flab{display:block;font-family:var(--caps);font-size:1rem;letter-spacing:.04em;text-transform:lowercase;color:var(--muted)}
+.flab small{font-family:var(--serif);font-style:italic;text-transform:none;letter-spacing:0;font-size:.9rem;color:var(--faint);margin-left:6px}
+.panel .err:empty{min-height:0;margin:0}
+.who .av svg{width:15px;height:15px}
+/* Account actions: an even grid instead of a ragged 2 + 1 wrap. */
+.acts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+
 @media (prefers-reduced-motion: reduce){
   *{animation-duration:.001ms!important;transition-duration:.001ms!important}
   .half.wrong .pen{opacity:1}
@@ -483,12 +506,11 @@ body{background-image:radial-gradient(var(--line) 1px, transparent 1.3px);backgr
 </head>
 <body>
 <header class="top">
-  <a class="logo" href="#/" aria-label="Sum Duel home"><span class="s">Sum</span><i class="d">Duel</i></a>
+  <a class="logo" href="#/" aria-label="Sum Duel home"><svg class="mk" viewBox="0 0 512 512" aria-hidden="true"><rect class="mk-bar" x="124" y="235" width="264" height="42" rx="21"/><circle class="mk-a" cx="256" cy="150" r="46"/><circle class="mk-b" cx="256" cy="362" r="46"/></svg><span><span class="s">Sum</span><i class="d">Duel</i></span></a>
   <nav class="nav" aria-label="Main">
     <a href="#/" data-tab="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12h16M12 4v16"/></svg>Arena</a>
     <a href="#/record" data-tab="record"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Record</a>
     <a href="#/boards" data-tab="boards"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H3a3 3 0 0 0 4 4M17 6h4a3 3 0 0 1-4 4"/></svg>Boards</a>
-    <a href="#/chat" data-tab="chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>Chat</a>
     <a href="#/account" data-tab="account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Account</a>
   </nav>
   <a class="who" href="#/account" id="who"><span class="av">?</span><span>Sign in</span></a>
@@ -654,7 +676,6 @@ body{background-image:radial-gradient(var(--line) 1px, transparent 1.3px);backgr
   <a href="#/" data-tab="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12h16M12 4v16"/></svg>Arena</a>
   <a href="#/record" data-tab="record"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Record</a>
   <a href="#/boards" data-tab="boards"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H3a3 3 0 0 0 4 4M17 6h4a3 3 0 0 1-4 4"/></svg>Boards</a>
-    <a href="#/chat" data-tab="chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>Chat</a>
   <a href="#/account" data-tab="account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Account</a>
 </nav>
 

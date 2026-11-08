@@ -133,7 +133,7 @@
   function paintWho() {
     var w = $('who');
     if (ME) { w.innerHTML = '<span class="av">' + esc((ME.name || '?')[0].toUpperCase()) + '</span><span>' + esc(ME.name) + '</span>'; }
-    else { w.innerHTML = '<span class="av">?</span><span>Sign in</span>'; }
+    else { w.innerHTML = '<span class="av"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span>Sign in</span>'; }
   }
 
   // Battles: local cache (all battles, newest first) + pending queue for the server.
@@ -223,6 +223,8 @@
   // =====================================================================
   // Router
   // =====================================================================
+  // Chat is switched off (2026-11-08, owner's request). Its code stays dormant; see api/_features.js to bring it back.
+  var CHAT_ON = false;
   var VIEWS = ['home', 'setup', 'live', 'record', 'boards', 'chat', 'account'];
   var GAMESCREENS = ['play', 'handoff', 'results'];
   var setupFor = 'duel';
@@ -243,7 +245,7 @@
     if (h === 'record') { showScreen('record'); renderRecord(); }
     else if (h === 'boards') { showScreen('boards'); renderBoards(); }
     else if (h === 'account') { showScreen('account'); renderAccount(); }
-    else if (h === 'chat') { showScreen('chat'); renderChat(); }
+    else if (h === 'chat' && CHAT_ON) { showScreen('chat'); renderChat(); }
     else if (h === 'live' || h.indexOf('live/') === 0) { showScreen('live'); renderLive((h.split('/')[1] || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5) || null); }
     else if (h === 'duel' || h === 'tol') { setupFor = h; showScreen('setup'); renderSetup(); }
     else { showScreen('home'); renderHome(); }
@@ -1590,13 +1592,13 @@
   function renderAccount() {
     var el = $('v-account');
     if (ME && ME.mustChange) {
-      el.innerHTML = '<div class="auth"><p class="kicker"><b>6</b> Account</p><h2 class="title">Hi ' + esc(ME.name) + '!</h2>' +
+      el.innerHTML = '<div class="auth"><p class="kicker"><b>5</b> Account</p><h2 class="title">Hi ' + esc(ME.name) + '!</h2>' +
         '<p class="lede">Your account starts with a temporary password. Before you play, pick your own secret one that only you know. Use at least 8 characters. Tip: three random words, like <i>pebble-rocket-toast</i>.</p>' +
         pwFormHtml(true) + '</div>';
       bindPwForm(true); return;
     }
     if (!ME) {
-      el.innerHTML = '<div class="auth"><p class="kicker"><b>6</b> Account</p><h2 class="title">Sign in or sign up.<br><span class="serif" style="font-style:italic;color:var(--p1)">Same box.</span></h2>' +
+      el.innerHTML = '<div class="auth"><p class="kicker"><b>5</b> Account</p><h2 class="title">Sign in or sign up.<br><span class="serif" style="font-style:italic;color:var(--p1)">Same box.</span></h2>' +
         '<p class="lede">Type your email and a password. If you’re new, this makes your account straight away. After that, every game you play is saved to your record.</p>' +
         '<form id="authF" novalidate><label class="sr" for="em">Email</label><input class="inp" id="em" type="email" autocomplete="username" inputmode="email" placeholder="you@example.com" required>' +
         '<label class="sr" for="pw">Password</label><input class="inp" id="pw" type="password" autocomplete="current-password" placeholder="Password (6+ characters)" minlength="6" required>' +
@@ -1628,11 +1630,11 @@
       };
     } else {
       var st = computeStats(localBattles());
-      el.innerHTML = '<div class="auth"><p class="kicker"><b>6</b> Account</p><h2 class="title">' + esc(ME.name) + '</h2><p class="lede" style="margin-bottom:14px">' + esc(ME.email) + ' · ' + st.total + ' battles on record</p>' +
-        '<div class="panel"><label class="lab mono" for="dn" style="font-size:.72rem;letter-spacing:.12em;color:var(--muted)">DISPLAY NAME (SHOWN ON BOARDS)</label>' +
+      el.innerHTML = '<div class="auth"><p class="kicker"><b>5</b> Account</p><h2 class="title">' + esc(ME.name) + '</h2><p class="lede" style="margin-bottom:14px">' + esc(ME.email) + ' · ' + st.total + ' battles on record</p>' +
+        '<div class="panel"><label class="flab" for="dn">Display name<small>shown on the boards</small></label>' +
         '<div class="row" style="margin-top:8px"><input class="inp" id="dn" maxlength="20" value="' + esc(ME.name) + '" style="flex:1;margin:0;min-width:0"><button class="btn" id="dnSave">Save</button></div><div class="err" id="dnErr"></div></div>' +
         '<details class="panel pwbox" style="margin-top:14px"><summary>Change password</summary>' + pwFormHtml(false) + '</details>' +
-        '<div class="row" style="margin-top:14px"><a class="btn" href="#/record">View record</a>' + (ME.admin ? '<a class="btn" href="/admin">Admin tools</a>' : '') + '<button class="btn ghost" id="logout">Sign out</button></div></div>' + settingsHtml();
+        '<div class="row acts-grid" style="margin-top:14px"><a class="btn" href="#/record">View record</a>' + (ME.admin ? '<a class="btn" href="/admin">Admin tools</a>' : '') + '<button class="btn ghost" id="logout">Sign out</button></div></div>' + settingsHtml();
       $('dnSave').onclick = function () {
         var v = $('dn').value.trim(); if (!v) { $('dnErr').textContent = 'Name can’t be empty.'; return; }
         api('/api/auth', { action: 'rename', name: v }).then(function (j) { var old = ME.name; setMe(j.user); if (S.names[0] === old) { S.names[0] = j.user.name; save(); } toast('Name updated'); renderAccount(); })
@@ -1648,7 +1650,7 @@
     bindSettings();
   }
   function settingsHtml() {
-    return '<div class="section auth"><p class="kicker"><b>7</b> Preferences</p><div class="panel" style="padding:4px 18px">' +
+    return '<div class="section auth"><p class="kicker"><b>6</b> Preferences</p><div class="panel" style="padding:4px 18px">' +
       '<div class="setrow"><div>Sound<small>Blips, buzzers and fanfare</small></div><button class="toggle" data-s="sound" aria-pressed="' + !!S.sound + '" aria-label="Sound"></button></div>' +
       '<div class="setrow"><div>Haptics<small>Vibrate on wrong answers (Android)</small></div><button class="toggle" data-s="haptics" aria-pressed="' + !!S.haptics + '" aria-label="Haptics"></button></div>' +
       '<div class="setrow"><div>Night mode<small>Dark blue, like the sea at night</small></div><button class="toggle" data-s="theme" aria-pressed="' + (S.theme === 'night') + '" aria-label="Night mode"></button></div>' +

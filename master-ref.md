@@ -8,7 +8,24 @@ Live: **https://sumduel.app** (`www.sumduel.app` 308-redirects to the apex; `sum
 
 ## ACTIVE TASK / session handoff (updated 2026-11-08)
 
-- **v2.5 (latest): "Little Ones", a level for 4-year-olds.** The owner asked for "a level, inside the app, for 4 year olds". It's a sixth game card on the Arena ("Count with me", tag AGE 4+ · NO CLOCK), full width under the others. It's client-only: no API, no DB, no battle record.
+- **v2.6 (latest): chat switched off, adversarial design review, new logo and site artefacts.** The owner asked to "turn off all chat features and do one adversarial design review using claude design and update all site artefacts, including the logo and push".
+  - **Chat off (reversible):**
+    - The switch is `api/_features.js` → `CHAT_ENABLED = false`. When it's false:
+      - `/api/chat` returns 404 "Chat is turned off" for every method;
+      - `/api/admin` refuses `chat`, `mutes`, `flags` and `review`, and `GET /api/admin` returns `features:{chat:false}`;
+      - the portal hides the Chat and Flags tabs, the mute selects and the "n chat messages" meta (unless a player has old messages).
+    - Client: `CHAT_ON = false` in `app.js`, so `#/chat` falls through to home. The Chat links are removed from the top nav and the tab bar, which now has 4 columns.
+    - Kept dormant: the chat JS/CSS, `_safety.js` (still used for Live Duel game names), the tables, the activity-log labels, and audits (their chat counts just read 0).
+    - **To re-enable:** set both flags to true, restore the two `<a href="#/chat" data-tab="chat">` links in `index.html`, set the tab bar back to `repeat(5,1fr)`, and renumber the Account/Preferences kickers.
+    - At switch-off the DB had 0 chat messages, 0 unreviewed flags, 0 open reports and 0 mutes, so nothing was stranded.
+  - **Design review:** done in **Claude Design** (the Design artifact type), canvas https://claude.ai/artifact/MfqwNUcqKa2g94aQSoNdUc (private; the owner shares it from its Share menu).
+    - It has three boards: ranked findings; logo and site artefacts; before/after screenshots.
+    - Inputs: 38 screenshots from the local QA server (phone 390 day, desktop 1280 day and night, admin), taken with `qa.design.*@example.com` test users, since deleted.
+    - Ten findings, all fixed (§3 "v2.6 review"). Four were challenged and kept: textbook numbering and the Lean admin headings (both owner direction), the masked super_admin row showing "Set password" (role hiding), and the results chart's first bar including the GO reaction time (flagged).
+  - **New logo (v2.6 mark):** a ÷ whose dots are the two players (teal `#0F7C8C` above, raspberry `#D6336C` below) and an ink `#22223B` bar, flat on sand `#FFF8EE` with a `#BFE6EA` scalloped sea. It replaces the v1 neon mark (`#050B18`, glows), which broke the "no neon" rule.
+  - QA: the Little Ones run (10 rounds, no errors) and the chat-off API checks all pass. Service worker `sd-v2.6.0`.
+
+- **v2.5: "Little Ones", a level for 4-year-olds.** The owner asked for "a level, inside the app, for 4 year olds". It's a sixth game card on the Arena ("Count with me", tag AGE 4+ · NO CLOCK), full width under the others. It's client-only: no API, no DB, no battle record.
   - **Why it isn't just a "tiny" difficulty:** the existing games need reading, typing on a keypad and beating a clock with penalties, and 4-year-olds can do none of those. So it's a separate picture game. Pictures are emoji (no assets). Answers are three big buttons. A spoken voice reads every prompt. There's no timer and no penalty.
   - **10 rounds (`LITTLE_PLAN` in `app.js`):** count 1–3, count 2–4, more, count 3–5, add (sum ≤ 3), more, count 4–6, add (≤ 4), count 5–7, add (≤ 5). Each round picks a different picture from `LITTLE_THINGS`.
   - QA: a Playwright run on phone (paper) and desktop (night) plays all 10 rounds, including wrong answers, the count-along and the "more" rounds. It checks the end screen, the star total and the return to the Arena, with no console errors. Headless Chromium here has no emoji font, so the screenshot run loads Noto Color Emoji (from `@fontsource/noto-color-emoji`) into the test pages only. Real devices use their own emoji. Service worker `sd-v2.5.0`.
@@ -65,14 +82,14 @@ Live: **https://sumduel.app** (`www.sumduel.app` 308-redirects to the apex; `sum
 
 ## 1. Architecture & module layout
 
-A static single-page app plus seven Vercel serverless functions (Hobby limit 12). There's **no build step** and no framework.
+A static single-page app plus seven Vercel serverless functions (Hobby limit 12; `_`-prefixed files are shared modules, not functions). There's **no build step** and no framework.
 
 | Path | Role |
 |---|---|
 | `index.html` | Markup for every view plus **all CSS inline**. Preloads three fonts. Loads `app.js` (defer). |
 | `app.js` | The whole player client: router, games (incl. **Little Ones**), auth, sync, record, boards, **chat**, sound, speech, confetti. ES5-style IIFE. |
 | `admin.html` + `admin-portal.js` | The admin portal at `/admin` (clean URL). Inline CSS, no inline JS (strict CSP). Shows a plain 404 page to anyone who isn't an admin. |
-| `sw.js` | Service worker `sd-v2.5.0`: precaches the shell and fonts; navigations network-first with **only `/` cached**; never caches `/api/*` or `/admin*`. Bump `VERSION` when shell files change. |
+| `sw.js` | Service worker `sd-v2.6.0`: precaches the shell and fonts; navigations network-first with **only `/` cached**; never caches `/api/*` or `/admin*`. Bump `VERSION` when shell files change. |
 | `fonts/` | Self-hosted woff2 subsets and their licences (`fonts/README.md`). |
 | `api/_lib.js` | Neon client, `route()`, scrypt, player sessions (`currentUser` returns `role`, `muted_until`), `publicUser`, `isMod`/`isSuper`, **`logEvent()`**. |
 | `api/_safety.js` | Chat safeguarding filter (`screen()`). |
@@ -80,7 +97,10 @@ A static single-page app plus seven Vercel serverless functions (Hobby limit 12)
 | `api/auth.js` | Player auth (`enter`, `logout`, `rename`). Logs sign_up, sign_in, sign_in_failed, sign_in_locked, sign_out and rename. |
 | `api/battles.js` | Own battles GET; idempotent POST. Logs `battle_saved` with a compact summary. |
 | `api/board.js` | Leaderboards. Logs `score_posted`. |
-| `api/chat.js` | Chat (poll, send, report, delete, mute). Exports `CHANNELS`. |
+| `api/chat.js` | Chat (poll, send, report, delete, mute). Exports `CHANNELS`. **Switched off (v2.6):** returns 404 while `CHAT_ENABLED` is false. |
+| `api/_features.js` | Feature switches. `CHAT_ENABLED = false` (v2.6). |
+| `icon.svg`, `icon-maskable.svg` | The v2.6 seaside ÷ mark (a rounded tile; a full-bleed maskable version with the artwork at 86 % in the safe circle). |
+| `apple-touch-icon.png` (180), `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `favicon-32.png`, `og.png` (1200×630) | Rendered from the SVGs and an HTML share card with headless Chromium (render scripts live in the session scratchpad, not the repo). Re-render them whenever the mark changes. |
 | `api/admin.js` | Admin API (role-gated, see §7). |
 | `api/live.js` | Live Duel API: lobby, create, join (with password), ready, progress, leave, claim, rematch. |
 | `api/_questions.js` | Server copy of `makeQuestions` and `RANGES`. **Keep it identical to `app.js`.** |
@@ -90,7 +110,7 @@ A static single-page app plus seven Vercel serverless functions (Hobby limit 12)
 | `vercel.json` | Clean URLs, `lhr1`, headers (strict CSP + noindex + no-store on `/admin*`, immutable `/fonts/*`), and `crons: [{ path: /api/audit-cron, schedule: "0 7 * * *" }]`. |
 
 ### Client views (hash router)
-`#/` Arena · `#/duel`, `#/tol` setup · **`#/live` (lobby) and `#/live/CODE` (room)** · `#/record` · `#/boards` · `#/chat` · `#/account`. The game screens aren't routed. `route()` calls `chatStop()` and `liveStop()` on every navigation, so polling only runs while that view is open. Leaving a live game by navigating away doesn't forfeit, but after 25 s of silence the opponent can claim the win.
+`#/` Arena · `#/duel`, `#/tol` setup · **`#/live` (lobby) and `#/live/CODE` (room)** · `#/record` · `#/boards` · `#/chat` (off in v2.6; it falls through to home) · `#/account`. The game screens aren't routed. `route()` calls `chatStop()` and `liveStop()` on every navigation, so polling only runs while that view is open. Leaving a live game by navigating away doesn't forfeit, but after 25 s of silence the opponent can claim the win.
 
 ## 2. Code & data workflow
 
@@ -142,7 +162,7 @@ Unchanged from v2. Duel, Truth or Lie, Sprint and Daily live in `app.js`. Battle
 
 There's no retention limit: everything is kept.
 
-### Chat (`#/chat`, `api/chat.js`)
+### Chat (`#/chat`, `api/chat.js`): SWITCHED OFF in v2.6, documented for re-enabling
 - **Channels:** `#lobby` and `#duels` (the `CHANNELS` map, with topics). Signed-in players only.
 - **Transport:** polling (Vercel functions can't hold websockets). `GET /api/chat?c=&after=<id>` returns new messages, the ids removed in the last 3 min, and who's online (presence row upserted on each poll; online = seen within the last 40 s). The client polls every 3 s, backs off to 8 s after about a minute of quiet, pauses when the tab is hidden and stops when you leave the view. *Budget note:* Hobby allows about 1M function calls a month. 10 kids × 2 h a day ≈ 0.4–0.9M, so watch usage if the chat gets busy.
 - **Sending:** muted users get 403. Rate limit: 5 messages per 10 s → 429. Maximum 300 characters. `/me` creates an action line. The client also handles `/help` and `/clear`.
@@ -158,8 +178,8 @@ There's no retention limit: everything is kept.
 
 ### Admin portal (`/admin`)
 - `GET /api/admin` returns `{role, me}` for admin and super_admin. For everyone else, including signed-out visitors, the API returns **404** and the page shows a plain "Page not found", so the portal's existence isn't revealed.
-- **Admin tabs:** **Players** (search; set password for players; mute) and **Chat** (recent messages in either channel incl. removed ones without text; delete; mute 1 h; mutes list with unmute).
-- **Super admin tabs add:**
+- **Admin tabs (chat off, v2.6):** **Players** only (search; set password); mute and the Chat/Flags tabs come back with `CHAT_ENABLED`. When chat is on: **Players** (+ mute) and **Chat** (recent messages in either channel incl. removed ones without text; delete; mute 1 h; mutes list with unmute).
+- **Super admin tabs add** (Flags only while chat is on):
   - **Flags**: unreviewed flagged and reported messages, wellbeing and personal-info first, each with 5 lines of context and its reports. Actions: mark reviewed, remove + reviewed, mute 1 h or 1 day. The tab badge shows the count.
   - **Activity**: filter by group and search email, text or IP; 100 rows at a time with "Load older"; Export CSV.
   - **Audits**: list, "Run audit now", mark reviewed.
@@ -228,6 +248,17 @@ There's no retention limit: everything is kept.
   - Questions are withheld until just before GO, so nobody can practise them in the lobby.
   - Battles are written server-side, so the record exists even if a device closes on the results screen.
   - You = blue on every device, because the results screen and the record always treat the device's owner as player 0.
+- **v2.6 review, ranked by severity (finding → fix):**
+  1. **Critical: the logo was from the dead v1 neon design.** → a seaside ÷ mark plus a header lockup in the app and admin.
+  2. **Critical: the manifest colours were `#050B18`** (a black splash and status bar on install). → `#FFF8EE`.
+  3. **High: iOS ignores an SVG apple-touch-icon** (it showed a screenshot), there were no PNG icons, and the maskable icon had no safe zone. → a full PNG set.
+  4. **High: no og:image, and the "one phone" pitch was outdated.** → `og.png` plus new copy and `twitter:card`.
+  5. **High: on phones the Game 6 tag collided with its eyebrow.** → tags are `position:static` at ≤ 520 px.
+  6. **Medium: the phone hero equations pushed every game below the fold.** → hidden below 640 px.
+  7. **Medium: justified, auto-hyphenated prose made rivers** on narrow screens. → left-aligned, `hyphens:manual`, in the app and the admin.
+  8. **Medium: the signed-out "?" avatar read as Help.** → a person glyph.
+  9. **Low: the account label was in mono capitals, with dead space and ragged buttons.** → `.flab`, `.panel .err:empty`, `.acts-grid`.
+  10. **Low: kicker numbers had a gap after chat was removed.** → Account 5, Preferences 6.
 - **Little Ones (v2.5):** the owner asked for a level for 4-year-olds. The design rules follow from what that age can do: they can't read (so a voice and pictures), they can't use a keypad (so 3 huge buttons, at least 88 px tall), they shouldn't be timed or penalised (so no clock, a soft wrong-answer sound, and a count-along instead of a fail), and they love collecting things (so stars). It's kept out of the battle record so it doesn't inflate the stats or need an account.
 - **v2.1 service worker fix:** only `/` is cached, so other pages can't overwrite the shell.
 
@@ -260,6 +291,8 @@ There's no retention limit: everything is kept.
 - **Shape:** base radius 2 px, overridden by the friendly layer (16/12 px, pills); 18 px gutter; max width 1080 px. Tab bar under 760 px with 5 tabs.
 - **Motion:** wrong-answer shake + `--bad` wash (not in Little Ones, which uses a gentle wobble); countdown; ink-coloured confetti; everything respects `prefers-reduced-motion`.
 - **Little Ones layer (v2.5, `.lt*`, `.game.little`):** new tokens `--sun-deep` (day `#FFF3C4`, night `#3B3420`) and `--sun-ink` (day `#7A5200`, night `#FFE08A`) for the sunny card and tag. Full-screen `.lt` with a sun radial background. Answer buttons have 3 px teal borders, a 24 px radius and a 5 px ledge. Right = `--win` fill, wrong = wobble + 35 % opacity. Progress stars are CSS clip-path stars (not emoji), so they show even without an emoji font. Picture size comes from `--sz` on `.lt-scene` (count: `min(17vw,11vh)`; add: `min(14vw,9vh)`; more: `min(11.5vw,8vh)`; larger caps at ≥ 760 px). Animations (`lt-pop`, `lt-wobble`, `lt-hop`, `lt-breathe`) are cut by the global reduced-motion rule.
+- **Logo (v2.6):** the mark is a ÷: an ink bar (`x124 y235 w264 h42 rx21` in a 512 box), a `--p1` dot above (`cy150 r46`) and a `--p2` dot below (`cy362`). The header and the admin draw it inline with classes `.mk-bar` / `.mk-a` / `.mk-b`, filled from tokens in CSS (so night mode recolours it; no `var()` in SVG attributes). The icon tile is sand `#FFF8EE` with a `#BFE6EA` scalloped sea (`M0 460`, 64 px scallops) that must stay below the pink dot. Never bring back the dark neon tile.
+- **v2.6 review layer** (a CSS block before the reduced-motion rule): static tags at ≤ 520 px, `.hero .eqn` hidden below 640 px, `.flab`, `.acts-grid`, `.who .av svg`. `.lede` is left-aligned with `hyphens:manual` (justified text is banned at these widths).
 - **Do NOT:**
   - use `var()` in SVG presentation attributes;
   - add a framework or build step without reason;
@@ -303,5 +336,5 @@ There's no retention limit: everything is kept.
 | Role | Set by | Sees / can do |
 |---|---|---|
 | **player** | default on sign-up | Play; read and write own battles and name; post scores; chat (subject to the filter, rate limit and mutes); report messages. `/admin` shows 404. |
-| **admin** (Imogen, id 71) | super_admin in Players → role, or `npm run role` (Imogen was created by a one-off script) | Everything a player can do, plus an "Admin tools" button on Account, `@` in chat, and the `/admin` Players and Chat tabs: search players, reset **players'** passwords, delete messages, mute or unmute **players**. Can't see the activity log, flags, audits or player details. Can't act on admin or super_admin accounts (generic "can't be changed from here" / "can't mute this player"). Sees the super_admin as an ordinary player. Password resets she does force the player to choose a new one. Every action is logged and listed in each audit. |
+| **admin** (Imogen, id 71) | super_admin in Players → role, or `npm run role` (Imogen was created by a one-off script) | **While chat is off (v2.6): the Players tab only** (search, reset players' passwords). With chat on, everything below. Everything a player can do, plus an "Admin tools" button on Account, `@` in chat, and the `/admin` Players and Chat tabs: search players, reset **players'** passwords, delete messages, mute or unmute **players**. Can't see the activity log, flags, audits or player details. Can't act on admin or super_admin accounts (generic "can't be changed from here" / "can't mute this player"). Sees the super_admin as an ordinary player. Password resets she does force the player to choose a new one. Every action is logged and listed in each audit. |
 | **super_admin** (the owner) | **only** `npm run role` (CLI) | Looks exactly like a player in the game and in chat. Types `/admin` while signed in to get everything: all players with true roles, role changes, password resets for anyone, mutes for anyone, removed-message text, the flag review queue, the full activity log with CSV export, audits (run, read, mark reviewed), and per-player histories. |
