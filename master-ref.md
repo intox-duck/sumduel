@@ -6,7 +6,22 @@ Live: **https://sumduel.app** (`www.sumduel.app` 308-redirects to the apex; `sum
 
 ---
 
-## ACTIVE TASK / session handoff (updated 2026-11-08)
+## ACTIVE TASK / session handoff (updated 2026-11-12)
+
+- **v2.8 (latest, on branch `ccr-e7766a6c-jji1bl`, not merged or deployed): Live game types, the Climb, coins and hearts, the daily gift, Daily VS.** The owner asked (dictated, 2026-11-12): "move lives games of different of variety of games, truth or lie on 2 devices. And climb trail version, with lives given out as coins, be generous. A sort of wordscape esque reward system, where you can do a daily vs."
+  - **How it was read** (say so if any of these is wrong):
+    1. *"live games of a variety of games, truth or lie on 2 devices"*: Live now offers **Duel, Truth or Lie and Sprint** on two devices.
+    2. *"climb trail version"*: **The Climb**, a Wordscapes-style trail of levels up the coast, 12 levels per area, a treasure chest at the end of each.
+    3. *"lives given out as coins, be generous"*: **hearts** (lives) gate Climb levels; **coins** buy hearts and extra goes; both are handed out freely (hearts refill every 10 min, the gift calendar, chests, the Daily VS, every game pays coins).
+    4. *"a daily vs"*: **Daily VS**, a daily ghost race against anyone who has already raced today, or one of three sea bots; the first race of the day pays a prize.
+  - **Live game types (`cfg.game`):** `duel` (unchanged), `sprint` (60 s, same question stream, most correct wins, fewer wrong breaks a tie; server caps progress at 2.5 correct/s), `tol` (Truth or Lie, judged by the server round by round; see §2 "Live Truth or Lie"). Games created before v2.8 have no `cfg.game` and are treated as duels. Rematches keep the game type. Live battles are recorded as `game: duel|tol|sprint, mode: 'live'`.
+  - **Economy (generous on purpose):** start 200 coins, 5 hearts. One heart back every 10 min up to 5; gifts/chests/purchases can go to 15. 1 heart = 20 coins, fill up = 60, keep going in a level = 25 (max 3 per level). Gift calendar: 50, 75, 100+♥1, 125, 150+♥2, 200, 300+♥5 (miss a day: back to day 1). Climb first clear = 20 + 10 per star; chest = +150 coins +2 hearts. Every game pays: Duel/Truth or Lie 10 (+10 win), Sprint 5 + half the score (max 30), Daily 40 (practice 5), Live 15 (+15 win), Daily VS ghost race 5/10 plus the VS prize (first race of the day: win 100 + ♥2, lose 40 + ♥1; rematch win 10). Cap: 80 paying battles per UTC day.
+  - **Server:** new function `api/rewards.js` (8 of 12 Hobby functions now). Rules in `api/_economy.js`, **mirrored in `app.js` (ECON, battleCoins, climbReward, botRun, the guest wallet): keep them in step**. Wallet writes use optimistic locking (`rev`), so two devices can't lose each other's coins.
+  - **Schema:** `wallets` and `daily_vs` (in `api/_schema.js`). `npm run migrate` applies them, **but the functions that need them also run `ensureSchema()` once per cold start**, so a deploy works even if nobody migrates first. No change to existing tables (live Truth or Lie stores its calls inside the existing `host_extra`/`guest_extra` jsonb).
+  - **Guests** get the whole thing on a local wallet (`sd_wallet_local`) with the same rules. On sign-in, a guest's coins (capped at 3,000) and Climb progress move into the account **only if the account's wallet is brand new** (`adopt`), then the local wallet is cleared.
+  - **Not built / deliberately left out:** no real money, no purchases of coins, no ads. Little Ones stays outside the economy (it's for 4-year-olds). Climb levels aren't written to the battle record (they'd swamp it); their stars live in the wallet and show on the players dashboard ("Climb level n · m stars", new "Highest climb" sort).
+  - **QA (local, PGlite standing in for Neon, in the session scratchpad):** 67 API checks (`qa/t-api.mjs`: wallet, gift, buy, Climb start/continue/finish incl. too-quick and double-finish, hearts running out, battle coins incl. old battles paying nothing, Daily VS bots/ghosts/prizes, adopt-once, live Truth or Lie full game with one call per round and hidden answers, live Sprint pace cap and early-final refusal, forfeit, live Duel regression, players report), 15 guest browser checks (`qa/e2e-guest.mjs`: gift, Climb race/truth with a paid keep-going/missing-number/stop, trail state, Daily VS vs a bot, record), 16 two-browser checks (`qa/e2e-live.mjs`: guest progress adopted on sign-up, server-side Climb, private live Truth or Lie desktop vs phone to 7–0, rematch keeps the type, live Sprint, record filters, dashboard). Screenshots phone/desktop, day/night. No console errors.
+  - **Owner to do before merging:** play a Climb area and a live Truth or Lie on two real phones; then merge to `main` (auto-deploys). Running `npm run migrate` is optional (see Schema). Service worker `sd-v2.8.0`.
 
 - **v2.7 (latest): new fonts, illustrations, a home leaderboard and a players dashboard.** The owner said: "I don't like the font or the lack of visuals, show a leaderboard on the homescreen, all users reports are shown on a public facing dashboard once players login."
   - **Fonts:** Nunito (body, labels, buttons, tabular numbers) and Fredoka (headings, logo, questions, keypad, big numbers). Both are self-hosted under `/fonts`: the unmodified Fontsource Latin variable files, SIL OFL. They replace Latin Modern and JuliaMono, which are deleted from the repo along with their licences.
@@ -104,14 +119,14 @@ Live: **https://sumduel.app** (`www.sumduel.app` 308-redirects to the apex; `sum
 
 ## 1. Architecture & module layout
 
-A static single-page app plus seven Vercel serverless functions (Hobby limit 12; `_`-prefixed files are shared modules, not functions). There's **no build step** and no framework.
+A static single-page app plus eight Vercel serverless functions (Hobby limit 12; `_`-prefixed files are shared modules, not functions). There's **no build step** and no framework.
 
 | Path | Role |
 |---|---|
 | `index.html` | Markup for every view plus **all CSS inline**. Preloads three fonts. Loads `app.js` (defer). |
 | `app.js` | The whole player client: router, games (incl. **Little Ones**), auth, sync, record, boards, **chat**, sound, speech, confetti. ES5-style IIFE. |
 | `admin.html` + `admin-portal.js` | The admin portal at `/admin` (clean URL). Inline CSS, no inline JS (strict CSP). Shows a plain 404 page to anyone who isn't an admin. |
-| `sw.js` | Service worker `sd-v2.6.0`: precaches the shell and fonts; navigations network-first with **only `/` cached**; never caches `/api/*` or `/admin*`. Bump `VERSION` when shell files change. |
+| `sw.js` | Service worker `sd-v2.8.0`: precaches the shell and fonts; navigations network-first with **only `/` cached**; never caches `/api/*` or `/admin*`. Bump `VERSION` when shell files change. |
 | `fonts/` | Self-hosted woff2 subsets and their licences (`fonts/README.md`). |
 | `api/_lib.js` | Neon client, `route()`, scrypt, player sessions (`currentUser` returns `role`, `muted_until`), `publicUser`, `isMod`/`isSuper`, **`logEvent()`**. |
 | `api/_safety.js` | Chat safeguarding filter (`screen()`). |
@@ -124,15 +139,18 @@ A static single-page app plus seven Vercel serverless functions (Hobby limit 12;
 | `icon.svg`, `icon-maskable.svg` | The v2.6 seaside ÷ mark (a rounded tile; a full-bleed maskable version with the artwork at 86 % in the safe circle). |
 | `apple-touch-icon.png` (180), `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `favicon-32.png`, `og.png` (1200×630) | Rendered from the SVGs and an HTML share card with headless Chromium (render scripts live in the session scratchpad, not the repo). Re-render them whenever the mark changes. |
 | `api/admin.js` | Admin API (role-gated, see §7). |
-| `api/live.js` | Live Duel API: lobby, create, join (with password), ready, progress, leave, claim, rematch. |
-| `api/_questions.js` | Server copy of `makeQuestions` and `RANGES`. **Keep it identical to `app.js`.** |
+| `api/live.js` | Live games API (v2.8: Duel, Sprint, Truth or Lie): lobby, create, join (with password), ready, progress, call (Truth or Lie), leave, claim, rematch. |
+| `api/rewards.js` | v2.8: wallet (coins + hearts), daily gift, buying hearts, Climb start/continue/finish, Daily VS board (public) and finish, guest `adopt`. |
+| `api/_economy.js` | v2.8 rules: `ECON` numbers, `battleCoins`, `climbReward`, heart regen, `mutate` (optimistic lock on `rev`), `awardBattle`, the Daily VS bots (`botRun`). **Mirrored in `app.js`.** |
+| `api/_schema.js` | v2.8 tables (`V28`) and `ensureSchema()`, run once per cold start by the functions that need them; `scripts/migrate.js` also applies `V28`. |
+| `api/_questions.js` | Server copy of `makeQuestions`, `makeTol` (v2.8), `rng`, `hashStr` and `RANGES`. **Keep it identical to `app.js`.** |
 | `api/audit-cron.js` | Vercel cron target. Checks `Authorization: Bearer $CRON_SECRET`, then calls `runAudit`. |
 | `scripts/migrate.js` | Idempotent schema (`npm run migrate`). |
 | `scripts/role.js` | `npm run role -- <email> <player|admin|super_admin>`. **The only way to create a super_admin.** Logs `role_set_cli`. |
 | `vercel.json` | Clean URLs, `lhr1`, headers (strict CSP + noindex + no-store on `/admin*`, immutable `/fonts/*`), and `crons: [{ path: /api/audit-cron, schedule: "0 7 * * *" }]`. |
 
 ### Client views (hash router)
-`#/` Arena · `#/duel`, `#/tol` setup · **`#/live` (lobby) and `#/live/CODE` (room)** · `#/record` · `#/boards` · **`#/players` (v2.7 dashboard, signed-in only)** · `#/chat` (off in v2.6; it falls through to home) · `#/account`. The game screens aren't routed. `route()` calls `chatStop()` and `liveStop()` on every navigation, so polling only runs while that view is open. Leaving a live game by navigating away doesn't forfeit, but after 25 s of silence the opponent can claim the win.
+`#/` Arena · `#/duel`, `#/tol` setup · **`#/climb` (v2.8 trail)** · **`#/vs` (v2.8 Daily VS)** · **`#/live` (lobby) and `#/live/CODE` (room)** · `#/record` · `#/boards` · **`#/players` (v2.7 dashboard, signed-in only)** · `#/chat` (off in v2.6; it falls through to home) · `#/account`. The game screens aren't routed. `route()` calls `chatStop()`, `liveStop()`, `climbStop()` and `closeSheet()` on every navigation, so polling only runs while that view is open. Leaving a live game by navigating away doesn't forfeit, but after 25 s of silence the opponent can claim the win.
 
 ## 2. Code & data workflow
 
@@ -142,6 +160,25 @@ Unchanged from v2. Duel, Truth or Lie, Sprint and Daily live in `app.js`. Battle
 { cid, at, game: 'duel'|'tol'|'sprint'|'daily', mode?, cfg: { ops, level, n? }, winner?: 0|1|-1, day?, practice?,
   players: [{ name, time?, raw?, wrong, score?, splits?, bestStreak?, wrongBy?, avgRt? }] }   // account holder = player 0
 ```
+
+### Rewards (v2.8): coins, hearts, daily gift
+- **Authority:** signed in, `/api/rewards` owns the wallet; the client renders what it returns (`setWallet`). Guests: `localRewards(action, body)` in `app.js` runs the same rules on `localStorage sd_wallet_local` and returns the same shapes, so every caller just uses `rewards(action, body)`.
+- **Header purse** (`#purse`, coins + hearts, links to the Climb); it bumps when a number changes. The phone header hides the account name under 460 px to make room.
+- **Paying for games:** `payBattle(b)` shows "+N coins" on every results screen. Signed in, `/api/battles` pays newly saved battles from the last 24 h (`battleCoins`) and `/api/live` pays both players when it records a live game; guests are paid locally.
+- **Daily gift:** a banner on the Arena when it's ready (`#giftBar`) and a button on the Climb bar; a sheet with the 7-day calendar and a chest that opens.
+- **Sheets:** `openSheet(html)` / `closeSheet()`: one modal at a time, bottom sheet on phones, centred card from 640 px; Esc or the backdrop closes it.
+
+### The Climb (v2.8, `#/climb`)
+- **Levels are generated from their number** (`climbDef(L)`): area = ⌊(L−1)/12⌋, position p = (L−1) mod 12 picks the kind from `KINDS` = race, truth, missing, race, target, mixed, race, truth, missing, target, race, **boss**. Areas (`AREAS`): Rock Pools (easy +, then + −), The Harbour (easy + −, then ×), Sand Dunes (easy × ÷, then all), The Pier (medium + −), Cliff Path (medium × ÷), Lighthouse Point (medium all), Starry Sky (hard + −), Moon Beach (hard × ÷ then all); after level 96, endless "Summit n" areas (hard, all, slowly quicker). Clocks come from a per-area seconds-per-question (`tpq`), 2 % quicker per level within an area.
+- **Kinds:** race (n sums before the clock; +3 s per wrong), truth (8 statements, 2 mistakes allowed; uses its own `truthHalf()` screen), missing (`7 × ? = 42`, via `toMissing`), target (45 s, a goal of correct answers; 2★ = goal+3, 3★ = goal+6; ends early at 3★), mixed (every other sum has a missing number), boss (12 sums, every op of the area, opens the chest).
+- **Stars:** timed kinds: ≥ 40 % of the clock left = 3★, ≥ 20 % = 2★, else 1★. Truth: 0/1/2 mistakes = 3/2/1★. Any paid "keep going" caps the level at 1★.
+- **Hearts:** `climbStart` takes a heart up front and returns a run id; `climbFinish` (won) gives it back with the coins. Quitting or closing the app keeps the heart spent (so it can't be dodged). Out of time or mistakes: "Keep going" (+20 s, +15 s on target, or one more mistake) for 25 coins, up to 3 times.
+- **Trail map:** areas stacked bottom-up in a 560 px column; nodes on a sine path (`nodeX`, `nodeY`), a Catmull-Rom SVG path per area with `vector-effect: non-scaling-stroke`; scenery from `DECOR`/`SCENE` (inline SVG at the edges, `.il-*` classes). The view scrolls to the current node, where your blob avatar bobs. Locked areas are greyed. Sticky `.climb-bar` with hearts, next-heart countdown, coins, stars, gift and shop.
+
+### Daily VS (v2.8, `#/vs`)
+- 15 questions a day from `hashStr('sumduel-vs-' + day)` (medium, all four ops), the same for everyone. Rivals: anyone who has already raced today (`daily_vs` rows, public like the boards: names, times, splits) or three bots: Wobble the Jellyfish (≈ 5.2 s/q, 2 wrong), Captain Crab (≈ 3.4 s/q, 1 wrong), Sid the Shark (≈ 2.1 s/q, 0 wrong). Bot runs are fixed per day (`botRun`, mirrored on the server so it can check the result).
+- The race reuses the pad engine; the rival's ghost moves along the live-style strip at their real per-question pace (raw time; their penalties are added at the end, like yours). Results reuse the Duel results screen (both players' splits on the chart) and record a battle `{ game:'duel', mode:'ghost' }`.
+- **First race of the day counts:** it stores your run as a ghost for others (signed in only) and pays the prize, win or lose. Later races are rematches (10 coins for a win).
 
 ### Little Ones (v2.5, for 4-year-olds, client-only)
 - **Entry:** the Arena card `data-go="little"` → `startLittle()`. It renders into `#play` as a game screen (`G.kind = 'little'`), so any navigation calls `abortGame()`, which also cancels speech (`hush()`). It isn't hash-routed, like the other games.
@@ -178,7 +215,7 @@ Unchanged from v2. Duel, Truth or Lie, Sprint and Daily live in `app.js`. Battle
 | Group | Actions |
 |---|---|
 | Accounts | `sign_up`, `sign_in`, `sign_in_failed`, `sign_in_locked`, `sign_out`, `rename` |
-| Games | `battle_saved` (summary: game, winner, opponent, times or scores), `score_posted` |
+| Games | `battle_saved` (summary: game, winner, opponent, times or scores), `score_posted`, v2.8: `climb_finish`, `vs_finish`, `gift_claimed`, `coins_spent`, `progress_adopted` (all in the "Games & scores" group) |
 | Chat | `chat_message` (text, plus flags and the original if masked), `chat_blocked` (reason + the attempted text), `chat_report`, `chat_delete` (keeps the text), `chat_mute`, `chat_unmute` |
 | Admin | `admin_open`, `admin_password_reset`, `admin_role_change`, `admin_review`, `audit_run`, `audit_reviewed`, `role_set_cli` |
 
@@ -208,7 +245,13 @@ There's no retention limit: everything is kept.
 - **Super admin also gets:** a role dropdown (player ↔ admin; never super_admin), Details per player (scores, battles, chat messages incl. removed, activity), and the true roles in every list.
 - **Password reset:** the admin sets or generates a password. This ends the target's sessions (except the caller's own) and clears `auth_fails`. Nothing is emailed.
 
-### Live Duel (`#/live`, `api/live.js`, `live_games`)
+### Live Truth or Lie (v2.8)
+- Everything follows from `start_at` and the two players' calls (`tolTimeline()` in `api/live.js`): statement k is revealed at R_k (R_0 = `start_at`); the round closes when both have called, or at R_k + 6 s; R_{k+1} = round end + 1.8 s. The quickest right call scores (device-measured reaction time, clamped to the server clock: never more than 2.5 s faster than the call's arrival, never slower than it). A wrong call just means you can't score that round. First to 7; after 25 statements the higher score wins (a tie is a draw).
+- Calls are stored as `host_extra.calls` / `guest_extra.calls` (`{"k": {s, rt, at}}`); each player only writes their own column, with a conditional jsonb update so a double tap can't call twice.
+- **No answers leave the server early:** the statement text is sent 1.2 s before its reveal (so both devices show it on time) and its truth only after the round. The room polls every 0.5 s during play.
+- Client: `liveTolStart`, a 50 ms frame loop (`liveTolFrame`) that reveals on server time and runs the call-window bar, `liveTolTick` for round results ("+1 for you! Quicker by 0.21 s"), `liveTolCall`. Keys: A/← true, S/→ lie.
+
+### Live games (`#/live`, `api/live.js`, `live_games`)
 - **Lobby (`#/live`):** create a game (name, operations, difficulty, 5/10/15/20 questions, public or private + password of 3–50 characters, scrypt-hashed), join by 5-character code, or pick from the open-games list (polled every 3 s). Private games ask for the password inline.
   - One active game per player: creating or joining leaves your other lobby.
   - Game names go through the chat safeguarding filter: PII and links are blocked, profanity is masked.
@@ -254,6 +297,7 @@ There's no retention limit: everything is kept.
   - `chat_reports(id, message_id, reporter_id, reason, at, resolved_at)`
   - `chat_presence(user_id, channel, seen_at)`
   - `audit_reports(id, created_at, trigger, period_start, period_end, data jsonb, reviewed_at, reviewed_by)`
+- **v2.8 tables:** `wallets(user_id pk, coins, lives, lives_at, climb_level, climb_stars jsonb, gift_day text, gift_streak, run jsonb, earn_day text, earn_n, rev, updated_at)`, `daily_vs(day text, user_id, time, raw, wrong, splits jsonb, rival, won, created_at, pk(day,user_id))`.
 - **v2.3 table:** `live_games(id, code unique, name, host_id, guest_id, invited_id, is_private, pass_hash, cfg, status, host_/guest_ready, host_/guest_seen, questions, start_at, host_/guest_idx, _wrong, _done_at, _raw, _extra, result, rematch_code, created_at, updated_at)`
 
 ## 3. Reasons for change
@@ -283,11 +327,17 @@ There's no retention limit: everything is kept.
   10. **Low: kicker numbers had a gap after chat was removed.** → Account 5, Preferences 6.
 - **Little Ones (v2.5):** the owner asked for a level for 4-year-olds. The design rules follow from what that age can do: they can't read (so a voice and pictures), they can't use a keypad (so 3 huge buttons, at least 88 px tall), they shouldn't be timed or penalised (so no clock, a soft wrong-answer sound, and a count-along instead of a fail), and they love collecting things (so stars). It's kept out of the battle record so it doesn't inflate the stats or need an account.
 - **v2.1 service worker fix:** only `/` is cached, so other pages can't overwrite the shell.
+- **v2.8 design decisions:**
+  - *Live Truth or Lie is judged per round, not as a buzzer race.* With 0.5–1 s polling, a first-tap-wins buzzer would hand rounds to whoever had the better network. Revealing on server time and comparing on-device reaction times is fair on any connection, and one call per round keeps it a guessing game with a cost.
+  - *A heart is taken at the start of a level and refunded on a win* (the Candy Crush model), so closing the app mid-level can't dodge losing one.
+  - *Server-owned wallet for accounts, local rules for guests:* accounts sync across devices and can't be edited from the browser; guests still get the whole game, and their progress moves over once, into a new account only.
+  - *`ensureSchema()` in the functions:* this session had no database credentials, so the tables create themselves on first use instead of relying on someone running `npm run migrate` before the deploy.
+  - *Generosity is in the numbers, not the rules:* fast heart refills, cheap hearts, payouts on every game and a prize for losing your first Daily VS. Change `ECON` (both copies) to tune it.
 
 ## 4. Styling & design system
 - **Approach:** hand-written CSS inline in `index.html` and `admin.html` (shared tokens). No framework.
 - **Audience (v2.4):** the owner's daughter (9, reasoning at about 11) and her friends. Keep wording short and plain, keep it colourful but calm. Never put her name or home town in public page text.
-- **Layers:** a **v2.7 layer** (last before the reduced-motion rule: type tuning, `.il-*` illustration colours, `.gart` card art, `.hb*` home board, `.stats`/`.chart`/`.pcard`/`.wld` dashboard, `.tip`, chart tokens `--c-win/--c-loss/--c-draw` and `--il-*`), on top of the v2.6 review layer, on top of the v2.1 textbook base (Latin Modern + Lean Mono, booktabs, numbered equations) plus a **v2.4 "friendly layer"**: a CSS block at the end of the `index.html` styles that overrides radii, button and segment colours, header wave, background dots and kicker star. Remove that block to get the plain textbook look back.
+- **Layers:** a **v2.8 layer** (last before the reduced-motion rule: coin/heart/star icons `.ic`, the header `.purse`, `.giftbar`, `.chest` (lid opens with `.open`), `.sheet`, `.gcal`, the Climb (`.climb-bar`, `.trail`, `.area.t-*` sky gradients via `--a1/--a2`, `.node` done/now/lock/boss, `.decor`), level and shop sheets, `.offer` overlay, live Truth or Lie (`.ltol`), Daily VS (`.vs-*`), live game picker (`.lv-games`), new tokens `--coin*`, `--heart`, `--il-rock/sand/grass/wood/moon`, `--trail*`), on top of a **v2.7 layer** (last before the reduced-motion rule: type tuning, `.il-*` illustration colours, `.gart` card art, `.hb*` home board, `.stats`/`.chart`/`.pcard`/`.wld` dashboard, `.tip`, chart tokens `--c-win/--c-loss/--c-draw` and `--il-*`), on top of the v2.6 review layer, on top of the v2.1 textbook base (Latin Modern + Lean Mono, booktabs, numbered equations) plus a **v2.4 "friendly layer"**: a CSS block at the end of the `index.html` styles that overrides radii, button and segment colours, header wave, background dots and kicker star. Remove that block to get the plain textbook look back.
 - **Themes:** `paper` (default, "seaside day") and `night` ("Night by the sea", the Account → Night mode toggle; stored in localStorage `sumduel.theme`). Old `dark`/`light` values fall back to paper.
 - **Day tokens:** `--bg #FFF8EE` (warm sand-cream), `--surface #FFFFFF`, `--surface2 #FFF3E6`, `--ink #22223B`, `--muted #4A4E69`, `--faint #70758F`, `--line rgba(34,34,59,.13)`, `--line2 rgba(34,34,59,.34)`, `--p1 #0F7C8C` (sea teal), `--p2 #D6336C` (raspberry), deep tints `#DDF3F4`/`#FCE4EC`, `--win #2B8A3E`, `--warn #B35C00`, `--bad #C92A2A`, `--sun #F4B400`, `--on-accent #FFFFFF`. `--p1-glow`/`--p2-glow` are `transparent`, which neutralises the glows `app.js` writes inline.
 - **Night tokens:** `--bg #13203A` (navy), `--surface #1A2A48`, `--ink #F5F3FF`, `--p1 #5CD3E0`, `--p2 #FF8FB8`, `--win #8CE99A`, `--bad #FF8787`, `--on-accent #13203A`. `theme-color` meta: day `#FFF8EE`, night `#13203A`.

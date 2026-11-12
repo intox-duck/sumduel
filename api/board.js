@@ -5,8 +5,10 @@
 // GET  /api/board?b=players                         -> signed-in players only: every player's report (v2.7 dashboard).
 //      Display names and game stats only: never emails, roles, IPs or chat. Shape:
 //      { totals:{players,battles,week,today}, days:[{d,n}] (last 14 UTC days), players:[{id,name,since,battles,
-//        games:{duel,live,tol,sprint,daily}, w,l,d, bestSprint, bestDaily, lastAt, me}] }
+//        games:{duel,live,tol,sprint,daily,vs}, w,l,d, bestSprint, bestDaily, climb, stars, lastAt, me}] }
+//      v2.8: live games of every kind count as "live"; Daily VS ghost races as "vs"; climb = highest Climb level reached.
 import { route, send, fail, db, currentUser, requireUser, utcDay, logEvent } from './_lib.js';
+import { ensureSchema } from './_schema.js';
 
 const TOP = 25;
 // Plausibility bounds: stops trivially forged scores without pretending to be anti-cheat.
@@ -86,20 +88,24 @@ export default route(['GET', 'POST'], async (req, res) => {
 // v2.7: the players dashboard. Anyone signed in can read it; it lists every player's game report.
 async function playersReport(req, res, sql) {
   const u = await requireUser(req, res); if (!u) return;
+  await ensureSchema();
   const rows = await sql`
     select u.id::text as id, u.name, u.created_at as since,
       count(b.id)::int as battles,
-      count(*) filter (where b.game = 'duel' and coalesce(b.data->>'mode','') <> 'live')::int as duel,
-      count(*) filter (where b.game = 'duel' and b.data->>'mode' = 'live')::int as live,
-      count(*) filter (where b.game = 'tol')::int as tol,
-      count(*) filter (where b.game = 'sprint')::int as sprint,
+      count(*) filter (where b.game = 'duel' and coalesce(b.data->>'mode','') not in ('live','ghost'))::int as duel,
+      count(*) filter (where b.data->>'mode' = 'live')::int as live,
+      count(*) filter (where b.data->>'mode' = 'ghost')::int as vs,
+      count(*) filter (where b.game = 'tol' and coalesce(b.data->>'mode','') <> 'live')::int as tol,
+      count(*) filter (where b.game = 'sprint' and coalesce(b.data->>'mode','') <> 'live')::int as sprint,
       count(*) filter (where b.game = 'daily')::int as daily,
-      count(*) filter (where b.game in ('duel','tol') and b.data->>'winner' = '0')::int as w,
-      count(*) filter (where b.game in ('duel','tol') and b.data->>'winner' = '1')::int as l,
-      count(*) filter (where b.game in ('duel','tol') and b.data->>'winner' = '-1')::int as d,
+      count(*) filter (where (b.game in ('duel','tol') or b.data->>'mode' = 'live') and b.data->>'winner' = '0')::int as w,
+      count(*) filter (where (b.game in ('duel','tol') or b.data->>'mode' = 'live') and b.data->>'winner' = '1')::int as l,
+      count(*) filter (where (b.game in ('duel','tol') or b.data->>'mode' = 'live') and b.data->>'winner' = '-1')::int as d,
       max(b.played_at) as last_at,
       (select max(score) from scores s where s.user_id = u.id and s.board = 'sprint') as best_sprint,
-      (select min(score) from scores s where s.user_id = u.id and s.board like 'daily:%') as best_daily
+      (select min(score) from scores s where s.user_id = u.id and s.board like 'daily:%') as best_daily,
+      (select w.climb_level from wallets w where w.user_id = u.id) as climb,
+      (select coalesce(sum(value::int), 0) from wallets w, jsonb_each_text(w.climb_stars) where w.user_id = u.id) as stars
     from users u left join battles b on b.user_id = u.id
     group by u.id order by count(b.id) desc, u.created_at asc limit 500`;
   const days = await sql`
@@ -117,8 +123,9 @@ async function playersReport(req, res, sql) {
     totals: t, days,
     players: rows.map(r => ({
       id: r.id, name: r.name, since: r.since, battles: r.battles,
-      games: { duel: r.duel, live: r.live, tol: r.tol, sprint: r.sprint, daily: r.daily },
+      games: { duel: r.duel, live: r.live, tol: r.tol, sprint: r.sprint, daily: r.daily, vs: r.vs },
       w: r.w, l: r.l, d: r.d,
+      climb: r.climb == null ? 1 : Number(r.climb), stars: Number(r.stars) || 0,
       bestSprint: r.best_sprint == null ? null : Number(r.best_sprint),
       bestDaily: r.best_daily == null ? null : Number(r.best_daily),
       lastAt: r.last_at, me: r.id === String(u.id),

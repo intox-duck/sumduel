@@ -6,9 +6,9 @@
 <meta name="theme-color" content="#FFF8EE">
 <meta name="color-scheme" content="light dark">
 <title>Sum Duel</title>
-<meta name="description" content="Quick maths, head to head. Duel a friend on one phone or race them live on two, play Truth or Lie, chase the 60-second Sprint and the Daily, and count along in Little Ones for 4-year-olds. Every battle on your record.">
+<meta name="description" content="Quick maths, head to head. Duel a friend on one phone or play them live on two (Duel, Truth or Lie or Sprint), climb the seaside trail for stars and coins, race a ghost in the Daily VS, and count along in Little Ones for 4-year-olds.">
 <meta property="og:title" content="Sum Duel: quick maths, head to head">
-<meta property="og:description" content="Duel a friend on one phone or two. Same questions, separate clocks, and every battle on your record. Plus a picture level for 4-year-olds.">
+<meta property="og:description" content="Duel a friend on one phone or two, climb the seaside trail level by level, and race a ghost in the Daily VS. Every battle on your record.">
 <meta property="og:url" content="https://sumduel.app">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Sum Duel">
@@ -644,6 +644,267 @@ h2.title,#handoff h2,.verdict{font-weight:600;letter-spacing:-.01em}
 .tip{position:fixed;z-index:60;pointer-events:none;background:var(--ink);color:var(--bg);font-size:.88rem;font-weight:700;padding:5px 10px;border-radius:10px;opacity:0;transition:opacity .12s;white-space:nowrap}
 .tip.on{opacity:1}
 
+/* ================= v2.8: rewards (coins, hearts, daily gift), the Climb, Daily VS, live game types =================
+   Coins are gold, hearts are red; both come from tokens so night mode recolours them. Area scenes on the
+   Climb are inline SVG coloured by .il-* classes, with a sky gradient per area (--a1 top, --a2 bottom). */
+:root{
+  --il-rock:#9AA3B5; --il-rock2:#B9C0CE; --il-sand:#F6D9A6; --il-sand2:#EFC98A; --il-grass:#7CC58A; --il-wood:#B07A4F; --il-wood2:#8E5E3A;
+  --il-moon:#FFF1B8; --il-moon2:#F3DD8C; --trail:#FFFFFF; --trail-dash:#9AA3B5;
+  --coin:#F4B400; --coin2:#FFD95A; --coin-ink:#8A5A00; --heart:#E8445A;
+}
+:root[data-theme="night"]{
+  --il-rock:#5E6A85; --il-rock2:#76839F; --il-sand:#8C7650; --il-sand2:#77623F; --il-grass:#3F8F5A; --il-wood:#8A5E3C; --il-wood2:#6B4529;
+  --il-moon:#FFE9A0; --il-moon2:#E8CF78; --trail:rgba(245,243,255,.82);
+  --coin:#FFD43B; --coin2:#FFE58A; --coin-ink:#6B4A00; --heart:#FF6B81;
+}
+.il-rock{fill:var(--il-rock)} .il-rock2{fill:var(--il-rock2)} .il-sand{fill:var(--il-sand)} .il-sand2{fill:var(--il-sand2)} .il-grass{fill:var(--il-grass)}
+.il-wood{fill:var(--il-wood)} .il-wood2{fill:var(--il-wood2)} .il-moon{fill:var(--il-moon)} .il-moon2{fill:var(--il-moon2)}
+.il-trail{fill:none;stroke:#FFFFFF;stroke-width:3.4;stroke-linecap:round;stroke-dasharray:.5 6.5}
+.il-t.vs{font-size:22px;fill:var(--p2);font-weight:700}
+.ghosty{opacity:.5}
+.gart .bob{transform-box:fill-box;transform-origin:50% 100%;animation:bob 2.6s ease-in-out infinite}
+
+/* ---- icons ---- */
+.ic{width:1.15em;height:1.15em;flex:none;display:inline-block;vertical-align:-.2em}
+.ic.coin .c1{fill:var(--coin)} .ic.coin .c2{fill:var(--coin2)} .ic.coin .c3{fill:none;stroke:var(--coin-ink);stroke-width:2.2;stroke-linecap:round}
+.ic.heart path{fill:var(--heart)} .ic.star path{fill:var(--sun)}
+.stars{display:inline-flex;align-items:center}
+.stars i{display:inline-flex}
+.stars i:not(.on) .ic path{fill:var(--line2)}
+
+/* ---- header purse ---- */
+.purse{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);border:1px solid var(--line2);background:var(--surface);border-radius:999px;
+  padding:4px 12px;font-family:var(--num);font-weight:800;font-variant-numeric:tabular-nums;font-size:.98rem;white-space:nowrap}
+.purse:empty{display:none}
+.purse span{display:inline-flex;align-items:center;gap:5px}
+.purse .bump{animation:bump .5s}
+@keyframes bump{40%{transform:scale(1.28)}}
+@media (max-width:759px){ .purse{margin-left:auto} .purse:not(:empty) + .who{margin-left:0} }
+@media (max-width:460px){ .top{gap:8px} .who span:last-child{display:none} .who{padding:4px} .purse{gap:8px;padding:4px 10px} }
+
+/* ---- daily gift ---- */
+#giftBar{margin:24px 0 -14px}
+.giftbar{display:flex;align-items:center;gap:14px;width:100%;text-align:left;border:2px solid var(--sun);background:linear-gradient(135deg,var(--sun-deep),var(--surface) 75%);
+  border-radius:var(--r);padding:8px 14px;color:var(--ink);box-shadow:0 4px 0 var(--sun);animation:giftglow 2.4s ease-in-out infinite}
+.giftbar .gt{flex:1;min-width:0;display:flex;flex-direction:column}
+.giftbar .gt b{font-family:var(--mono);font-weight:600;font-size:1.2rem;line-height:1.2}
+.giftbar .gt small{color:var(--muted);font-weight:700;font-size:.92rem}
+.giftbar .btn{pointer-events:none;padding:8px 16px}
+@keyframes giftglow{50%{box-shadow:0 4px 0 var(--sun),0 0 0 6px rgba(244,180,0,.2)}}
+@media (max-width:420px){ .giftbar .btn{display:none} }
+.chest{display:block;flex:none;overflow:visible}
+.chest .ch-body{fill:var(--p2)} .chest .ch-band,.chest .ch-lock{fill:var(--sun)}
+.chest .ch-lid{transform-box:fill-box;transform-origin:0 100%;transition:transform .55s cubic-bezier(.3,1.6,.5,1)}
+.chest .ch-glow{opacity:0;transition:opacity .4s .25s}
+.chest.open .ch-lid,.open > .chest .ch-lid{transform:rotate(-16deg) translate(-2px,-12px)}
+.chest.open .ch-glow,.open > .chest .ch-glow{opacity:1}
+.chest.xs{width:28px;height:24px} .chest.sm{width:60px;height:50px} .chest.lv{width:84px;height:70px} .chest.big{width:160px;height:134px}
+.sheet-wrap{position:fixed;inset:0;z-index:45;background:rgba(19,32,58,.45);display:flex;align-items:flex-end;justify-content:center;opacity:0;transition:opacity .2s}
+.sheet-wrap.on{opacity:1}
+.sheet{position:relative;width:100%;max-width:520px;max-height:92vh;max-height:92dvh;overflow:auto;overscroll-behavior:contain;background:var(--bg);border-radius:24px 24px 0 0;
+  padding:22px 18px calc(22px + var(--safe-b));box-shadow:0 -4px 0 var(--line2);transform:translateY(30px);transition:transform .25s}
+.sheet-wrap.on .sheet{transform:none}
+@media (min-width:640px){ .sheet-wrap{align-items:center;padding:20px} .sheet{border-radius:24px;box-shadow:0 8px 0 var(--line2)} }
+.sheet-x{position:absolute;top:12px;right:12px;width:38px;height:38px;border-radius:50%;border:1px solid var(--line2);background:var(--surface);font-size:1.5rem;line-height:1;color:var(--muted);padding:0}
+.sheet .title{margin-right:44px}
+.sheet .lede{margin-bottom:14px;font-size:1.02rem}
+.gcal{list-style:none;margin:0 0 4px;padding:0;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+.gcal li{position:relative;display:flex;flex-direction:column;align-items:center;gap:1px;border:1px solid var(--line2);border-radius:12px;padding:6px 1px 5px;background:var(--surface);
+  font-family:var(--num);font-weight:800;font-size:.84rem;font-variant-numeric:tabular-nums}
+.gcal .d{font-size:.66rem;color:var(--faint);white-space:nowrap}
+.gcal .lv{display:flex;align-items:center;gap:1px;min-height:1.2em;font-size:.7rem;color:var(--heart)}
+.gcal .lv .ic{width:.95em;height:.95em}
+.gcal li.now{border:2px solid var(--sun);background:var(--sun-deep);transform:translateY(-3px);box-shadow:0 3px 0 var(--sun)}
+.gcal li.got{opacity:.55}
+.gcal li.got::after{content:"✓";position:absolute;top:-7px;right:-4px;width:18px;height:18px;border-radius:50%;background:var(--win);color:var(--on-accent);font-size:.7rem;display:grid;place-items:center}
+.gcal li.big .chest{width:24px;height:20px}
+.chest-stage{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;margin:12px 0 14px;min-height:150px}
+.chest-stage .chest.big{animation:wiggle 1.8s ease-in-out infinite;transform-origin:50% 100%}
+.chest-stage.open .chest.big{animation:none}
+.chest-stage.win{margin:4px 0 18px;padding:12px;border:2px solid var(--sun);border-radius:var(--r);background:var(--sun-deep)}
+.chest-stage.win p{margin:0;text-align:center}
+@keyframes wiggle{0%,70%,100%{transform:rotate(0)}76%{transform:rotate(-5deg)}86%{transform:rotate(5deg)}94%{transform:rotate(-2deg)}}
+.gain{display:inline-flex;align-items:center;gap:6px;font-family:var(--num);font-weight:800;color:var(--ink);background:var(--sun-deep);border:1px solid var(--sun);border-radius:999px;padding:4px 14px;margin:0 0 12px}
+.gain:empty{display:none}
+.gain.big{font-size:1.2rem;padding:6px 16px;margin:0}
+.gain-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:8px 0 18px}
+
+/* ---- the Climb: view, bar, trail ---- */
+#v-climb > .lede{margin-bottom:14px}
+.climb-bar{position:sticky;top:calc(64px + var(--safe-t));z-index:6;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px 16px;align-items:center;
+  background:var(--surface);border:1px solid var(--line2);border-radius:var(--r);padding:10px 14px;box-shadow:0 4px 0 var(--line);margin:0 auto 16px;max-width:560px}
+.cb-h{display:flex;flex-direction:column;gap:1px;min-width:0}
+.cb-h small{font-size:.8rem;color:var(--faint);font-weight:700;font-variant-numeric:tabular-nums}
+.cb-c,.cb-s{display:flex;align-items:center;gap:5px;font-family:var(--num);font-weight:800;font-size:1.12rem;font-variant-numeric:tabular-nums}
+.cb-c small,.cb-s small{display:none}
+.cb-a{grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end}
+.cb-a .btn{padding:6px 14px;font-size:.95rem}
+@media (min-width:640px){ .climb-bar{grid-template-columns:minmax(0,1fr) auto auto auto} .cb-a{grid-column:auto} }
+.hearts{display:inline-flex;gap:1px;flex-wrap:wrap}
+.hearts i{display:inline-flex;opacity:.25;filter:grayscale(1)}
+.hearts i.on{opacity:1;filter:none}
+.hearts .ic{width:22px;height:22px}
+.hearts i.bonus.on .ic path{fill:var(--p2)}
+.hearts.sm .ic{width:17px;height:17px}
+.trail{position:relative;max-width:560px;margin:0 auto;border-radius:24px;overflow:hidden;border:1px solid var(--line2);box-shadow:0 4px 0 var(--line)}
+.area{position:relative;background:linear-gradient(180deg,var(--a1),var(--a2));overflow:hidden}
+.area + .area{border-top:1px dashed var(--line2)}
+.area .decor svg{position:absolute;pointer-events:none;overflow:visible}
+.area .path{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.area .p-under{fill:none;stroke:var(--trail);stroke-width:16;stroke-linecap:round;vector-effect:non-scaling-stroke;opacity:.92}
+.area .p-top{fill:none;stroke:var(--trail-dash);stroke-width:3;stroke-linecap:round;stroke-dasharray:4 12;vector-effect:non-scaling-stroke}
+.area-h{position:absolute;top:16px;left:50%;transform:translateX(-50%);z-index:3;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line2);
+  border-radius:999px;padding:6px 14px;box-shadow:0 3px 0 var(--line);white-space:nowrap;max-width:calc(100% - 24px)}
+.area-h .an{font-weight:800;font-size:.76rem;color:var(--faint)}
+.area-h b{font-family:var(--mono);font-weight:600;font-size:1.08rem;overflow:hidden;text-overflow:ellipsis}
+.area-h .as{display:inline-flex;align-items:center;gap:3px;font-family:var(--num);font-weight:800;font-size:.86rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.area-h .as .ic{width:15px;height:15px}
+.area-h .ad{color:var(--win);font-weight:900}
+.area.locked .decor svg,.area.locked .path{opacity:.5;filter:grayscale(.7)}
+.node{position:absolute;z-index:2;transform:translate(-50%,-50%);width:58px;height:58px;border-radius:50%;border:0;padding:0;display:grid;place-items:center;
+  font-family:var(--mono);font-weight:600;font-size:1.3rem;color:#FFFFFF;background:var(--p1);box-shadow:0 5px 0 rgba(0,0,0,.2),inset 0 0 0 3px rgba(255,255,255,.4)}
+:root[data-theme="night"] .node{color:var(--on-accent)}
+:root[data-theme="night"] .node.lock{color:var(--muted)}
+:root[data-theme="night"] .node.boss{color:var(--sun-ink)}
+.node .nb{position:relative;z-index:1;line-height:1}
+.node .ns{position:absolute;bottom:-15px;left:50%;transform:translateX(-50%)}
+.node .ns .ic{width:17px;height:17px}
+.node .ns i:nth-child(2) .ic{transform:translateY(3px)}
+.node.done:hover{filter:brightness(1.08)}
+.node.now{width:72px;height:72px;font-size:1.65rem;background:var(--p2);animation:nodepulse 1.8s ease-in-out infinite}
+@keyframes nodepulse{0%,100%{box-shadow:0 5px 0 rgba(0,0,0,.2),0 0 0 0 rgba(214,51,108,.5)}50%{box-shadow:0 5px 0 rgba(0,0,0,.2),0 0 0 14px rgba(214,51,108,0)}}
+.node.lock{width:50px;height:50px;font-size:1.05rem;background:var(--surface2);color:var(--faint);box-shadow:0 4px 0 var(--line2),inset 0 0 0 2px var(--line2)}
+.node .me-ava{position:absolute;bottom:66px;left:50%;margin-left:-20px;z-index:3;animation:bob 1.6s ease-in-out infinite}
+.node.boss{width:80px;height:80px;border-radius:24px;background:var(--sun-deep);color:var(--sun-ink);box-shadow:0 5px 0 var(--sun),inset 0 0 0 3px var(--sun)}
+.node.boss.lock{width:72px;height:72px;opacity:.85}
+.node.boss.now{background:var(--sun-deep);box-shadow:0 5px 0 var(--sun),inset 0 0 0 3px var(--p2)}
+.node.boss .chest{position:absolute;width:60px;height:50px;top:8px;left:50%;margin-left:-30px}
+.node.boss .nb{position:absolute;bottom:-11px;left:50%;transform:translateX(-50%);background:var(--sun);color:#22223B;border-radius:999px;padding:3px 9px;font-size:.88rem;white-space:nowrap}
+.node.boss .ns{bottom:-34px}
+.node.boss .me-ava{bottom:auto;top:50%;left:auto;right:100%;margin:-20px 8px 0 0}
+.trail-start{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;background:var(--surface2);font-weight:800;color:var(--muted)}
+.t-pools{--a1:#D2EEF1;--a2:#FFF6E8;--trail-dash:#7FC7D1}
+.t-harbour{--a1:#C9E5F2;--a2:#DCF0F3;--trail-dash:#73AFC4}
+.t-dunes{--a1:#FFEFD0;--a2:#FFE1B2;--trail-dash:#D9A95C}
+.t-pier{--a1:#FFE1EB;--a2:#FFF0E2;--trail-dash:#E39AB2}
+.t-cliff{--a1:#D8EFD2;--a2:#ECF7E3;--trail-dash:#86BF82}
+.t-lighthouse{--a1:#D2E4FA;--a2:#E4EFFB;--trail-dash:#88AAD5}
+.t-stars{--a1:#2E2660;--a2:#4A3D85;--trail-dash:#9A8EDD;--trail:#ECE8FF}
+.t-moon{--a1:#17213E;--a2:#27365F;--trail-dash:#7D93CC;--trail:#DCE5FF}
+:root[data-theme="night"] .t-pools{--a1:#123247;--a2:#1A2A48}
+:root[data-theme="night"] .t-harbour{--a1:#112D44;--a2:#173450}
+:root[data-theme="night"] .t-dunes{--a1:#3A2F22;--a2:#2E2A33}
+:root[data-theme="night"] .t-pier{--a1:#3A2236;--a2:#2A2440}
+:root[data-theme="night"] .t-cliff{--a1:#1C3A31;--a2:#1A2E3A}
+:root[data-theme="night"] .t-lighthouse{--a1:#16294A;--a2:#1B3156}
+:root[data-theme="night"] .t-stars{--a1:#1D1840;--a2:#2B2457}
+:root[data-theme="night"] .t-moon{--a1:#0D1428;--a2:#16213D}
+:root[data-theme="night"] .area .p-top{opacity:.8}
+
+/* ---- level card, hearts shop ---- */
+.lv-head{display:flex;align-items:center;gap:14px;margin:6px 0 8px}
+.lv-head .title{margin:0}
+.lv-badge{width:62px;height:62px;border-radius:50%;display:grid;place-items:center;flex:none;background:var(--p2);color:#FFFFFF;font-family:var(--mono);font-weight:600;font-size:1.5rem;box-shadow:0 4px 0 var(--line2)}
+.lv-badge.k-truth{background:var(--win)} .lv-badge.k-missing{background:var(--p1)} .lv-badge.k-target{background:var(--warn)} .lv-badge.k-mixed{background:#7048B6}
+:root[data-theme="night"] .lv-badge{color:var(--on-accent)}
+.stars.best .ic{width:22px;height:22px}
+.lv-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.lv-chips span{border:1px solid var(--line2);border-radius:999px;padding:2px 10px;font-weight:800;font-size:.88rem;color:var(--muted);background:var(--surface)}
+.lv-rule{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:0 0 8px;color:var(--muted);font-weight:700}
+.lv-rule .ic{width:16px;height:16px}
+.lv-prize{display:flex;align-items:center;gap:6px;font-weight:800;margin:0 0 16px}
+.shop-hearts{display:flex;flex-direction:column;align-items:center;gap:4px;margin:4px 0 14px}
+.shop-hearts .ic{width:28px;height:28px}
+.shop-hearts small{color:var(--faint);font-weight:700}
+.shop{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.shop-i{display:flex;flex-direction:column;align-items:center;gap:4px;border:2px solid var(--line2);border-radius:var(--r);background:var(--surface);padding:14px 8px;box-shadow:0 4px 0 var(--line);color:var(--ink)}
+.shop-i .ic.heart{width:28px;height:28px}
+.shop-i .hs{display:flex;font-style:normal}
+.shop-i .hs .ic.heart{width:24px;height:28px;margin:0 -3px}
+.shop-i b{font-family:var(--mono);font-weight:600;font-size:1.15rem}
+.shop-i span{display:inline-flex;align-items:center;gap:4px;font-family:var(--num);font-weight:800;background:var(--sun-deep);border-radius:999px;padding:2px 10px}
+.shop-i[disabled]{opacity:.45;pointer-events:none}
+.shop-i:active{transform:translateY(3px);box-shadow:0 1px 0 var(--line)}
+.shop-sheet .foot{text-align:center}
+.shop-sheet .btn.block{margin-top:6px}
+
+/* ---- playing: Climb, solo Truth or Lie, live Truth or Lie ---- */
+.lv-tag{pointer-events:none;color:var(--ink);font-weight:800}
+.lv-tag b{color:var(--p2)}
+.half .clock.low{color:var(--bad)}
+.q.long{font-size:min(9vw,6.2vh)}
+.solo .q.long{font-size:min(10vw,7.4vh)}
+.cover.offer{background:var(--bg);z-index:4}
+.offer-card{max-width:400px;width:100%;display:flex;flex-direction:column;gap:10px;text-align:center}
+.offer-card .big{font-family:var(--mono);font-weight:600;font-size:clamp(2rem,9vw,3rem);color:var(--p2);line-height:1.1}
+.offer-card .sub{margin:0 0 6px;color:var(--muted);font-weight:700}
+.offer-card .hint{margin:0;font-size:.9rem}
+.offer-card .btn{white-space:normal;flex-wrap:wrap;gap:6px 10px}
+.offer-card .cost{display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.22);border-radius:999px;padding:2px 10px;font-family:var(--num)}
+.cover-stars .ic{width:min(15vw,76px);height:min(15vw,76px)}
+.cover-stars i:nth-child(2) .ic{transform:translateY(-10px)}
+.tol-flash.ok{color:var(--win)} .tol-flash.no{color:var(--bad)}
+.tol-note{color:var(--muted);font-weight:700;min-height:1.5em;text-align:center;padding:0 10px}
+.solo .tol-eq{font-size:min(10.5vw,8vh)}
+.solo .tol-btns{max-width:560px;width:100%;margin:0 auto;height:32%}
+.half.truth .t-hearts{display:inline-flex}
+.ltol.locked .tol-btns{opacity:1;pointer-events:none}
+.ltol.locked .tol-btns button{opacity:.32}
+.ltol.locked .tol-btns button.picked{opacity:1;box-shadow:inset 0 0 0 4px currentColor}
+.hud .tol-score{align-self:center}
+.lv-opp .tol-score{gap:3px}
+.lv-opp .tol-score i{width:9px;height:9px;border-color:var(--oc)}
+.lv-opp .tol-score i.on{background:var(--oc)}
+.lv-opp.ghost{border-style:dashed}
+.lv-opp.done .lv-st{color:var(--win)}
+
+/* ---- Climb results ---- */
+.climb-win{display:flex;justify-content:center;margin:14px 0 2px}
+.big-stars .ic{width:min(21vw,96px);height:min(21vw,96px)}
+.big-stars i{animation:starpop .55s backwards}
+.big-stars i:nth-child(2){animation-delay:.25s} .big-stars i:nth-child(3){animation-delay:.5s}
+.big-stars i:nth-child(2) .ic{transform:translateY(-16px)}
+@keyframes starpop{0%{transform:scale(0) rotate(-45deg)}70%{transform:scale(1.2)}100%{transform:scale(1)}}
+
+/* ---- Daily VS ---- */
+.vs-prize{display:flex;align-items:center;gap:12px;border:2px solid var(--sun);background:var(--sun-deep);border-radius:var(--r);padding:8px 14px}
+.vs-prize div{display:flex;flex-direction:column;min-width:0}
+.vs-prize b{font-family:var(--mono);font-weight:600;font-size:1.12rem}
+.vs-prize span{color:var(--muted);font-weight:700;font-size:.95rem}
+.vs-res{margin:-10px 0 16px}
+.vs-mine{margin:0}
+.vs-list{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+.vs-card{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line2);border-radius:var(--r);padding:10px 12px;box-shadow:0 4px 0 var(--line)}
+.vs-who{flex:1;min-width:0;display:flex;flex-direction:column}
+.vs-who b{font-family:var(--mono);font-weight:600;font-size:1.1rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vs-who small{color:var(--faint);font-weight:700}
+.vs-art{width:52px;height:52px;flex:none}
+.vs-art svg{width:100%;height:100%;display:block}
+.vs-card .btn{padding:8px 16px}
+
+/* ---- live: game picker and badges ---- */
+.lv-games{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.lv-games button{border:1.5px solid var(--line2);background:var(--surface);border-radius:var(--r-sm);padding:10px 4px;font-family:var(--caps);font-weight:800;font-size:.98rem;color:var(--ink);line-height:1.2}
+.lv-games button[aria-pressed="true"]{background:var(--p1);border-color:var(--p1);color:var(--on-accent);box-shadow:0 3px 0 var(--line2)}
+.badge.g-tol{color:var(--win);border-color:currentColor} .badge.g-sprint{color:var(--p1);border-color:currentColor} .badge.g-duel{color:var(--p2);border-color:currentColor}
+.lv-how{margin:0 0 10px}
+
+/* ---- home cards and the players page ---- */
+.game.climb{grid-column:1/-1;min-height:172px;background:linear-gradient(135deg,var(--p1-deep),var(--surface) 72%);box-shadow:0 4px 0 var(--line),inset 0 0 0 3px var(--surface),inset 0 0 0 4px var(--p1)}
+.game.climb:hover{background:linear-gradient(135deg,var(--p1-deep),var(--surface) 72%)}
+.game.climb h3{font-size:clamp(1.7rem,4.6vw,2.3rem)}
+.game.climb h3 em,.game.vs h3 em{font-style:normal}
+.game.climb h3 em{color:var(--p1)} .game.vs h3 em{color:var(--p2)}
+.game.climb .tag.sun{font-variant-numeric:tabular-nums}
+.game.climb .gart{width:118px;height:118px;right:20px;bottom:10px;transform:none}
+.game.climb:hover .gart{transform:rotate(-4deg) scale(1.05)}
+.game.climb p{max-width:calc(100% - 160px)}
+@media (min-width:640px) and (max-width:979px){ .game.daily{grid-column:auto} }
+@media (min-width:980px){ .game.vs{grid-column:1/-1} .game.vs p{max-width:60ch} }
+@media (max-width:520px){ .game.climb .gart{width:84px;height:84px;right:12px;bottom:12px} .game.climb p{max-width:calc(100% - 66px)} }
+.pclimb{display:flex;align-items:center;gap:6px;margin:-4px 0 0;font-weight:700;color:var(--muted);font-size:.92rem}
+.pclimb .ic{width:16px;height:16px}
+
 @media (prefers-reduced-motion: reduce){
   *{animation-duration:.001ms!important;transition-duration:.001ms!important}
   .half.wrong .pen{opacity:1}
@@ -660,6 +921,7 @@ h2.title,#handoff h2,.verdict{font-weight:600;letter-spacing:-.01em}
     <a href="#/players" data-tab="players"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.8"/><path d="M15.5 14.2A5 5 0 0 1 21.5 19"/></svg>Players</a>
     <a href="#/account" data-tab="account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Account</a>
   </nav>
+  <a class="purse" id="purse" href="#/climb" aria-label="Coins and hearts"></a>
   <a class="who" href="#/account" id="who"><span class="av">?</span><span>Sign in</span></a>
 </header>
 
@@ -675,6 +937,8 @@ h2.title,#handoff h2,.verdict{font-weight:600;letter-spacing:-.01em}
       <svg class="hero-art" viewBox="0 0 440 290" role="img" aria-label="Two round sea creatures, one teal and one pink, face each other. The teal one asks 7 times 6, the pink one shouts 42."><circle class="il-sun" cx="370" cy="62" r="34"/><g class="il-ray"><path d="M370 12v-8M370 120v-8M320 62h-8M428 62h-8M335 27l-6-6M405 97l6 6M405 27l6-6M335 97l-6 6"/></g><path class="il-cloud" d="M48 74a18 18 0 0 1 30-14a22 22 0 0 1 40 6a14 14 0 0 1 2 28H52a14 14 0 0 1-4-20z"/><path class="il-sea" d="M0 238 q10.0 -10 20.0 0 t20.0 0 q10.0 -10 20.0 0 t20.0 0 q10.0 -10 20.0 0 t20.0 0 q10.0 -10 20.0 0 t20.0 0 q10.0 -10 20.0 0 t20.0 0 q10.0 -10 20.0 0 t20.0 0 q10.0 -10 20.0 0 t20.0 0 q10.0 -10 20.0 0 t20.0 0 q10.0 -10 20.0 0 t20.0 0 q10.0 -10 20.0 0 t20.0 0 q10.0 -10 20.0 0 t20.0 0 V318 H0 Z"/><path class="il-sea2" d="M0 256 q14.0 -10 28.0 0 t28.0 0 q14.0 -10 28.0 0 t28.0 0 q14.0 -10 28.0 0 t28.0 0 q14.0 -10 28.0 0 t28.0 0 q14.0 -10 28.0 0 t28.0 0 q14.0 -10 28.0 0 t28.0 0 q14.0 -10 28.0 0 t28.0 0 q14.0 -10 28.0 0 t28.0 0 V336 H0 Z"/><g class="bob"><ellipse class="il-shade" cx="130" cy="228.8" rx="46.4" ry="7.0"/><ellipse class="il-p1" cx="105.6" cy="221.9" rx="15.0" ry="9.0"/><ellipse class="il-p1" cx="154.4" cy="221.9" rx="15.0" ry="9.0"/><ellipse class="il-p1" cx="130" cy="172" rx="58.0" ry="53.9"/><ellipse class="il-hi" cx="108.0" cy="145.9" rx="12.8" ry="7.5" transform="rotate(-30 108.0 145.9)"/><circle class="il-w" cx="116.6" cy="166.2" r="12.2"/><circle class="il-w" cx="151.4" cy="166.2" r="12.2"/><circle class="il-ink" cx="122.6" cy="167.4" r="5.8"/><circle class="il-ink" cx="157.4" cy="167.4" r="5.8"/><circle class="il-blush" cx="101.1" cy="183.6" r="7.0"/><circle class="il-blush" cx="164.9" cy="183.6" r="7.0"/><path class="il-line" style="stroke-width:3.4px" d="M125.1 184.8 q9.9 9.9 19.7 0"/></g><g class="bob"><ellipse class="il-shade" cx="312" cy="228.8" rx="46.4" ry="7.0"/><ellipse class="il-p2" cx="287.6" cy="221.9" rx="15.0" ry="9.0"/><ellipse class="il-p2" cx="336.4" cy="221.9" rx="15.0" ry="9.0"/><ellipse class="il-p2" cx="312" cy="172" rx="58.0" ry="53.9"/><ellipse class="il-hi" cx="290.0" cy="145.9" rx="12.8" ry="7.5" transform="rotate(-30 290.0 145.9)"/><circle class="il-w" cx="290.6" cy="166.2" r="12.2"/><circle class="il-w" cx="325.4" cy="166.2" r="12.2"/><circle class="il-ink" cx="284.6" cy="167.4" r="5.8"/><circle class="il-ink" cx="319.4" cy="167.4" r="5.8"/><circle class="il-blush" cx="277.1" cy="183.6" r="7.0"/><circle class="il-blush" cx="340.9" cy="183.6" r="7.0"/><path class="il-line" style="stroke-width:3.4px" d="M297.1 184.8 q9.9 9.9 19.7 0"/></g><g class="il-bubble"><rect x="40" y="38" width="112" height="52" rx="22"/><path d="M96 88l10 16 6-16z"/></g><text class="il-t" x="96" y="73" text-anchor="middle">7 × 6?</text><g class="il-bubble b2"><rect x="262" y="70" width="92" height="52" rx="22"/><path d="M300 120l4 16 12-16z"/></g><text class="il-t p2" x="308" y="105" text-anchor="middle">42!</text><path class="il-spark" d="M221 128l5 12 12 5-12 5-5 12-5-12-12-5 12-5z"/><path class="il-spark s2" d="M196 92l3 7 7 3-7 3-3 7-3-7-7-3 7-3z"/></svg>
     </div>
 
+    <div id="giftBar" class="hidden"></div>
+
     <div class="section">
       <p class="kicker"><b>2</b> Choose your game</p>
       <div class="games">
@@ -685,11 +949,18 @@ h2.title,#handoff h2,.verdict{font-weight:600;letter-spacing:-.01em}
           <p>Play face to face on a split screen, or take turns. Both players get the same set of questions and the fastest total time wins.</p>
           <span class="gart" aria-hidden="true"><svg viewBox="0 0 96 96"><g class="bob"><ellipse class="il-shade" cx="30" cy="75.9" rx="19.5" ry="2.9"/><ellipse class="il-p1" cx="19.8" cy="72.9" rx="6.3" ry="3.8"/><ellipse class="il-p1" cx="40.2" cy="72.9" rx="6.3" ry="3.8"/><ellipse class="il-p1" cx="30" cy="52" rx="24.4" ry="22.7"/><ellipse class="il-hi" cx="20.7" cy="41.0" rx="5.4" ry="3.2" transform="rotate(-30 20.7 41.0)"/><circle class="il-w" cx="24.4" cy="49.6" r="5.1"/><circle class="il-w" cx="39.0" cy="49.6" r="5.1"/><circle class="il-ink" cx="26.9" cy="50.1" r="2.4"/><circle class="il-ink" cx="41.5" cy="50.1" r="2.4"/><circle class="il-blush" cx="17.9" cy="56.9" r="2.9"/><circle class="il-blush" cx="44.7" cy="56.9" r="2.9"/><path class="il-line" style="stroke-width:1.4px" d="M28.0 57.4 q4.1 4.1 8.3 0"/></g><g class="bob"><ellipse class="il-shade" cx="68" cy="75.9" rx="19.5" ry="2.9"/><ellipse class="il-p2" cx="57.8" cy="72.9" rx="6.3" ry="3.8"/><ellipse class="il-p2" cx="78.2" cy="72.9" rx="6.3" ry="3.8"/><ellipse class="il-p2" cx="68" cy="52" rx="24.4" ry="22.7"/><ellipse class="il-hi" cx="58.7" cy="41.0" rx="5.4" ry="3.2" transform="rotate(-30 58.7 41.0)"/><circle class="il-w" cx="59.0" cy="49.6" r="5.1"/><circle class="il-w" cx="73.6" cy="49.6" r="5.1"/><circle class="il-ink" cx="56.5" cy="50.1" r="2.4"/><circle class="il-ink" cx="71.1" cy="50.1" r="2.4"/><circle class="il-blush" cx="53.3" cy="56.9" r="2.9"/><circle class="il-blush" cx="80.1" cy="56.9" r="2.9"/><path class="il-line" style="stroke-width:1.4px" d="M61.8 57.4 q4.1 4.1 8.3 0"/></g><path class="il-spark" d="M49 10l3 8 8 3-8 3-3 8-3-8-8-3 8-3z"/></svg></span>
         </button>
+        <button class="game climb" data-go="climb">
+          <span class="tag sun" id="climbTag">NEW · LEVELS</span>
+          <span class="n">THE CLIMB</span>
+          <h3>Climb the <em>coast</em></h3>
+          <p>Level after level up the seaside trail: beat the clock, spot the lies, find the missing numbers. Win stars and coins, and open a treasure chest at the end of every area.</p>
+          <span class="gart" aria-hidden="true"><svg viewBox="0 0 96 96"><circle class="il-sun" cx="78" cy="16" r="9"/><path class="il-sea" d="M0 96V82q8-6 16 0t16 0V96z"/><path class="il-grass" d="M10 96V74q18-36 40-50 26 12 46 52v20z"/><path class="il-rock" d="M60 96q4-20 18-30l18 10v20z"/><path class="il-trail" d="M22 94q16-6 20-16t18-10 6-14 4-14"/><rect class="il-ink" x="68" y="8" width="3" height="24" rx="1.5"/><path class="il-p2" d="M71 8h17l-5 6 5 6H71z"/><g class="bob"><ellipse class="il-p1" cx="40" cy="70" rx="9" ry="8.4"/><circle class="il-w" cx="37.2" cy="68.6" r="2.4"/><circle class="il-w" cx="43" cy="68.6" r="2.4"/><circle class="il-ink" cx="37.8" cy="68.8" r="1.2"/><circle class="il-ink" cx="43.6" cy="68.8" r="1.2"/></g><path class="il-spark" d="M30 30l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/></svg></span>
+        </button>
         <button class="game live" data-go="live" style="--gc:var(--p1-glow)">
           <span class="tag live">2 DEVICES</span>
           <span class="n">ONLINE</span>
-          <h3>Live <em>Duel</em></h3>
-          <p>Race a friend on their own phone or tablet. Create a public or private game, wait in the lobby, then go head to head.</p>
+          <h3>Live <em>games</em></h3>
+          <p>Play a friend on their own phone or tablet: the Duel, Truth or Lie, or a 60-second Sprint. Public or private games, server-timed.</p>
           <span class="gart" aria-hidden="true"><svg viewBox="0 0 96 96"><rect class="il-p1" x="8" y="20" width="32" height="56" rx="7"/><rect class="il-w" x="12" y="27" width="24" height="38" rx="3"/><rect class="il-p2" x="56" y="20" width="32" height="56" rx="7"/><rect class="il-w" x="60" y="27" width="24" height="38" rx="3"/><path class="il-sun" d="M52 30l-12 20h9l-5 18 14-23h-9l6-15z"/><text class="il-t sm" x="24" y="52" text-anchor="middle">9</text><text class="il-t sm p2" x="72" y="52" text-anchor="middle">9</text></svg></span>
         </button>
         <button class="game" data-go="tol" style="--gc:rgba(184,255,60,.35)">
@@ -712,6 +983,13 @@ h2.title,#handoff h2,.verdict{font-weight:600;letter-spacing:-.01em}
           <h3>The Daily</h3>
           <p>Twenty questions, and everyone on Earth gets the same set. Only your first attempt counts.</p>
           <span class="gart" aria-hidden="true"><svg viewBox="0 0 96 96"><rect class="il-w il-edge" x="10" y="16" width="76" height="70" rx="12"/><rect class="il-p2" x="10" y="16" width="76" height="22" rx="12"/><rect class="il-p2" x="10" y="28" width="76" height="10"/><rect class="il-ink" x="26" y="8" width="7" height="16" rx="3.5"/><rect class="il-ink" x="63" y="8" width="7" height="16" rx="3.5"/><circle class="il-sun" cx="48" cy="62" r="13"/><g class="il-ray"><path d="M48 41v-3M48 86v-3M27 62h-3M72 62h-3M33 47l-2-2M65 79l2 2M63 47l2-2M33 77l-2 2"/></g></svg></span>
+        </button>
+        <button class="game vs" data-go="vs">
+          <span class="tag live" id="vsTag">TODAY</span>
+          <span class="n">EVERY DAY</span>
+          <h3>Daily <em>VS</em></h3>
+          <p>Race the ghost of someone who’s already played today, or one of three sea bots. Your first race each day wins a prize.</p>
+          <span class="gart" aria-hidden="true"><svg viewBox="0 0 96 96"><g class="bob"><ellipse class="il-shade" cx="26" cy="80" rx="16" ry="3"/><ellipse class="il-p1" cx="26" cy="60" rx="20" ry="19"/><ellipse class="il-hi" cx="18" cy="50" rx="4.6" ry="2.7" transform="rotate(-30 18 50)"/><circle class="il-w" cx="22" cy="58" r="4.4"/><circle class="il-w" cx="34" cy="58" r="4.4"/><circle class="il-ink" cx="24" cy="58.4" r="2.1"/><circle class="il-ink" cx="36" cy="58.4" r="2.1"/><path class="il-line" style="stroke-width:1.6px" d="M26 66q3.5 3.5 7 0"/></g><g class="ghosty"><path class="il-p2" d="M52 80V58a20 20 0 0 1 40 0v22l-5-4-5 4-5-4-5 4-5-4-5 4z"/><circle class="il-w" cx="64" cy="56" r="4.4"/><circle class="il-w" cx="78" cy="56" r="4.4"/><circle class="il-ink" cx="62.4" cy="56.4" r="2.1"/><circle class="il-ink" cx="76.4" cy="56.4" r="2.1"/></g><text class="il-t vs" x="48" y="30" text-anchor="middle">VS</text></svg></span>
         </button>
         <button class="game little" data-go="little">
           <span class="tag sun">AGE 4+ · NO CLOCK</span>
@@ -790,6 +1068,12 @@ h2.title,#handoff h2,.verdict{font-weight:600;letter-spacing:-.01em}
 
   <!-- ===== Live duel (lobby + rooms) ===== -->
   <section id="v-live" data-view class="hidden"></section>
+
+  <!-- ===== The Climb (v2.8) ===== -->
+  <section id="v-climb" data-view class="hidden"></section>
+
+  <!-- ===== Daily VS (v2.8) ===== -->
+  <section id="v-vs" data-view class="hidden"></section>
 
   <!-- ===== Record ===== -->
   <section id="v-record" data-view class="hidden"></section>
