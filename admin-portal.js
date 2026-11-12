@@ -143,8 +143,10 @@
   function battleText(b) {
     var P = b.players || [], p0 = P[0] || {}, p1 = P[1] || {};
     var res = b.winner === 0 ? 'won' : b.winner === 1 ? 'lost' : b.winner === -1 ? 'draw' : '';
-    if (b.game === 'duel') return 'Duel vs ' + esc(p1.name) + ' · ' + res + ' · ' + (p0.time != null ? p0.time.toFixed(2) : '?') + ' s vs ' + (p1.time != null ? p1.time.toFixed(2) : '?') + ' s';
-    if (b.game === 'tol') return 'Truth or Lie vs ' + esc(p1.name) + ' · ' + res + ' · ' + p0.score + '–' + p1.score;
+    var tag = b.mode === 'live' ? 'Live ' : b.mode === 'ghost' ? 'Daily VS ' : '';
+    if (b.game === 'duel') return tag + (tag ? 'duel' : 'Duel') + ' vs ' + esc(p1.name) + ' · ' + res + ' · ' + (p0.time != null ? p0.time.toFixed(2) : '?') + ' s vs ' + (p1.time != null ? p1.time.toFixed(2) : '?') + ' s';
+    if (b.game === 'tol') return tag + 'Truth or Lie vs ' + esc(p1.name) + ' · ' + res + ' · ' + p0.score + '–' + p1.score;
+    if (b.game === 'sprint' && p1.name) return tag + 'Sprint vs ' + esc(p1.name) + ' · ' + res + ' · ' + p0.score + '–' + p1.score + ' correct';
     if (b.game === 'sprint') return 'Sprint · ' + p0.score + ' correct, ' + p0.wrong + ' wrong';
     if (b.game === 'daily') return 'Daily ' + esc(b.day) + ' · ' + (p0.time != null ? p0.time.toFixed(2) : '?') + ' s' + (b.practice ? ' (practice)' : '');
     return esc(b.game);
@@ -229,19 +231,28 @@
   var LABEL = {
     sign_up: 'Signed up', sign_in: 'Signed in', sign_out: 'Signed out', sign_in_failed: 'Wrong password', sign_in_locked: 'Locked out', rename: 'Renamed',
     battle_saved: 'Battle', score_posted: 'Score', live_create: 'Live game created', live_join: 'Joined live game', live_join_failed: 'Wrong game password',
-    live_start: 'Live game started', live_finish: 'Live game finished', live_leave: 'Left live game', chat_message: 'Chat', chat_blocked: 'Chat blocked', chat_report: 'Reported a message',
+    live_start: 'Live game started', live_finish: 'Live game finished', live_leave: 'Left live game',
+    climb_finish: 'Climb level', vs_finish: 'Daily VS', gift_claimed: 'Daily gift', coins_spent: 'Spent coins', progress_adopted: 'Guest progress moved', chat_message: 'Chat', chat_blocked: 'Chat blocked', chat_report: 'Reported a message',
     chat_delete: 'Removed a message', chat_mute: 'Muted', chat_unmute: 'Unmuted', admin_open: 'Opened admin', admin_password_reset: 'Reset password',
     admin_role_change: 'Changed role', admin_review: 'Reviewed flag', audit_run: 'Audit ran', audit_reviewed: 'Audit reviewed', role_set_cli: 'Role set (CLI)'
   };
+  var GN = { duel: 'Duel', tol: 'Truth or Lie', sprint: 'Sprint' };
   function describe(r) {
     var d = r.detail || {};
     switch (r.action) {
-      case 'battle_saved': return battleText({ game: d.game, winner: d.winner, day: d.day, practice: d.practice, players: [{ time: d.times ? d.times[0] : d.time, score: d.score && d.score.length ? d.score[0] : d.score, wrong: d.wrong && d.wrong.length ? d.wrong[0] : d.wrong }, { name: d.vs, time: d.times ? d.times[1] : null, score: d.score && d.score.length ? d.score[1] : null }] });
+      case 'battle_saved': return battleText({ game: d.game, mode: d.mode, winner: d.winner, day: d.day, practice: d.practice, players: [{ time: d.times ? d.times[0] : d.time, score: d.score && d.score.length ? d.score[0] : d.score, wrong: d.wrong && d.wrong.length ? d.wrong[0] : d.wrong }, { name: d.vs, time: d.times ? d.times[1] : null, score: d.score && d.score.length ? d.score[1] : null }] });
       case 'live_create': return esc(d.code) + (d.name ? ' · ' + esc(d.name) : '') + (d.private ? ' · private' : '') + (d.rematch_of ? ' · rematch of ' + esc(d.rematch_of) : '');
       case 'live_join': return esc(d.code) + ' · ' + esc(d.name) + (d.private ? ' · private' : '');
       case 'live_join_failed': case 'live_leave': return esc(d.code) + (d.during ? ' · during ' + esc(d.during) : '');
-      case 'live_start': return esc(d.code) + ' · ' + esc(d.host) + ' vs ' + esc(d.guest);
-      case 'live_finish': return esc(d.code) + ' · ' + esc(d.host && d.host.name) + ' ' + (d.host && d.host.dnf ? 'DNF' : esc(d.host && d.host.time) + ' s') + ' vs ' + esc(d.guest && d.guest.name) + ' ' + (d.guest && d.guest.dnf ? 'DNF' : esc(d.guest && d.guest.time) + ' s') + ' · winner ' + esc(d.winner) + (d.reason !== 'finished' ? ' (' + esc(d.reason) + ')' : '');
+      case 'live_start': return esc(d.code) + ' · ' + esc(GN[d.game] || 'Duel') + ' · ' + esc(d.host) + ' vs ' + esc(d.guest);
+      case 'live_finish':
+        if (d.game && d.game !== 'duel') return esc(d.code) + ' · ' + esc(GN[d.game]) + ' · ' + esc(d.host && d.host.name) + ' ' + esc(d.host && d.host.score) + '–' + esc(d.guest && d.guest.score) + ' ' + esc(d.guest && d.guest.name) + ' · winner ' + esc(d.winner) + (d.reason !== 'finished' ? ' (' + esc(d.reason) + ')' : '');
+        return esc(d.code) + ' · ' + esc(d.host && d.host.name) + ' ' + (d.host && d.host.dnf ? 'DNF' : esc(d.host && d.host.time) + ' s') + ' vs ' + esc(d.guest && d.guest.name) + ' ' + (d.guest && d.guest.dnf ? 'DNF' : esc(d.guest && d.guest.time) + ' s') + ' · winner ' + esc(d.winner) + (d.reason !== 'finished' ? ' (' + esc(d.reason) + ')' : '');
+      case 'climb_finish': return 'Level ' + esc(d.level) + ' · ' + (d.won ? new Array((d.stars || 0) + 1).join('★') + ' · +' + esc(d.coins) + ' coins' + (d.chest ? ' · chest' : '') : 'not this time');
+      case 'vs_finish': return esc(d.day) + ' vs ' + esc(d.rival) + ' · ' + (d.won ? 'won' : 'lost') + ' · ' + esc(d.time) + ' s vs ' + esc(d.rival_time) + ' s' + (d.first ? '' : ' (rematch)') + (d.coins ? ' · +' + esc(d.coins) + ' coins' : '');
+      case 'gift_claimed': return 'Day ' + esc(d.day) + ' · +' + esc(d.coins) + ' coins' + (d.lives ? ' · +' + esc(d.lives) + ' lives' : '');
+      case 'coins_spent': return esc(d.coins) + ' coins on ' + esc(d.what === 'refill' ? 'a full set of hearts' : d.what === 'continue' ? 'an extra go' + (d.level ? ' (level ' + d.level + ')' : '') : 'a heart');
+      case 'progress_adopted': return 'Climb level ' + esc(d.climb) + ' · ' + esc(d.coins) + ' coins';
       case 'score_posted': return esc(d.board) + ' · ' + esc(d.score) + (d.counted === false ? ' (not counted)' : '');
       case 'chat_message': return '#' + esc(d.channel) + ': ' + (d.kind === 'action' ? '* ' : '') + esc(d.text) + (d.flags ? ' <span class="pill bad">' + esc(d.flags.join(', ').replace(/_/g, ' ')) + '</span>' : '');
       case 'chat_blocked': return '#' + esc(d.channel) + ' <span class="pill bad">' + esc(d.reason) + '</span> ' + esc(d.text);

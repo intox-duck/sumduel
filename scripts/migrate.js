@@ -1,5 +1,6 @@
 // One-off / idempotent schema setup. Run: npm run migrate  (reads DATABASE_URL from .env.local)
 import { neon } from '@neondatabase/serverless';
+import { V28 } from '../api/_schema.js';
 
 const url = process.env.DATABASE_URL;
 if (!url) { console.error('DATABASE_URL not set'); process.exit(1); }
@@ -150,6 +151,9 @@ const statements = [
   // v2.1's Google-sign-in admin tables were never used in production (GOOGLE_CLIENT_ID was never set) and were empty.
   `drop table if exists admin_sessions`,
   `drop table if exists admin_audit`,
+  // v2.8: wallets (coins, lives, the Climb, the daily gift) and Daily VS ghosts. Defined in api/_schema.js, which the
+  // functions also run once per cold start, so a deploy works before anyone runs this script.
+  ...V28,
 ];
 
 for (const s of statements) await sql.query(s);

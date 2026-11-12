@@ -1,5 +1,5 @@
 /* Sum Duel service worker: offline app shell. Bump VERSION on every deploy that changes shell files. */
-const VERSION = 'sd-v2.7.0';
+const VERSION = 'sd-v2.8.0';
 const SHELL = ['/', '/app.js', '/icon.svg', '/manifest.webmanifest',
   '/fonts/nunito-latin-wght.woff2', '/fonts/nunito-latin-wght-italic.woff2', '/fonts/fredoka-latin-wght.woff2'];
 
