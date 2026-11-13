@@ -151,8 +151,8 @@ const statements = [
   // v2.1's Google-sign-in admin tables were never used in production (GOOGLE_CLIENT_ID was never set) and were empty.
   `drop table if exists admin_sessions`,
   `drop table if exists admin_audit`,
-  // v2.8: wallets (coins, lives, the Climb, the daily gift) and Daily VS ghosts. Defined in api/_schema.js, which the
-  // functions also run once per cold start, so a deploy works before anyone runs this script.
+  // v2.8: wallets (coins, lives, the Climb, the daily gift) and Daily VS ghosts. Defined in api/_schema.js.
+  // Apply before deploying v2.8: the functions no longer create tables themselves.
   ...V28,
 ];
 

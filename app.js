@@ -40,16 +40,68 @@
   // =====================================================================
   // Settings
   // =====================================================================
-  var DEFAULTS = { names: ['Player 1', 'Player 2'], mode: 'split', ops: ['+', '−', '×', '÷'], level: 'medium', n: 10, sound: true, haptics: true, theme: 'paper' };
+  var DEFAULTS = { names: ['Player 1', 'Player 2'], mode: 'split', ops: ['+', '−', '×', '÷'], level: 'medium', n: 10, sound: true, haptics: true, theme: 'paper', palette: 'seaside' };
   var S = Object.assign({}, DEFAULTS, store.get('sumduel', {}));
   if (!Array.isArray(S.ops) || !S.ops.length) S.ops = DEFAULTS.ops.slice();
   if (!Array.isArray(S.names)) S.names = DEFAULTS.names.slice();
   function save() { store.set('sumduel', S); }
+  // v2.8.1 palettes. Two settings make the look: S.theme ('paper' day or 'night') and S.palette. The <head> script in
+  // index.html applies both before the first paint; keep its palette list in step with PALETTES.
+  var PALETTES = [
+    { id: 'seaside', name: 'Seaside', sub: 'Teal and raspberry, the classic look' },
+    { id: 'blue', name: 'Shades of Blue', sub: 'Ocean blue and royal blue' },
+    { id: 'pink', name: 'Shades of Pink', sub: 'Fuchsia and rose' },
+    { id: 'ascii', name: 'ASCII Mode', sub: 'Plain text, like an old computer screen' }
+  ];
+  function palId() { return PALETTES.filter(function (p) { return p.id === S.palette; }).length ? S.palette : 'seaside'; }
   function applyTheme() {
-    // v2.1 textbook redesign: 'paper' (default) or 'night' (blackboard). Old saved 'dark'/'light' values fall back to paper.
-    var night = S.theme === 'night';
-    document.documentElement.setAttribute('data-theme', night ? 'night' : 'paper');
-    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = night ? '#13203A' : '#FFF8EE';
+    // 'paper' (day, the default) or 'night'. Old saved 'dark'/'light' values fall back to paper.
+    var night = S.theme === 'night', pal = palId(), d = document.documentElement;
+    d.setAttribute('data-theme', night ? 'night' : 'paper');
+    if (pal === 'seaside') d.removeAttribute('data-palette'); else d.setAttribute('data-palette', pal);
+    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = cssVar('--bg') || (night ? '#13203A' : '#FFF8EE');
+    syncPal();
+  }
+  var TICK_SVG = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.5l2.5 2.5L10 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  function palTiles() {
+    var cur = palId();
+    return '<div class="pal-grid" role="radiogroup" aria-label="Colour palette">' + PALETTES.map(function (p) {
+      var on = p.id === cur;
+      var sw = p.id === 'ascii' ? '<span class="pal-sw" aria-hidden="true"><span>&gt; 7 x 6 = <em>42</em><u>_</u></span></span>'
+        : '<span class="pal-sw" aria-hidden="true"><i><b>7</b></i><i><b>6</b></i></span>';
+      return '<button type="button" class="pal" data-pal="' + p.id + '" role="radio" aria-checked="' + on + '" tabindex="' + (on ? 0 : -1) + '">' + sw +
+        '<span class="pal-t"><span>' + p.name + '</span><span class="ck">' + TICK_SVG + '</span></span><span class="pal-s">' + p.sub + '</span></button>';
+    }).join('') + '</div>';
+  }
+  function themeSeg() {
+    return '<div class="seg pal-th" role="group" aria-label="Day or night">' +
+      '<button type="button" data-th="paper" aria-pressed="' + (S.theme !== 'night') + '">Day</button>' +
+      '<button type="button" data-th="night" aria-pressed="' + (S.theme === 'night') + '">Night</button></div>';
+  }
+  function renderPalPick() {
+    var el = $('palPick'); if (!el) return;
+    el.innerHTML = '<div class="pal-head"><p class="kicker">Your Colours</p>' + themeSeg() + '</div>' + palTiles();
+    bindPal(el);
+  }
+  function bindPal(root) {
+    root.addEventListener('click', function (e) {
+      var t = e.target.closest('.pal'); if (t) { setPalette(t.dataset.pal); return; }
+      var th = e.target.closest('[data-th]'); if (th) { S.theme = th.dataset.th === 'night' ? 'night' : 'paper'; save(); applyTheme(); }
+    });
+    root.addEventListener('keydown', function (e) {   // a radio group: arrow keys move the choice
+      var t = e.target.closest && e.target.closest('.pal'); if (!t) return;
+      var k = e.key, step = k === 'ArrowRight' || k === 'ArrowDown' ? 1 : k === 'ArrowLeft' || k === 'ArrowUp' ? -1 : 0; if (!step) return;
+      e.preventDefault();
+      var all = qsa('.pal', t.parentNode), nx = all[(all.indexOf(t) + step + all.length) % all.length];
+      setPalette(nx.dataset.pal); nx.focus();
+    });
+  }
+  function setPalette(id) { S.palette = id; save(); applyTheme(); sfx.tick(); }
+  function syncPal() {
+    var cur = palId(), night = S.theme === 'night';
+    qsa('.pal').forEach(function (b) { var on = b.dataset.pal === cur; b.setAttribute('aria-checked', String(on)); b.tabIndex = on ? 0 : -1; });
+    qsa('[data-th]').forEach(function (b) { b.setAttribute('aria-pressed', String((b.dataset.th === 'night') === night)); });
+    qsa('[data-s="theme"]').forEach(function (b) { b.setAttribute('aria-pressed', String(night)); });
   }
   applyTheme();
 
@@ -120,7 +172,7 @@
     if (ctrl) { opts.signal = ctrl.signal; setTimeout(function () { ctrl.abort(); }, 12000); }
     return fetch(path, opts).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) {
-        if (!r.ok) { var e = new Error(j.error || ('Error ' + r.status)); e.status = r.status; throw e; }
+        if (!r.ok) { var e = new Error(j.error || ('Error ' + r.status)); e.status = r.status; e.code = j.code; throw e; }
         return j;
       });
     });
@@ -429,7 +481,7 @@
       var n = i + 1, cls = (n < day || (!ready && n === day)) ? 'got' : (n === day ? 'now' : '');
       return '<li class="' + cls + (n === 7 ? ' big' : '') + '"><span class="d">Day ' + n + '</span>' + (n === 7 ? chestSvg('xs') : COIN_SVG) + '<b>' + g.coins + '</b>' + (g.lives ? '<span class="lv">+' + g.lives + HEART_SVG + '</span>' : '<span class="lv">&nbsp;</span>') + '</li>';
     }).join('');
-    openSheet('<p class="kicker">Daily gift</p><h2 class="title">' + (ready ? 'Day ' + day + ' gift' : 'See you tomorrow') + '</h2>' +
+    openSheet('<p class="kicker">Daily Gift</p><h2 class="title">' + (ready ? 'Day ' + day + ' Gift' : 'See You Tomorrow') + '</h2>' +
       '<p class="lede">' + (ready ? 'Open a gift every day and they get bigger. Day 7 is a treasure chest. Miss a day and you start again at day 1.' : 'You’ve opened today’s gift. Tomorrow’s is day ' + ((day % 7) + 1) + ', as long as you come back.') + '</p>' +
       '<ol class="gcal">' + cal + '</ol>' +
       '<div class="chest-stage" id="giftStage">' + chestSvg('big') + '<div class="gain big" id="giftGain"></div></div>' +
@@ -545,7 +597,7 @@
   var homeBoardSeq = 0;
   function renderHomeBoard() {
     var el = $('homeBoard'), my = ++homeBoardSeq, day = utcDay();
-    el.innerHTML = '<div class="hb-head"><p class="kicker">Top players</p><a class="more" href="#/boards">All boards →</a></div>' +
+    el.innerHTML = '<div class="hb-head"><p class="kicker">Top Players</p><a class="more" href="#/boards">All boards →</a></div>' +
       '<div class="hb-grid"><div class="panel hb" id="hbDaily"><div class="skel"></div></div><div class="panel hb" id="hbSprint"><div class="skel"></div></div></div>';
     var paint = function (id, title, sub, j, daily) {
       if (my !== homeBoardSeq) return;
@@ -584,7 +636,7 @@
   var GAME_NAMES = { duel: 'Duel', live: 'Live', tol: 'Truth or Lie', sprint: 'Sprint', daily: 'Daily', vs: 'Daily VS' };
   function renderPlayers() {
     var el = $('v-players');
-    var head = '<p class="kicker"><b>5</b> Players</p><h2 class="title">Everyone’s reports</h2>';
+    var head = '<p class="kicker"><b>5</b> Players</p><h2 class="title">Everyone’s Reports</h2>';
     if (!ME) {
       el.innerHTML = head + '<div class="pl-locked panel">' + avatar('Sum', 72) + avatar('Duel', 72) +
         '<p>Sign in to see how every player is doing: games played, wins, best Sprint and fastest Daily.</p><a class="btn primary" href="#/account">Sign in</a></div>';
@@ -633,8 +685,8 @@
       climb: function (p) { return -((p.climb || 1) * 1000 + (p.stars || 0)); } }[PL.sort];
     list = list.slice().sort(function (a, b) { return key(a) - key(b) || a.name.localeCompare(b.name); });
     var tile = function (k, v, s) { return '<div class="stat"><span class="k">' + k + '</span><span class="v">' + v + '</span>' + (s ? '<span class="s">' + s + '</span>' : '') + '</div>'; };
-    var html = '<div class="stats">' + tile('Players', t.players) + tile('Battles', t.battles, 'all time') + tile('This week', t.week, 'battles') + tile('Played today', t.today, t.today === 1 ? 'player' : 'players') + '</div>';
-    html += '<div class="panel chart has-tips"><div class="ch-title"><h3>Battles per day</h3><span>last 14 days · ' + total14 + ' in total</span></div>' + dayChart(j.days, body.clientWidth - 38) +
+    var html = '<div class="stats">' + tile('Players', t.players) + tile('Battles', t.battles, 'all time') + tile('This Week', t.week, 'battles') + tile('Played Today', t.today, t.today === 1 ? 'player' : 'players') + '</div>';
+    html += '<div class="panel chart has-tips"><div class="ch-title"><h3>Battles per Day</h3><span>last 14 days · ' + total14 + ' in total</span></div>' + dayChart(j.days, body.clientWidth - 38) +
       '<details class="tview"><summary>Show as a table</summary><table class="tbl"><thead><tr><th>Day</th><th class="n">Battles</th></tr></thead><tbody>' +
       j.days.map(function (d) { return '<tr><td>' + esc(d.d) + '</td><td class="n">' + d.n + '</td></tr>'; }).join('') + '</tbody></table></details></div>';
     html += '<div class="pl-tools"><input class="inp" id="plQ" type="search" placeholder="Find a player" aria-label="Find a player" value="' + esc(PL.q) + '">' +
@@ -672,7 +724,7 @@
     renderHomeBoard();
     var el = $('homeStats');
     if (!st.total) { el.innerHTML = ''; return; }
-    el.innerHTML = '<p class="kicker">Your numbers</p>' + kpiRow(st) +
+    el.innerHTML = '<p class="kicker">Your Numbers</p>' + kpiRow(st) +
       (ME ? '' : '<p class="foot">These stats only live on this device for now. <a href="#/account">Sign in</a> to keep them for good.</p>');
   }
   function paintHomeTags() {
@@ -683,9 +735,9 @@
   function kpiRow(st) {
     return '<div class="kpis">' +
       '<div class="kpi c1"><div class="k">Battles</div><div class="v">' + st.total + '</div><div class="s">' + st.duels + ' head-to-head</div></div>' +
-      '<div class="kpi c2"><div class="k">Win rate</div><div class="v">' + (st.duels ? Math.round(st.w / st.duels * 100) + '%' : '–') + '</div><div class="s">' + st.w + 'W · ' + st.l + 'L' + (st.d ? ' · ' + st.d + 'D' : '') + '</div></div>' +
+      '<div class="kpi c2"><div class="k">Win Rate</div><div class="v">' + (st.duels ? Math.round(st.w / st.duels * 100) + '%' : '–') + '</div><div class="s">' + st.w + 'W · ' + st.l + 'L' + (st.d ? ' · ' + st.d + 'D' : '') + '</div></div>' +
       '<div class="kpi"><div class="k">Best Sprint</div><div class="v">' + (st.bestSprint == null ? '–' : st.bestSprint) + '</div><div class="s">correct in 60 s</div></div>' +
-      '<div class="kpi"><div class="k">Win streak</div><div class="v">' + st.streak + '</div><div class="s">best ever ' + st.bestStreak + '</div></div>' +
+      '<div class="kpi"><div class="k">Win Streak</div><div class="v">' + st.streak + '</div><div class="s">best ever ' + st.bestStreak + '</div></div>' +
       '</div>';
   }
 
@@ -1250,7 +1302,7 @@
     sec.innerHTML =
       '<div class="lt-end">' +
         '<div class="lt-trophy" aria-hidden="true">🏆</div>' +
-        '<h2>You did it!</h2>' +
+        '<h2>You Did It!</h2>' +
         '<p class="lt-earned">' + new Array(LITTLE_N + 1).join('<i>⭐</i>') + '</p>' +
         '<p class="lt-total">' + total + ' stars altogether</p>' +
         '<div class="lt-endbtns"><button class="btn primary lg" id="ltAgain">Play again</button><button class="btn ghost lg" id="ltHome">All done</button></div>' +
@@ -1291,12 +1343,12 @@
   ];
   var KINDS = ['race', 'truth', 'missing', 'race', 'target', 'mixed', 'race', 'truth', 'missing', 'target', 'race', 'boss'];
   var KIND = {
-    race: { title: 'Beat the clock', text: function (d) { return 'Answer ' + d.n + ' sums before the clock runs out. Every wrong answer costs 3 seconds.'; } },
+    race: { title: 'Beat the Clock', text: function (d) { return 'Answer ' + d.n + ' sums before the clock runs out. Every wrong answer costs 3 seconds.'; } },
     truth: { title: 'Truth or Lie', text: function (d) { return 'Call ' + d.n + ' sums true or a lie. You can make ' + d.allow + ' mistakes.'; } },
-    missing: { title: 'Missing number', text: function (d) { return 'Find the missing number in ' + d.n + ' sums, like 7 × ? = 42.'; } },
+    missing: { title: 'Missing Number', text: function (d) { return 'Find the missing number in ' + d.n + ' sums, like 7 × ? = 42.'; } },
     target: { title: 'Target', text: function (d) { return 'Get ' + d.goal + ' right in ' + d.limit + ' seconds. Keep going for more stars.'; } },
-    mixed: { title: 'Mix-up', text: function (d) { return d.n + ' sums, and every other one has a missing number.'; } },
-    boss: { title: 'The big one', text: function (d) { return d.n + ' sums with everything from this area. Clear it to open the treasure chest!'; } }
+    mixed: { title: 'Mix-Up', text: function (d) { return d.n + ' sums, and every other one has a missing number.'; } },
+    boss: { title: 'The Big One', text: function (d) { return d.n + ' sums with everything from this area. Clear it to open the treasure chest!'; } }
   };
   function areaDef(a) {
     if (a < AREAS.length) return AREAS[a];
@@ -1451,8 +1503,9 @@
     $('cbShop').onclick = function () { openShop(); };
   }
   function openShop(msg) {
+    if (!W) { toast('Can’t load your hearts right now. Check your connection.'); loadWallet(); return; }
     var full = W.lives >= W.maxLives, next = nextLifeIn();
-    openSheet('<p class="kicker">Hearts</p><h2 class="title">' + (W.lives ? 'You have ' + W.lives + (W.lives === 1 ? ' heart' : ' hearts') : 'Out of hearts') + '</h2>' +
+    openSheet('<p class="kicker">Hearts</p><h2 class="title">' + (W.lives ? 'You Have ' + W.lives + (W.lives === 1 ? ' Heart' : ' Hearts') : 'Out of Hearts') + '</h2>' +
       (msg ? '<p class="lede">' + esc(msg) + '</p>' : '<p class="lede">A level only costs a heart if you don’t make it. Hearts come back by themselves: one every ' + ECON.REGEN_MIN + ' minutes, up to ' + ECON.MAX_LIVES + '.</p>') +
       '<div class="shop-hearts">' + heartsRow(W.lives, W.maxLives) + '<small>' + (next == null ? 'Full up' : 'Next free heart in ' + fmtClock(next)) + '</small></div>' +
       '<div class="shop">' +
@@ -1470,16 +1523,18 @@
     var rules = d.kind === 'target' ? starsHtml(1) + ' ' + d.goal + ' right &nbsp; ' + starsHtml(2) + ' ' + (d.goal + 3) + ' &nbsp; ' + starsHtml(3) + ' ' + (d.goal + 6)
       : d.kind === 'truth' ? starsHtml(3) + ' no mistakes &nbsp; ' + starsHtml(2) + ' one &nbsp; ' + starsHtml(1) + ' two'
       : 'Finish with lots of time left for ' + starsHtml(3);
-    var noLives = !W || W.lives < 1;
+    var noWallet = !W, noLives = !W || W.lives < 1;
     openSheet('<p class="kicker">Level ' + L + ' · ' + esc(d.areaName) + '</p>' +
       '<div class="lv-head">' + (d.kind === 'boss' ? chestSvg('lv') : '<span class="lv-badge k-' + d.kind + '">' + L + '</span>') + '<div><h2 class="title">' + info.title + '</h2>' + (prev ? starsHtml(prev, 'best') : '') + '</div></div>' +
       '<p class="lede">' + esc(info.text(d)) + '</p>' +
       '<div class="lv-chips"><span>' + esc(d.ops.join(' ')) + '</span><span>' + esc(d.level) + '</span><span>' + d.limit + ' s clock</span></div>' +
       '<p class="lv-rule">' + rules + '</p>' +
       '<p class="lv-prize">' + COIN_SVG + (prev ? (prev < 3 ? 'Up to +' + rw.coins + ' coins for more stars' : '+5 coins for playing again') : 'Up to +' + rw.coins + ' coins' + (rw.chest ? ', the chest and 2 hearts' : '')) + '</p>' +
-      (noLives ? '<div class="err" style="font-style:normal">You’re out of hearts. ' + (nextLifeIn() != null ? 'The next one comes in ' + fmtClock(nextLifeIn()) + '.' : '') + '</div><button class="btn primary block lg" id="lvShop">Get hearts</button>'
+      (noWallet ? '<div class="err" style="font-style:normal">Can’t load your hearts right now. Check your connection and try again.</div><button class="btn primary block lg" id="lvRetry">Try again</button>'
+        : noLives ? '<div class="err" style="font-style:normal">You’re out of hearts. ' + (nextLifeIn() != null ? 'The next one comes in ' + fmtClock(nextLifeIn()) + '.' : '') + '</div><button class="btn primary block lg" id="lvShop">Get hearts</button>'
         : '<button class="btn primary block lg" id="lvPlay">Play ' + HEART_SVG + '</button><p class="foot" style="text-align:center">You have ' + W.lives + (W.lives === 1 ? ' heart' : ' hearts') + '. Win and you keep it.</p>'), 'level-sheet');
     if ($('lvShop')) $('lvShop').onclick = function () { openShop(); };
+    if ($('lvRetry')) $('lvRetry').onclick = function () { closeSheet(); loadWallet().then(function () { if (W) openLevel(L); else toast('Still can’t reach the server.'); }); };
     if ($('lvPlay')) $('lvPlay').onclick = function () {
       var btn = this; btn.disabled = true; ac();
       rewards('climbStart', { level: L }).then(function (j) { closeSheet(); startClimb(d, j.run.id); })
@@ -1502,7 +1557,8 @@
     half.classList.add('climbing');
     var top = document.createElement('div'); top.className = 'solo-top lv';
     var q = document.createElement('button'); q.className = 'chipbtn'; q.textContent = 'Stop';
-    q.onclick = function () { if (!G || G.kind !== 'climb') return; if (!window.confirm('Stop this level? You’ll lose the heart.')) return; climbLose(); };
+    q.onclick = function () { if (!G || G.kind !== 'climb' || G.ending) return; if (!window.confirm('Stop this level? You’ll lose the heart.')) return; if (!G || G.ending) return; climbLose(); };
+    G.stopBtn = q;
     var tag = document.createElement('span'); tag.className = 'lv-opp lv-tag'; tag.innerHTML = '<b>Level ' + d.L + '</b> · ' + esc(KIND[d.kind].title);
     top.appendChild(q); top.appendChild(tag); half.appendChild(top);
     if (d.kind !== 'truth') { var kh = document.createElement('div'); kh.className = 'keyhint'; kh.textContent = 'TYPE ANSWERS · ⌫ DELETE · ESC CLEAR'; half.appendChild(kh); }
@@ -1570,6 +1626,7 @@
     u.clock.textContent = Math.max(0, left).toFixed(1);
     u.clock.classList.toggle('low', left < 5);
     if (d.kind === 'target') u.bar.style.width = Math.min(100, p.idx / (d.goal + 6) * 100) + '%';
+    if (d.kind === 'truth' && G.lock) return;       // an answer is being shown: it settles first (win, offer or next)
     if (left <= 0) {
       p.running = false; G.pausedAt = performance.now();
       if (d.kind === 'target' && p.idx >= d.goal) { p.end = performance.now(); p.done = true; climbWin(); return; }
@@ -1578,7 +1635,8 @@
   }
   function climbOffer(why) {
     var ov = G.offer, p = G.p[0], d = G.lv, can = G.cont < ECON.MAX_CONTINUES, rich = W && W.coins >= ECON.CONTINUE_COST;
-    var togo = d.kind === 'target' ? (d.goal - p.idx) + ' more to reach the target' : (d.n - p.idx - (d.kind === 'truth' ? G.mistakes : 0)) + ' to go';
+    var left = d.n - p.idx - (d.kind === 'truth' ? G.mistakes : 0);
+    var togo = d.kind === 'target' ? (d.goal - p.idx) + ' more to reach the target' : left > 0 ? left + ' to go' : 'that was the last one';
     ov.innerHTML = '<div class="offer-card"><div class="big">' + (why === 'time' ? 'Time’s up!' : 'Too many mistakes!') + '</div>' +
       '<p class="sub">So close: ' + esc(togo) + '.</p>' +
       (can ? '<button class="btn primary block lg" id="ofKeep"' + (rich ? '' : ' disabled') + '>' + '<span>' + (why === 'time' ? 'Keep going: +' + (d.kind === 'target' ? 15 : 20) + ' seconds' : 'Keep going: one more mistake') + '</span><span class="cost">' + COIN_SVG + ECON.CONTINUE_COST + '</span></button>' +
@@ -1592,8 +1650,10 @@
         if (!G || G.token !== my) return;
         G.cont++;
         if (why === 'time') G.extra += d.kind === 'target' ? 15 : 20; else G.allow++;
-        var now = performance.now(); p.start += now - G.pausedAt; p.last += now - G.pausedAt; p.running = true;
-        ov.classList.add('hidden'); sfx.go();
+        var now = performance.now(); p.start += now - G.pausedAt; p.last += now - G.pausedAt;
+        ov.classList.add('hidden');
+        if (d.kind === 'truth' && p.idx + G.mistakes >= d.n) { p.end = now; p.done = true; climbWin(); return; }
+        p.running = true; sfx.go();
         if (d.kind === 'truth') truthPaint(); else paintQ(0);
         loop();
       }).catch(function (e) { btn.disabled = false; toast(e.status ? e.message : 'Can’t reach the server. Try again.'); });
@@ -1609,7 +1669,9 @@
     return frac >= 0.4 ? 3 : frac >= 0.2 ? 2 : 1;
   }
   function climbWin() {
-    var g = G, stars = climbStars(), my = G.token; G.live = false; wakeOff();
+    if (G.ending) return;
+    var g = G, stars = climbStars(), my = G.token; G.ending = true; G.live = false; wakeOff();
+    if (G.stopBtn) G.stopBtn.disabled = true;
     var u = G.ui[0]; u.cover.classList.remove('hidden'); u.big.innerHTML = starsHtml(stars, 'cover-stars'); u.sub.textContent = 'Level ' + g.lv.L + ' clear!';
     sfx.done();
     var send = function () {
@@ -1624,7 +1686,9 @@
     setTimeout(send, 900);
   }
   function climbLose() {
-    var g = G, my = G.token; G.live = false; wakeOff();
+    if (G.ending) return;
+    var g = G, my = G.token; G.ending = true; G.live = false; wakeOff();
+    if (G.stopBtn) G.stopBtn.disabled = true;
     if (G.p[0]) G.p[0].running = false;
     rewards('climbFinish', { id: g.run, level: g.lv.L, won: false }).catch(function () { return {}; })
       .then(function (j) { if (G && G.token === my) climbResults(g, false, j || {}); });
@@ -1702,26 +1766,24 @@
         '<div class="vs-who"><b>' + esc(r.name) + '</b><small>' + Number(r.time).toFixed(2) + ' s' + (r.wrong ? ' · ' + r.wrong + ' wrong' : ' · no mistakes') + (extra ? ' · ' + extra : '') + '</small></div>' +
         '<button class="btn primary" data-race>Race</button></div>';
     };
-    html += '<div class="section" style="margin-top:22px"><p class="kicker">Players today</p>';
+    html += '<div class="section" style="margin-top:22px"><p class="kicker">Players Today</p>';
     html += j.ghosts.length ? '<div class="vs-list">' + j.ghosts.map(function (g) { return card(g, 'player'); }).join('') + '</div>'
       : '<div class="blank">' + (j.offline ? 'Can’t see today’s players right now. You can still race the sea bots.' : 'Nobody’s raced today yet. Your run becomes the first ghost for everyone else to chase.') + '</div>';
-    html += '</div><div class="section"><p class="kicker">Sea bots</p><div class="vs-list">' + j.bots.map(function (b) {
+    html += '</div><div class="section"><p class="kicker">Sea Bots</p><div class="vs-list">' + j.bots.map(function (b) {
       var meta = VS_BOTS.filter(function (x) { return x.id === b.id; })[0]; return card(b, 'bot', meta ? meta.hint : '');
     }).join('') + '</div></div>';
     if (!ME) html += '<p class="foot">Sign in and your first run each day becomes a ghost that other players can race.</p>';
     body.innerHTML = html;
-    VSD = j;
     body.onclick = function (e) {
       var b = e.target.closest('[data-race]'); if (!b) return;
       var c = b.closest('.vs-card'), type = c.dataset.type, id = c.dataset.id;
       var r = (type === 'bot' ? j.bots : j.ghosts).filter(function (x) { return String(x.id) === id; })[0]; if (!r) return;
-      ac(); startVs({ type: type, id: r.id, name: r.name, time: Number(r.time), raw: Number(r.raw), wrong: r.wrong, splits: r.splits || [] });
+      ac(); startVs({ type: type, id: r.id, name: r.name, time: Number(r.time), raw: Number(r.raw), wrong: r.wrong, splits: r.splits || [], day: j.day });
     };
   }
-  var VSD = null;
   function startVs(rv) {
     abortGame(); token++;
-    var day = utcDay(), name = ME ? ME.name : ((S.names[0] || '').trim() || 'You');
+    var day = rv.day || utcDay(), name = ME ? ME.name : ((S.names[0] || '').trim() || 'You');
     var cum = [], t = 0, sp = rv.splits && rv.splits.length >= VSN ? rv.splits : null;
     for (var i = 0; i < VSN; i++) { t += sp ? sp[i] : rv.raw / VSN; cum.push(t); }
     G = { kind: 'vs', token: token, mode: 'solo', n: VSN, names: [name], day: day, rival: rv, cum: cum, cfg: { ops: VS_OPS.slice(), level: 'medium', n: VSN },
@@ -1802,7 +1864,7 @@
     var P = b.players;
     if (isH2H(b)) {
       var w = b.winner, vsSprint = b.game === 'sprint';
-      html += '<p class="kicker"><b>' + (b.game === 'duel' ? 'DUEL' : b.game === 'tol' ? 'TRUTH OR LIE' : 'SPRINT') + '</b> Final result</p>';
+      html += '<p class="kicker"><b>' + (b.game === 'duel' ? 'DUEL' : b.game === 'tol' ? 'TRUTH OR LIE' : 'SPRINT') + '</b> Final Result</p>';
       html += '<div class="verdict" style="color:' + (w < 0 ? 'var(--ink)' : COL[w].c) + ';text-shadow:0 0 30px ' + (w < 0 ? 'none' : COL[w].g) + '">' + (w < 0 ? (b.game === 'duel' ? 'Dead <em>heat.</em>' : 'A <em>draw.</em>') : esc(P[w].name) + ' <em>wins.</em>') + '</div>';
       if (b.game === 'duel') html += '<p class="margin">' + (w < 0 ? 'Level to the hundredth of a second. Remarkable, or suspicious.' : 'By ' + Math.abs(P[0].time - P[1].time).toFixed(2) + ' seconds.') + '</p>';
       else if (w < 0) html += '<p class="margin">Level at ' + P[0].score + '–' + P[1].score + (vsSprint ? ' correct' : '') + '.</p>';
@@ -1817,14 +1879,14 @@
         if (vsSprint) return '<div class="card' + (lose ? ' lose' : '') + '" ' + style + '><div class="whoc">' + esc(p.name) + '</div><div class="t">' + p.score + ' correct</div><dl>' +
           '<dt>Wrong</dt><dd>' + p.wrong + '</dd><dt>Accuracy</dt><dd>' + (p.score + p.wrong ? Math.round(p.score / (p.score + p.wrong) * 100) : 0) + '%</dd><dt>Best streak</dt><dd>' + (p.bestStreak || 0) + '</dd></dl></div>';
         return '<div class="card' + (lose ? ' lose' : '') + '" ' + style + '><div class="whoc">' + esc(p.name) + '</div><div class="t">' + p.score + ' pts</div><dl>' +
-          '<dt>Wrong calls</dt><dd>' + p.wrong + '</dd><dt>Avg reaction</dt><dd>' + (p.avgRt == null ? '–' : p.avgRt.toFixed(2) + ' s') + '</dd></dl></div>';
+          '<dt>Wrong calls</dt><dd>' + p.wrong + '</dd><dt>Reaction</dt><dd>' + (p.avgRt == null ? '–' : p.avgRt.toFixed(2) + ' s') + '</dd></dl></div>';
       }).join('') + '</div>';
       if (b.game === 'duel') html += exhibitSplits(P, 'Figure 1: seconds per question, penalties excluded');
       if (vsSprint) html += exhibitSplits(P, 'Figure 1: seconds per correct answer');
       winColor = w < 0 ? null : (w === 0 ? cssVar('--p1') : cssVar('--p2'));
     } else if (b.game === 'sprint') {
       var p0 = P[0], best = computeStats(localBattles()).bestSprint, pb = best == null || p0.score > best;
-      html += '<p class="kicker"><b>SPRINT</b> 60 seconds</p>';
+      html += '<p class="kicker"><b>SPRINT</b> 60 Seconds</p>';
       html += '<div class="verdict" style="color:var(--p1);text-shadow:0 0 30px var(--p1-glow)">' + p0.score + ' <em>correct.</em></div>';
       html += '<p class="margin">' + (pb && p0.score > 0 ? 'New personal best.' : 'Personal best: ' + best + '.') + ' ' + (p0.score ? (60 / p0.score).toFixed(2) + ' s per answer.' : '') + '</p><p class="series">&nbsp;</p>';
       html += '<div class="cards one"><div class="card" style="--pc:var(--p1);--pd:var(--p1-deep);--pg:var(--p1-glow)"><div class="whoc">' + esc(p0.name) + '</div><dl>' +
@@ -1905,7 +1967,10 @@
   function shareResult(b) {
     var P = b.players, txt;
     if (b.game === 'duel') txt = b.winner < 0 ? 'Dead heat on Sum Duel. ' + P[0].name + ' and ' + P[1].name + ' both on ' + P[0].time.toFixed(2) + ' s.' : P[b.winner].name + ' beat ' + P[1 - b.winner].name + ' on Sum Duel by ' + Math.abs(P[0].time - P[1].time).toFixed(2) + ' s ⚔';
-    else if (b.game === 'tol') txt = P[b.winner].name + ' won Truth or Lie ' + P[b.winner].score + '–' + P[1 - b.winner].score + ' on Sum Duel';
+    else if (b.game === 'tol') txt = b.winner < 0 ? 'Truth or Lie ended level ' + P[0].score + '–' + P[1].score + ' on Sum Duel'
+      : P[b.winner].name + ' won Truth or Lie ' + P[b.winner].score + '–' + P[1 - b.winner].score + ' on Sum Duel';
+    else if (b.game === 'sprint' && P.length > 1) txt = b.winner < 0 ? 'A Sprint tie on Sum Duel: ' + P[0].score + ' each.'
+      : P[b.winner].name + ' won a live Sprint ' + P[b.winner].score + '–' + P[1 - b.winner].score + ' on Sum Duel';
     else if (b.game === 'sprint') txt = 'I got ' + P[0].score + ' correct in 60 s on Sum Duel Sprint. Beat that.';
     else txt = 'Sum Duel Daily ' + b.day + ': ' + P[0].time.toFixed(2) + ' s with ' + P[0].wrong + ' wrong. Your move.';
     var url = location.origin + '/';
@@ -1951,13 +2016,13 @@
     var el = $('v-record');
     var paint = function (list) {
       var st = computeStats(list);
-      var html = '<p class="kicker"><b>3</b> ' + (ME ? esc(ME.name) + '’s record' : 'Your record · this device') + '</p><h2 class="title">Every battle, on the record</h2>';
+      var html = '<p class="kicker"><b>3</b> ' + (ME ? esc(ME.name) + '’s Record' : 'Your Record · This Device') + '</p><h2 class="title">Every Battle, on the Record</h2>';
       if (!ME) html += '<div class="savebar"><span>You’re not signed in, so this record only lives in this browser.</span><a class="btn" href="#/account" style="padding:8px 12px">Sign in</a></div>';
       if (!list.length) { el.innerHTML = html + '<div class="blank">No battles yet. <a href="#/">Go and pick a fight.</a></div>'; return; }
       html += '<div class="section" style="margin-top:18px">' + kpiRow(st) + '</div>';
       html += '<div class="grid2">';
       // Head to head
-      html += '<div class="panel"><p class="kicker"><b>3.1</b> Head to head</p>';
+      html += '<div class="panel"><p class="kicker"><b>3.1</b> Head to Head</p>';
       if (st.rivals.length) {
         html += '<table class="tbl"><thead><tr><th>Rival</th><th class="n">P</th><th class="n">W–L</th><th></th></tr></thead><tbody>' +
           st.rivals.slice(0, 12).map(function (r) {
@@ -1967,7 +2032,7 @@
       } else html += '<p class="hint">Play a Duel, a Live game or the Daily VS to start a rivalry.</p>';
       html += '</div>';
       // Sprint trend
-      html += '<div class="panel spark"><p class="kicker"><b>3.2</b> Sprint trend</p>' + sparkline(st.sprintSeries) +
+      html += '<div class="panel spark"><p class="kicker"><b>3.2</b> Sprint Trend</p>' + sparkline(st.sprintSeries) +
         '<p class="hint">' + (st.sprintSeries.length ? st.sprintSeries.length + (st.sprintSeries.length === 1 ? ' sprint' : ' sprints') + ' · best ' + st.bestSprint + (st.bestDaily != null ? ' · best Daily ' + st.bestDaily.toFixed(2) + ' s' : '') : 'No sprints yet.') + '</p></div>';
       html += '</div>';
       // History
@@ -2066,16 +2131,16 @@
     liveStop();
     var el = $('v-live');
     if (!ME) {
-      el.innerHTML = '<p class="kicker"><b>2.5</b> Live games</p><h2 class="title">Live games</h2>' +
+      el.innerHTML = '<p class="kicker"><b>2.5</b> Live Games</p><h2 class="title">Live Games</h2>' +
         '<p class="lede">Play a friend on their own device: a Duel, Truth or Lie, or a 60-second Sprint. You need an account so the game knows who’s who.</p><a class="btn primary" href="#/account">Sign in to play</a>';
       return;
     }
     if (code) return renderRoom(code);
-    el.innerHTML = '<p class="kicker"><b>2.5</b> Live games</p><h2 class="title">Live games</h2>' +
+    el.innerHTML = '<p class="kicker"><b>2.5</b> Live Games</p><h2 class="title">Live Games</h2>' +
       '<p class="lede">Two devices, one race. Pick a game, create it and share its code, or join an open game below. Private games need their password.</p>' +
       '<div id="lvActive"></div>' +
       '<div class="grid2">' +
-        '<div class="panel"><p class="kicker"><b>A</b> Create a game</p>' +
+        '<div class="panel"><p class="kicker"><b>A</b> Create a Game</p>' +
           '<div class="field"><span class="lab">Game</span><div class="lv-games" id="lvGame">' + ['duel', 'tol', 'sprint'].map(function (k) { return '<button type="button" data-v="' + k + '"><b>' + GNAME[k] + '</b></button>'; }).join('') + '</div><p class="hint" id="lvHow"></p></div>' +
           '<div class="field"><span class="lab">Name</span><input class="inp" id="lvName" maxlength="30" placeholder="' + esc(ME.name) + '’s game"></div>' +
           '<div class="field"><span class="lab">Operations</span><div class="ops" id="lvOps">' + ['+', '−', '×', '÷'].map(function (o) { return '<button type="button" data-v="' + o + '">' + o + '</button>'; }).join('') + '</div></div>' +
@@ -2084,11 +2149,11 @@
           '<div class="setrow" style="border:0;padding-top:0"><div>Private game<small>Only people with the password can join</small></div><button class="toggle" id="lvPriv" aria-label="Private game"></button></div>' +
           '<input class="inp hidden" id="lvPw" maxlength="50" placeholder="Game password (3+ characters)" autocomplete="off">' +
           '<div class="err" id="lvErr" role="alert"></div><button class="btn primary block lg" id="lvCreateBtn">Create game</button></div>' +
-        '<div><div class="panel"><p class="kicker"><b>B</b> Join with a code</p>' +
+        '<div><div class="panel"><p class="kicker"><b>B</b> Join With a Code</p>' +
           '<div class="row"><input class="inp" id="lvCode" maxlength="5" placeholder="ABCDE" style="flex:1;margin:0;min-width:0;text-transform:uppercase;font-family:var(--mono)" autocomplete="off"><button class="btn" id="lvCodeBtn">Join</button></div>' +
           '<input class="inp hidden" id="lvCodePw" maxlength="50" placeholder="Password (private games)" autocomplete="off" style="margin-top:10px">' +
           '<div class="err" id="lvCodeErr" role="alert"></div></div>' +
-          '<div class="section" style="margin-top:22px"><p class="kicker"><b>C</b> Open games</p><div class="list" id="lvList"><div class="blank">Looking for games…</div></div></div></div>' +
+          '<div class="section" style="margin-top:22px"><p class="kicker"><b>C</b> Open Games</p><div class="list" id="lvList"><div class="blank">Looking for games…</div></div></div></div>' +
       '</div>';
     var paintCfg = function () {
       if (!GNAME[LCFG.game]) LCFG.game = 'duel';
@@ -2671,7 +2736,7 @@
       bindPwForm(true); return;
     }
     if (!ME) {
-      el.innerHTML = '<div class="auth"><p class="kicker"><b>6</b> Account</p><h2 class="title">Sign in or sign up.<br><span class="serif" style="font-style:italic;color:var(--p1)">Same box.</span></h2>' +
+      el.innerHTML = '<div class="auth"><p class="kicker"><b>6</b> Account</p><h2 class="title">Sign In or Sign Up.<br><span class="serif" style="font-style:italic;color:var(--p1)">Same Box.</span></h2>' +
         '<p class="lede">Type your email and a password. If you’re new, this makes your account straight away. After that, every game you play is saved to your record.</p>' +
         '<form id="authF" novalidate><label class="sr" for="em">Email</label><input class="inp" id="em" type="email" autocomplete="username" inputmode="email" placeholder="you@example.com" required>' +
         '<label class="sr" for="pw">Password</label><input class="inp" id="pw" type="password" autocomplete="current-password" placeholder="Password (6+ characters)" minlength="6" required>' +
@@ -2695,7 +2760,7 @@
           store.del('sd_daily_unsent');
           if (S.names[0] === 'Player 1' || !S.names[0]) { S.names[0] = j.user.name; save(); }
           toast(j.created ? 'Account created. Welcome, ' + j.user.name + '.' : 'Welcome back, ' + j.user.name + '.');
-          return adoptGuest().then(loadWallet).then(pullBattles);
+          return (j.created ? adoptGuest() : Promise.resolve()).then(loadWallet).then(pullBattles);
         }).then(function () { renderAccount(); }).catch(function (e2) {
           err.textContent = e2.message === 'Failed to fetch' ? 'Can’t reach the server. Check your connection.' : e2.message;
           btn.disabled = false; btn.textContent = 'Continue';
@@ -2726,10 +2791,11 @@
     return '<div class="section auth"><p class="kicker"><b>7</b> Preferences</p><div class="panel" style="padding:4px 18px">' +
       '<div class="setrow"><div>Sound<small>Blips, buzzers and fanfare</small></div><button class="toggle" data-s="sound" aria-pressed="' + !!S.sound + '" aria-label="Sound"></button></div>' +
       '<div class="setrow"><div>Haptics<small>Vibrate on wrong answers (Android)</small></div><button class="toggle" data-s="haptics" aria-pressed="' + !!S.haptics + '" aria-label="Haptics"></button></div>' +
-      '<div class="setrow"><div>Night mode<small>Dark blue, like the sea at night</small></div><button class="toggle" data-s="theme" aria-pressed="' + (S.theme === 'night') + '" aria-label="Night mode"></button></div>' +
-      '</div><p class="foot">Tip: in Chrome or Safari, choose Add to Home Screen and it runs full-screen and offline.</p></div>';
+      '<div class="setrow"><div>Night mode<small>Dark colours for the evening</small></div><button class="toggle" data-s="theme" aria-pressed="' + (S.theme === 'night') + '" aria-label="Night mode"></button></div>' +
+      '</div><div class="pal-set"><p class="flab">Colours</p>' + palTiles() + '</div><p class="foot">Tip: in Chrome or Safari, choose Add to Home Screen and it runs full-screen and offline.</p></div>';
   }
   function bindSettings() {
+    qsa('.pal-set').forEach(bindPal);
     qsa('[data-s]').forEach(function (t) {
       t.onclick = function () {
         var k = t.dataset.s;
@@ -2744,6 +2810,7 @@
   // =====================================================================
   // Boot
   // =====================================================================
+  renderPalPick();
   paintWho();
   loadWallet();
   route();

@@ -7,15 +7,13 @@
 // POST {action:'climbContinue', id}       -> spend coins to keep going after running out of time or mistakes
 // POST {action:'climbFinish', id, level, won, stars}
 // POST {action:'vsFinish', d, raw, wrong, splits, rival:{type:'bot'|'player', id}}
-// POST {action:'adopt', coins, lives, climb:{level, stars}}   -> a guest's progress moves to a brand-new account
+// POST {action:'adopt', coins, lives, climb:{level, stars}}   -> a guest's progress moves into a brand-new account, once
 import { route, send, fail, db, currentUser, requireUser, utcDay, logEvent } from './_lib.js';
-import { ensureSchema } from './_schema.js';
 import { ECON, AREA, mutate, getWallet, climbReward, giftFor, dayOf, err, newRunId, VS_N, VS_BOTS, botRun } from './_economy.js';
 
 const MAX_LEVEL = 9999;
 
 export default route(['GET', 'POST'], async (req, res) => {
-  await ensureSchema();
   const sql = db();
 
   if (req.method === 'GET' && req.query?.vs) return vsBoard(req, res, sql);
@@ -86,9 +84,13 @@ export default route(['GET', 'POST'], async (req, res) => {
         if (!w.run || w.run.id !== String(b.id || '') || w.run.level !== level) return { dup: true }; // already settled
         const run = w.run; w.run = null;
         if (!won) return { won: false, level };
-        if (nowMs - run.at < 3000) throw err(400, 'That was too quick to be real.');
+        if (nowMs - run.at < ECON.CLIMB_MIN_MS) throw err(400, 'That was too quick to be real.');
         const prev = Number(w.climb_stars[level]) || 0;
         const rw = climbReward(level, stars, prev);
+        // Coins and chest hearts stop after CLIMB_CAP paying wins a day (a forged-finish loop); progress never does.
+        const today = dayOf(nowMs);
+        if (w.climb_day !== today) { w.climb_day = today; w.climb_n = 0; }
+        if (w.climb_n >= ECON.CLIMB_CAP) { rw.coins = 0; rw.lives = 0; } else w.climb_n++;
         w.lives += 1;                                  // the life used to start comes back on a win
         w.coins += rw.coins; w.lives += rw.lives;
         if (stars > prev) w.climb_stars[level] = stars;
@@ -102,8 +104,10 @@ export default route(['GET', 'POST'], async (req, res) => {
     if (action === 'vsFinish') return vsFinish(req, res, sql, u);
 
     if (action === 'adopt') {
-      const r = await mutate(sql, u.id, w => {
-        const fresh = w.climb_level <= 1 && !Object.keys(w.climb_stars).length && !w.gift_day;
+      // Only into an account made in the last 15 minutes whose wallet has never been written (rev 0): adopting is
+      // itself a write, so it can happen once, and an existing account never takes over a guest's progress.
+      const r = await mutate(sql, u.id, (w, nowMs) => {
+        const fresh = w.rev === 0 && nowMs - new Date(u.created_at).getTime() < 15 * 60000;
         if (!fresh) return { adopted: false };
         const lv = Math.max(1, Math.min(500, parseInt(b.climb && b.climb.level, 10) || 1));
         const st = {};
@@ -130,8 +134,11 @@ async function vsBoard(req, res, sql) {
   const day = vsDay(req.query.d), me = await currentUser(req).catch(() => null);
   const rows = await sql`select v.user_id, u.name, v.time, v.raw, v.wrong, v.splits, v.rival, v.won
                          from daily_vs v join users u on u.id = v.user_id where v.day = ${day} order by v.time asc limit 40`;
-  const ghosts = rows.map(r => ({ id: String(r.user_id), name: r.name, time: Number(r.time), raw: Number(r.raw), wrong: r.wrong, splits: r.splits || [], me: !!me && String(r.user_id) === String(me.id) }));
-  send(res, 200, { day, n: VS_N, ghosts: ghosts.filter(g => !g.me), mine: ghosts.find(g => g.me) || null,
+  const g = r => ({ id: String(r.user_id), name: r.name, time: Number(r.time), raw: Number(r.raw), wrong: r.wrong, splits: r.splits || [] });
+  // Your own run is looked up on its own, so it's found even when you're slower than the 40 shown.
+  const [mine] = me ? await sql`select v.user_id, u.name, v.time, v.raw, v.wrong, v.splits from daily_vs v join users u on u.id = v.user_id
+                                where v.day = ${day} and v.user_id = ${me.id}` : [];
+  send(res, 200, { day, n: VS_N, ghosts: rows.filter(r => !me || String(r.user_id) !== String(me.id)).map(g), mine: mine ? { ...g(mine), me: true } : null,
     bots: VS_BOTS.map(bt => ({ id: bt.id, name: bt.name, ...botRun(bt, day) })) });
 }
 
@@ -158,7 +165,13 @@ async function vsFinish(req, res, sql, u) {
                         on conflict (day, user_id) do nothing returning day`;
   const first = ins.length > 0;
   const prize = first ? (won ? ECON.VS_FIRST_WIN : ECON.VS_FIRST_LOSS) : (won ? ECON.VS_REMATCH_WIN : null);
-  const r = await mutate(sql, u.id, w => { if (prize) { w.coins += prize.coins; w.lives += prize.lives || 0; } });
+  let r;
+  try { r = await mutate(sql, u.id, w => { if (prize) { w.coins += prize.coins; w.lives += prize.lives || 0; } }); }
+  catch (e) {
+    // The prize didn't land: take the run back out, so trying again is still the first race and still pays.
+    if (first) await sql`delete from daily_vs where day = ${d} and user_id = ${u.id}`.catch(() => {});
+    throw e;
+  }
   await logEvent(req, u, 'vs_finish', { detail: { day: d, rival: rival.name, won, time, rival_time: rival.time, first, coins: prize ? prize.coins : 0 } });
   send(res, 200, { ...r, won, first, time, rival: { name: rival.name, time: rival.time }, prize: prize || { coins: 0 } });
 }

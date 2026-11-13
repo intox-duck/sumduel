@@ -8,7 +8,6 @@
 //        games:{duel,live,tol,sprint,daily,vs}, w,l,d, bestSprint, bestDaily, climb, stars, lastAt, me}] }
 //      v2.8: live games of every kind count as "live"; Daily VS ghost races as "vs"; climb = highest Climb level reached.
 import { route, send, fail, db, currentUser, requireUser, utcDay, logEvent } from './_lib.js';
-import { ensureSchema } from './_schema.js';
 
 const TOP = 25;
 // Plausibility bounds: stops trivially forged scores without pretending to be anti-cheat.
@@ -88,7 +87,6 @@ export default route(['GET', 'POST'], async (req, res) => {
 // v2.7: the players dashboard. Anyone signed in can read it; it lists every player's game report.
 async function playersReport(req, res, sql) {
   const u = await requireUser(req, res); if (!u) return;
-  await ensureSchema();
   const rows = await sql`
     select u.id::text as id, u.name, u.created_at as since,
       count(b.id)::int as battles,

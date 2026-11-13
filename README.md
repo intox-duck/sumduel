@@ -13,6 +13,7 @@ Quick maths, head to head: **https://sumduel.app**
 - **Home leaderboard**: today's Daily and Sprint top 5, with podiums, on the Arena.
 - **Players dashboard**: once signed in, everyone's game report (games, wins, best scores, activity chart), by display name only.
 - **Little Ones**: a picture level for 4-year-olds: count, find the side with more, tiny sums. Spoken prompts, no clock.
+- **Your Colours**: four palettes on the Arena and in Preferences: Seaside, Shades of Blue, Shades of Pink and ASCII Mode (a text-only terminal look), each with day and night.
 - **Accounts**: email + password, no confirmation. Every battle goes on your record, with head-to-head stats against each rival.
 
 Static frontend (no build) + Vercel functions + Neon Postgres. Works offline as a PWA. Chat exists in the code but is switched off (`api/_features.js`).
@@ -20,7 +21,7 @@ Static frontend (no build) + Vercel functions + Neon Postgres. Works offline as 
 ```bash
 npm install
 vercel env pull .env.local   # DATABASE_URL from the Neon integration
-npm run migrate              # idempotent schema
+npm run migrate              # idempotent schema (on the live database: check first, apply by hand, before deploying)
 vercel dev
 ```
 

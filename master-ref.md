@@ -6,114 +6,64 @@ Live: **https://sumduel.app** (`www.sumduel.app` 308-redirects to the apex; `sum
 
 ---
 
-## ACTIVE TASK / session handoff (updated 2026-11-12)
+## Now (2026-11-13)
 
-- **v2.8 (latest, on branch `ccr-e7766a6c-jji1bl`, not merged or deployed): Live game types, the Climb, coins and hearts, the daily gift, Daily VS.** The owner asked (dictated, 2026-11-12): "move lives games of different of variety of games, truth or lie on 2 devices. And climb trail version, with lives given out as coins, be generous. A sort of wordscape esque reward system, where you can do a daily vs."
-  - **How it was read** (say so if any of these is wrong):
-    1. *"live games of a variety of games, truth or lie on 2 devices"*: Live now offers **Duel, Truth or Lie and Sprint** on two devices.
-    2. *"climb trail version"*: **The Climb**, a Wordscapes-style trail of levels up the coast, 12 levels per area, a treasure chest at the end of each.
-    3. *"lives given out as coins, be generous"*: **hearts** (lives) gate Climb levels; **coins** buy hearts and extra goes; both are handed out freely (hearts refill every 10 min, the gift calendar, chests, the Daily VS, every game pays coins).
-    4. *"a daily vs"*: **Daily VS**, a daily ghost race against anyone who has already raced today, or one of three sea bots; the first race of the day pays a prize.
-  - **Live game types (`cfg.game`):** `duel` (unchanged), `sprint` (60 s, same question stream, most correct wins, fewer wrong breaks a tie; server caps progress at 2.5 correct/s), `tol` (Truth or Lie, judged by the server round by round; see §2 "Live Truth or Lie"). Games created before v2.8 have no `cfg.game` and are treated as duels. Rematches keep the game type. Live battles are recorded as `game: duel|tol|sprint, mode: 'live'`.
-  - **Economy (generous on purpose):** start 200 coins, 5 hearts. One heart back every 10 min up to 5; gifts/chests/purchases can go to 15. 1 heart = 20 coins, fill up = 60, keep going in a level = 25 (max 3 per level). Gift calendar: 50, 75, 100+♥1, 125, 150+♥2, 200, 300+♥5 (miss a day: back to day 1). Climb first clear = 20 + 10 per star; chest = +150 coins +2 hearts. Every game pays: Duel/Truth or Lie 10 (+10 win), Sprint 5 + half the score (max 30), Daily 40 (practice 5), Live 15 (+15 win), Daily VS ghost race 5/10 plus the VS prize (first race of the day: win 100 + ♥2, lose 40 + ♥1; rematch win 10). Cap: 80 paying battles per UTC day.
-  - **Server:** new function `api/rewards.js` (8 of 12 Hobby functions now). Rules in `api/_economy.js`, **mirrored in `app.js` (ECON, battleCoins, climbReward, botRun, the guest wallet): keep them in step**. Wallet writes use optimistic locking (`rev`), so two devices can't lose each other's coins.
-  - **Schema:** `wallets` and `daily_vs` (in `api/_schema.js`). `npm run migrate` applies them, **but the functions that need them also run `ensureSchema()` once per cold start**, so a deploy works even if nobody migrates first. No change to existing tables (live Truth or Lie stores its calls inside the existing `host_extra`/`guest_extra` jsonb).
-  - **Guests** get the whole thing on a local wallet (`sd_wallet_local`) with the same rules. On sign-in, a guest's coins (capped at 3,000) and Climb progress move into the account **only if the account's wallet is brand new** (`adopt`), then the local wallet is cleared.
-  - **Not built / deliberately left out:** no real money, no purchases of coins, no ads. Little Ones stays outside the economy (it's for 4-year-olds). Climb levels aren't written to the battle record (they'd swamp it); their stars live in the wallet and show on the players dashboard ("Climb level n · m stars", new "Highest climb" sort).
-  - **QA (local, PGlite standing in for Neon, in the session scratchpad):** 67 API checks (`qa/t-api.mjs`: wallet, gift, buy, Climb start/continue/finish incl. too-quick and double-finish, hearts running out, battle coins incl. old battles paying nothing, Daily VS bots/ghosts/prizes, adopt-once, live Truth or Lie full game with one call per round and hidden answers, live Sprint pace cap and early-final refusal, forfeit, live Duel regression, players report), 15 guest browser checks (`qa/e2e-guest.mjs`: gift, Climb race/truth with a paid keep-going/missing-number/stop, trail state, Daily VS vs a bot, record), 16 two-browser checks (`qa/e2e-live.mjs`: guest progress adopted on sign-up, server-side Climb, private live Truth or Lie desktop vs phone to 7–0, rematch keeps the type, live Sprint, record filters, dashboard). Screenshots phone/desktop, day/night. No console errors.
-  - **Owner to do before merging:** play a Climb area and a live Truth or Lie on two real phones; then merge to `main` (auto-deploys). Running `npm run migrate` is optional (see Schema). Service worker `sd-v2.8.0`.
+- **Task:** review PR #1 (v2.8) and the app, fix what the review found, and add a palette picker ("shades of blue, shades of pink or ascii mode") in the game menu. All of it is on the PR branch `ccr-e7766a6c-jji1bl` as v2.8.1, **not merged**.
+- **Done:** a 15-finding review, every finding fixed; palettes; title case across the app; QA (27 in-process API checks, a guest Climb run, a full two-browser live Truth or Lie game, and screenshots of 4 palettes × day/night × phone/desktop). Details are in the v2.8.1 bullet below.
+- **Next (owner):** say go for the v2.8 migration on the live database: two new empty tables (`wallets`, `daily_vs`) plus one index, nothing else touched. Then merge PR #1, which auto-deploys. Order matters: **migration first, then merge**, because the functions no longer create tables themselves.
+- **Gotchas this session:** the old QA harness had gone with an old scratchpad, so it was rebuilt (§5). The preview deployment uses the **production** `DATABASE_URL` (one env var for production, preview and development), so testing on the preview writes to the live database.
 
-- **v2.7 (latest): new fonts, illustrations, a home leaderboard and a players dashboard.** The owner said: "I don't like the font or the lack of visuals, show a leaderboard on the homescreen, all users reports are shown on a public facing dashboard once players login."
-  - **Fonts:** Nunito (body, labels, buttons, tabular numbers) and Fredoka (headings, logo, questions, keypad, big numbers). Both are self-hosted under `/fonts`: the unmodified Fontsource Latin variable files, SIL OFL. They replace Latin Modern and JuliaMono, which are deleted from the repo along with their licences.
-    - Labels are no longer lowercased into small caps (`text-transform:none` everywhere); they use Nunito 800.
-    - Glyphs outside the Latin subset (→ ✦ ⌫ ≤) fall back to the system font.
-  - **Visuals:** original inline-SVG illustrations, coloured only by `.il-*` CSS classes, so both themes work:
-    - a hero scene: two round sea creatures, teal "7 × 6?" and pink "42!", with a sun and waves; it bobs gently, and the animation is off under reduced motion;
-    - a picture per game card: blobs (Duel), two phones and a bolt (Live), tick and cross bubbles (Truth or Lie), a stopwatch (Sprint), a calendar with a sun (Daily), a fish, star and shell (Little Ones);
-    - blob avatars (`avatar(name)`, colour chosen by a hash of the name).
-  - **Home leaderboard (`#homeBoard`, `renderHomeBoard()`):** public, so guests see it too. Today's Daily (fastest) and Sprint (most correct), each a podium for the top 3 plus rows 4–5, "You're #n" when you're outside the top 5, and an empty state with a play button. It uses the existing public `GET /api/board`.
-  - **Players dashboard (`#/players`, new "Players" tab; the tab bar is back to 5):** visible to **signed-in players only**. Signed out, it shows a sign-in prompt.
-    - **How "all users reports" was read:** every player's *game report*. It shows **display names only**: no emails, roles, IPs, chat, or the safeguarding audit reports, which stay super_admin-only. The hidden super_admin (shown as "DaddyKing") appears as an ordinary player, so the role stays hidden. Real players, including Imogen, are listed by display name.
-    - **Contents:** totals (players, battles, this week, played today); a "Battles per day" bar chart for the last 14 days (single series; drawn at the container's real width so the axis text stays 12 px; hover tooltip; "Show as a table"); a search box and sort (most games / most wins / best Sprint / fastest Daily / recent); one card per player with games, wins, best Sprint, fastest Daily, a W/L/D bar (wins, losses, draws; text label "7 W · 3 L · 0 D" + % won), a game mix, joined date and last played.
-    - **API:** `GET /api/board?b=players` (in `board.js`, so no new function; `requireUser`, so 401 when signed out).
-  - **Chart colours** (validated with the dataviz `validate_palette.js`):
-    - wins `--c-win`: day `#00879B` / night `#21A2B5`;
-    - losses `--c-loss`: day `#D6336C` / night `#D94C82`;
-    - draws `--c-draw`, the neutral midpoint: day `#868CA3` / night `#7D86A8`.
-    - Results: CVD ΔE 10.4 (day) and 8.0 (night); ≥ 3:1 against the chart surface.
-  - Kicker numbers: Players 5, Account 6, Preferences 7; the home "Top players" and "Your numbers" kickers have no number. Service worker `sd-v2.7.0`.
-  - **QA:** screenshots on phone (day) and desktop (day and night) with 5 seeded `qa.design.s*` players (since deleted; the live boards were empty before and after). The Little Ones run still passes; no console errors.
-  - **Test-harness gotcha:** the screenshot scripts inject an emoji fallback font by overriding `--serif/--mono/--caps`. Keep their family names in step with the real fonts, or every screenshot shows fallback fonts (that happened once this session).
+## Handoff log (newest first)
 
-- **v2.6: chat switched off, adversarial design review, new logo and site artefacts.** The owner asked to "turn off all chat features and do one adversarial design review using claude design and update all site artefacts, including the logo and push".
-  - **Chat off (reversible):**
-    - The switch is `api/_features.js` → `CHAT_ENABLED = false`. When it's false:
-      - `/api/chat` returns 404 "Chat is turned off" for every method;
-      - `/api/admin` refuses `chat`, `mutes`, `flags` and `review`, and `GET /api/admin` returns `features:{chat:false}`;
-      - the portal hides the Chat and Flags tabs, the mute selects and the "n chat messages" meta (unless a player has old messages).
-    - Client: `CHAT_ON = false` in `app.js`, so `#/chat` falls through to home. The Chat links are removed from the top nav and the tab bar, which now has 4 columns.
-    - Kept dormant: the chat JS/CSS, `_safety.js` (still used for Live Duel game names), the tables, the activity-log labels, and audits (their chat counts just read 0).
-    - **To re-enable:** set both flags to true, restore the two `<a href="#/chat" data-tab="chat">` links in `index.html`, set the tab bar back to `repeat(5,1fr)`, and renumber the Account/Preferences kickers.
-    - At switch-off the DB had 0 chat messages, 0 unreviewed flags, 0 open reports and 0 mutes, so nothing was stranded.
-  - **Design review:** done in **Claude Design** (the Design artifact type), canvas https://claude.ai/artifact/MfqwNUcqKa2g94aQSoNdUc (private; the owner shares it from its Share menu).
-    - It has three boards: ranked findings; logo and site artefacts; before/after screenshots.
-    - Inputs: 38 screenshots from the local QA server (phone 390 day, desktop 1280 day and night, admin), taken with `qa.design.*@example.com` test users, since deleted.
-    - Ten findings, all fixed (§3 "v2.6 review"). Four were challenged and kept: textbook numbering and the Lean admin headings (both owner direction), the masked super_admin row showing "Set password" (role hiding), and the results chart's first bar including the GO reaction time (flagged).
-  - **New logo (v2.6 mark):** a ÷ whose dots are the two players (teal `#0F7C8C` above, raspberry `#D6336C` below) and an ink `#22223B` bar, flat on sand `#FFF8EE` with a `#BFE6EA` scalloped sea. It replaces the v1 neon mark (`#050B18`, glows), which broke the "no neon" rule.
-  - QA: the Little Ones run (10 rounds, no errors) and the chat-off API checks all pass. Service worker `sd-v2.6.0`.
+- **v2.8.1 (on the PR branch, not merged): review fixes, palettes, title case.**
+  - **Review fixes** (from a code review of PR #1 plus local QA):
+    - The Climb, Truth levels: a third mistake on the **last** statement, then "keep going", crashed and locked the level (`G.qs[n]` undefined). Now it clears the level. The clock can't run out while an answer's feedback is showing, and Stop can't race a win that's being saved (`G.ending`).
+    - Sharing a drawn live Truth or Lie (or Sprint) game threw. Fixed.
+    - `adopt` (guest progress into an account) accepted any untouched wallet and was called on every sign-in. Now: only into an account made in the last 15 minutes whose wallet has never been written (`rev = 0`), so it's once only, and the client calls it only on sign-up (`j.created`).
+    - Guest games were paid twice on sign-up (once into the guest wallet, which adopt carries over, then again when the battles synced). Battles now pay only if played since the account was made, and all in **one** wallet write (`awardBattles`), capped at `EARN_CAP`.
+    - Daily VS: your own run was missing if you were slower than the 40 shown (now looked up separately). A failed prize payout no longer loses the first-race prize (the run is taken back out so a retry still counts as first). The race now uses the day the rival list was loaded for, not "today" again.
+    - Live Truth or Lie: calls before the reveal are refused (150 ms margin for clock sync; the text still goes out 1.2 s early). A device's reaction time can undercut the server's measurement by at most `TOL_SLACK` 1.2 s (was 2.5 s), with a floor of 300 ms. The code comments now say plainly what this does and doesn't prevent.
+    - The Climb: a level can't be finished in under 6 s (`CLIMB_MIN_MS`), and coins and chest hearts stop after 200 paying wins a UTC day (`CLIMB_CAP`, new columns `climb_day`/`climb_n`). Progress and stars never stop.
+    - `api()` now keeps the server's error `code`, so "no hearts" opens the shop for signed-in players too. The hearts shop and level sheet cope with no wallet (offline) instead of throwing.
+    - **No more runtime DDL:** `ensureSchema()` is gone from every request path. `api/_schema.js` only exports `V28`, applied by hand (§6).
+    - Title case for every page, section, card and sheet title (owner rule). Aria labels and spoken text stay in sentence case.
+  - **Palettes** ("Your Colours" on the Arena under the game cards, with a Day/Night switch; the same tiles in Account → Preferences): **Seaside** (the original, default), **Shades of Blue**, **Shades of Pink**, **ASCII Mode**. See §4 "Palettes".
+  - Service worker `sd-v2.8.1`.
 
-- **v2.5: "Little Ones", a level for 4-year-olds.** The owner asked for "a level, inside the app, for 4 year olds". It's a sixth game card on the Arena ("Count with me", tag AGE 4+ · NO CLOCK), full width under the others. It's client-only: no API, no DB, no battle record.
-  - **Why it isn't just a "tiny" difficulty:** the existing games need reading, typing on a keypad and beating a clock with penalties, and 4-year-olds can do none of those. So it's a separate picture game. Pictures are emoji (no assets). Answers are three big buttons. A spoken voice reads every prompt. There's no timer and no penalty.
-  - **10 rounds (`LITTLE_PLAN` in `app.js`):** count 1–3, count 2–4, more, count 3–5, add (sum ≤ 3), more, count 4–6, add (≤ 4), count 5–7, add (≤ 5). Each round picks a different picture from `LITTLE_THINGS`.
-  - QA: a Playwright run on phone (paper) and desktop (night) plays all 10 rounds, including wrong answers, the count-along and the "more" rounds. It checks the end screen, the star total and the return to the Arena, with no console errors. Headless Chromium here has no emoji font, so the screenshot run loads Noto Color Emoji (from `@fontsource/noto-color-emoji`) into the test pages only. Real devices use their own emoji. Service worker `sd-v2.5.0`.
 
-- **v2.4: Imogen's account, password changes, friendlier design.**
-  - **Imogen** (`imogen.o.king@gmail.com`, user id **71**, the owner's 9-year-old daughter) was created directly in the DB by a one-off script with role **`admin`**, starter password `password` and `must_change_pw = true`. On first sign-in she's held on a "pick your own password" screen until she sets one (8+ characters, not easy ones like `password…`/`12345678`).
-  - **Requested, but deliberately NOT built:**
-    1. Imogen as `super_admin`. That role includes the safeguarding queue (flagged grooming and self-harm content from other children), every child's activity and IP history, and the power to take over any account, which is unsuitable for a 9-year-old. `admin` gives her a full-feeling portal (players, password resets, chat moderation).
-    2. A decoy reset where her changing the owner's password would appear to succeed but secretly do nothing (deceptive auth behaviour). The owner's account is protected honestly: admins get the generic "This account can't be changed from here.", the same message as for any protected account, which doesn't reveal the super_admin role.
-    3. Changing the owner's own password to a generated string. Not done, because a lost reply would lock the owner out of super_admin. The owner can now change it themselves (Account → Change password).
-  - **Design:** a "seaside" friendly layer for a 9–11 audience: warm cream with teal sea and raspberry pink, rounded cards and pill buttons, a scalloped wave under the header, a polka-dot background, simpler wording. The night theme is now "Night by the sea" (navy). Service worker `sd-v2.4.0`.
-  - **QA:** 129 checks pass:
-    - 17 password-flow checks (`qa/test4.mjs`): starter login, every API blocked until the change, wrong/short/easy passwords refused, other devices signed out, the old password dead, the portal opening afterwards, dad shown as a player and protected;
-    - 63 v2.2 checks (updated: admin resets now force a change);
-    - 49 live checks.
+- **v2.8 (PR #1, branch `ccr-e7766a6c-jji1bl`, not merged): live game types, the Climb, coins and hearts, daily gift, Daily VS.** The owner asked (2026-11-12) for "live games of a variety of games, truth or lie on 2 devices… climb trail version, with lives given out as coins, be generous… a daily vs". Read as:
+  - Live offers Duel, Truth or Lie and Sprint on two devices;
+  - **The Climb**: a Wordscapes-style trail, 12 levels per area, a chest at each area's end;
+  - **hearts** gate Climb levels and **coins** buy hearts and extra goes, both handed out generously;
+  - **Daily VS**: a daily ghost race against today's players or three sea bots.
 
-    Screenshots (`qa/shots6.mjs`): home on desktop and phone, day and night; the forced-change screen; the account page; play. Test data cleaned up; users are id 7 (super_admin) and id 71 (Imogen, admin, starter password still pending).
+  Details are in §2 (Rewards, The Climb, Daily VS, Live Truth or Lie). Rules live in `api/_economy.js`, **mirrored in `app.js`** (keep them in step). There's a new function `api/rewards.js` (8 of 12 Hobby functions) and new tables `wallets` and `daily_vs`. No real money, no ads. Little Ones stays outside the economy, and Climb levels aren't written to the battle record.
+- **v2.7:** Nunito + Fredoka fonts (self-hosted, OFL), original inline-SVG illustrations coloured by `.il-*` classes, a public home leaderboard (`#homeBoard`), and the players dashboard (`#/players`, signed-in only).
+  - The owner's "all users reports" was read as every player's *game report*: display names and stats only (never emails, roles, IPs or audits), with the hidden super_admin shown as an ordinary player.
+  - Chart colours validated: wins `#00879B`/`#21A2B5`, losses `#D6336C`/`#D94C82`, draws `#868CA3`/`#7D86A8`.
+- **v2.6:** chat switched off (`api/_features.js` `CHAT_ENABLED=false` + `CHAT_ON=false` in `app.js`; re-enable steps in §2 Chat). Adversarial design review in Claude Design: https://claude.ai/artifact/MfqwNUcqKa2g94aQSoNdUc (ten findings, all fixed). New seaside ÷ logo.
+- **v2.5:** Little Ones, a client-only picture level for 4-year-olds (§2).
+- **v2.4:** forced password change, Account → Change password, the "seaside" friendly redesign.
+  - **Imogen** (`imogen.o.king@gmail.com`, id 71, the owner's 9-year-old daughter) is `admin`, created by a one-off script; she has since set her own password.
+  - **Requested but deliberately NOT built:**
+    1. Imogen as super_admin: that role includes the safeguarding queue, every child's activity and IP history, and account takeover.
+    2. A decoy reset that pretends to change the owner's password.
+    3. Changing the owner's password to a generated string, which risked locking them out.
 
-- **v2.3: Live Duel.** Two players race on **separate devices**. Anyone signed in can create a game, public or **private with a password**. Players wait in a lobby or room, both press Ready, and a server-timed countdown starts. Results, both battle records and a rematch flow are handled server-side. It's built on the **existing Neon database**: the owner said "Use it" after asking for a new Neon instance (see the next bullet). QA:
-  - 49/49 API checks (`qa/test3.mjs`);
-  - the 61 v2.2 checks re-run;
-  - a two-browser end-to-end test (`qa/shots5.mjs`): a desktop and a phone browser play a full private game through the UI, including a wrong password, the win shown on both devices, and the rematch invite and join.
-- **Neon provenance (corrected 2026-11-08):**
-  - The Neon Marketplace integration (`icfg_EyO6QHtjMfDAPR08XyR45pyR`, free plan) was installed on the team on **2026-04-22** under the owner's Vercel user.
-  - The `sumduel-db` database was added on **2026-11-07 at 23:18:36 UTC**, 6 minutes after the Vercel project was created. `.env.local` was written by `vercel env pull` at 23:18:50. That matches the previous Claude session provisioning it with the **Vercel CLI** (`vercel` v54.9.0, installed at `/mnt/c/Users/10850k/AppData/Roaming/npm/vercel` and logged in).
-  - **The Vercel MCP tools can't create Neon stores** (only Blob and Edge Config), **but the CLI can**: `vercel integration add neon`. An earlier message in this session wrongly said a Neon database couldn't be created at all.
-
-- **Situation:** v2.2 replaces the v2.1 Google-sign-in admin portal (which was never switched on) with **roles stored in Neon**. It also adds a full **activity log**, an **mIRC-style chat** with safeguarding filters, a **flag review queue** and **daily automated safeguarding audits**. The owner is giving the site to their 9-year-old daughter as a gift. The owner is a hidden **super admin**. The daughter will be an **admin** (mostly a player, plus moderation and password resets), and her actions are visible to the owner.
-- **Roles now:** `james.s.king@gmail.com` (id 7) = `super_admin` (set with `npm run role`). `imogen.o.king@gmail.com` (id 71) = `admin`, created 2026-11-08 with a starter password she must change.
-- **Why not Google sign-in any more:** the owner judged OAuth client setup "too hardcore" for a family app and asked for super admin mapped from the database. The risk this reopens: player sign-up has no email confirmation. It's mitigated because the super_admin role sits on the **existing account row (id 7)**, which the owner already created on 2026-11-08 09:01 UTC, not on an email string. Nobody can re-register that email. The account is protected by its password plus the 10-failures-per-15-minutes lockout. Advise the owner to use a strong password.
-- **Done this session (v2.1 → v2.2):** domain bought and attached; retro mathlib redesign; v2.1 admin portal replaced by v2.2 roles; activity log; chat; audits. `CRON_SECRET` set on Vercel (sensitive, production + preview). Migrations applied (`npm run migrate`, 24 statements, which drop the empty v2.1 `admin_sessions`/`admin_audit` tables).
-- **QA:** 61/61 end-to-end checks (`qa/test2.mjs` in the session scratchpad). They cover:
-  - 404s for signed-out users and players;
-  - role masking (an admin sees the super_admin as "player"; `/api/auth` never reveals super_admin);
-  - admins can't reset super or admin passwords or change roles;
-  - the chat filter: email, phone and links blocked; maths and sumduel.app allowed; profanity masked; grooming phrases flagged;
-  - `/me`, the rate limit, reports, soft deletes and their propagation, mutes, generic error wording when muting the super_admin;
-  - flags with context, review;
-  - activity rows for sign-up, sign-in, battles, scores, chat and admin actions;
-  - manual audit, cron 401/200.
-
-  Screenshots in headless Chromium: chat as a player (desktop/paper) and as an admin (phone/blackboard), and the portal as admin and super admin. Test data was cleaned up afterwards. Only user id 7 remains, and `audit_reports` is empty.
-- **Unused leftover:** the `ADMIN_EMAILS` env var on Vercel (from v2.1) is no longer read by any code. It's harmless and can be deleted in the Vercel dashboard (there's no MCP delete tool).
-- **Next ideas (not built):** email or push alerts when a wellbeing or personal-info flag fires (needs an email provider such as Resend, plus an API key in env); online duels; friend codes; achievements; server-side Daily verification.
+    Admins get the generic "This account can't be changed from here."
+- **v2.3:** Live Duel on separate devices (polling, server-timed, private games with passwords, rematch). Built on the existing Neon database (the owner said "Use it").
+- **v2.2:** roles stored in Neon instead of Google sign-in (the owner found OAuth setup "too hardcore"), the activity log, chat with safeguarding filters, the flag queue and daily audits.
+  - The super_admin role sits on the **existing row id 7** (`james.s.king@gmail.com`, created 2026-11-08 09:01 UTC), not on an email string, so re-registering the email can't take it. Sign-up has no email confirmation.
+  - `CRON_SECRET` is set (sensitive, production + preview). The v2.1 `ADMIN_EMAILS` env var is unused and safe to delete in the Vercel dashboard.
+- **Neon provenance:** the Marketplace integration `icfg_EyO6QHtjMfDAPR08XyR45pyR` (free plan) was installed 2026-04-22. The `sumduel-db` database was added 2026-11-07 23:18 UTC by a Claude session using the **Vercel CLI**. The Vercel MCP can't create Neon stores, but `vercel integration add neon` can.
+- **Next ideas (not built):** alerts when a wellbeing or personal-info flag fires (needs an email provider key); friend codes; achievements; server-side Daily verification.
 - **Gotchas:**
-  - Vercel CLI: run `vercel whoami` first (it hangs on device login). Prefer the Vercel MCP tools.
-  - `pkill -f <pattern>` inside a Bash tool call kills its own shell. Kill by PID.
-  - The local WSL clock runs about 3 s behind Neon. **Any time window compared with `activity_log.at` must use the DB `now()`** (`_audit.js` does).
-  - Emails are lowercased on sign-up. Match them lowercased in SQL (`npm run role` does).
-  - The Write tool can turn ` ` escapes into literal characters, which breaks JS regexes. Build such lines with escaped sequences through Python (done for `_safety.js`).
-  - GitHub release downloads returned 504 here; raw.githubusercontent worked. jsDelivr refuses repos over 50 MB.
+  - Vercel CLI: run `vercel whoami` first (device login hangs); prefer the MCP tools.
+  - `pkill -f` inside a Bash call can kill its own shell; kill by PID.
+  - The WSL clock runs about 3 s behind Neon: time windows compared with `activity_log.at` must use the DB `now()`.
+  - Emails are lowercased on sign-up.
+  - The Write tool can turn `\u` escapes into literal characters; build regex lines through Python.
+  - GitHub release downloads gave 504 here (raw.githubusercontent worked); jsDelivr refuses repos over 50 MB.
 
 ---
 
@@ -367,7 +317,17 @@ There's no retention limit: everything is kept.
 - **Little Ones layer (v2.5, `.lt*`, `.game.little`):** new tokens `--sun-deep` (day `#FFF3C4`, night `#3B3420`) and `--sun-ink` (day `#7A5200`, night `#FFE08A`) for the sunny card and tag. Full-screen `.lt` with a sun radial background. Answer buttons have 3 px teal borders, a 24 px radius and a 5 px ledge. Right = `--win` fill, wrong = wobble + 35 % opacity. Progress stars are CSS clip-path stars (not emoji), so they show even without an emoji font. Picture size comes from `--sz` on `.lt-scene` (count: `min(17vw,11vh)`; add: `min(14vw,9vh)`; more: `min(11.5vw,8vh)`; larger caps at ≥ 760 px). Animations (`lt-pop`, `lt-wobble`, `lt-hop`, `lt-breathe`) are cut by the global reduced-motion rule.
 - **Logo (v2.6):** the mark is a ÷: an ink bar (`x124 y235 w264 h42 rx21` in a 512 box), a `--p1` dot above (`cy150 r46`) and a `--p2` dot below (`cy362`). The header and the admin draw it inline with classes `.mk-bar` / `.mk-a` / `.mk-b`, filled from tokens in CSS (so night mode recolours it; no `var()` in SVG attributes). The icon tile is sand `#FFF8EE` with a `#BFE6EA` scalloped sea (`M0 460`, 64 px scallops) that must stay below the pink dot. Never bring back the dark neon tile.
 - **v2.6 review layer** (a CSS block before the reduced-motion rule): static tags at ≤ 520 px, `.hero .eqn` hidden below 640 px, `.flab`, `.acts-grid`, `.who .av svg`. `.lede` is left-aligned with `hyphens:manual` (justified text is banned at these widths).
+- **Palettes (v2.8.1):** `html[data-palette]` = none (Seaside) | `blue` | `pink` | `ascii`, crossed with `html[data-theme]` = `paper` | `night`. Stored in localStorage `sumduel.palette`. A tiny inline script in `<head>` applies both before first paint; keep its palette list in step with `PALETTES` in `app.js`.
+  - **Rule:** every token a palette changes is set in **both** its day and night blocks. A palette's day block has the same specificity as the Seaside night block and comes later, so a token missing from a night block leaks the day value into night mode.
+  - **Blue:** day `--bg #F1F6FF`, `--ink #0D1B3E`, `--p1 #0A6EB4` (ocean), `--p2 #3B4FD8` (royal); night `--bg #0A1630`, `--p1 #4FC3F7`, `--p2 #9DA8FF`.
+  - **Pink:** day `--bg #FFF4F8`, `--ink #3B0F2A`, `--p1 #A3167F` (fuchsia), `--p2 #D02E6A` (rose); night `--bg #22101B`, `--p1 #F27BD0`, `--p2 #FF9DB8`.
+  - **ASCII:** night is green phosphor (`--bg #050A06`, `--ink #7DFF9A`) with xterm cyan `#5FD7FF` / amber `#FFAF00` players; day is a line-printer page (`--bg #F6F5EE`, `--ink #111`) with blue `#005F87` / orange `#AF5F00`. Both pairs differ on the blue–orange axis, so they stay distinct for every kind of colour blindness. It uses the system monospace stack, square corners, no shadows, dashed boxes, `[ bracketed ]` buttons, a blinking `_` cursor (off under reduced motion), and a "DEL" key.
+    - **Text art:** the hero is a `<pre class="asc hero-asc">`, and each game card's art is in `data-ascii` on its `.gart`, shown via `::after`. Below 980 px the art sits under the text. Every other inline-SVG picture becomes a wireframe in ASCII.
+  - All text/background pairs pass WCAG AA (checked by script). Blue and Pink keep the meaning colours (gold coins, red hearts, green wins) and the validated chart colours. ASCII swaps them for terminal ones.
+  - The picker tiles (`.pal`, `role=radio`, arrow keys move the choice) draw their swatches from per-tile `--pv-*` variables, so each tile shows its own palette whichever palette is active.
 - **Do NOT:**
+  - run DDL (create/alter) from a request path: schema changes are applied by hand, after checking the live database (owner rule);
+  - set a palette token in only one of its day/night blocks;
   - use `var()` in SVG presentation attributes;
   - add a framework or build step without reason;
   - re-add `user-scalable=no`;
@@ -382,8 +342,15 @@ There's no retention limit: everything is kept.
 - Node ≥ 20 (Vercel uses 26.x), ESM.
 - **Fonts (v2.7):** about 110 KB total, immutable cache: `nunito-latin-wght.woff2`, `nunito-latin-wght-italic.woff2` (`@fontsource-variable/nunito@5.2.7`) and `fredoka-latin-wght.woff2` (`@fontsource-variable/fredoka@5.2.10`). They're unmodified, so the original names are kept. Sources and licences are in `fonts/README.md`.
 - **npm scripts:** `migrate`, `role`.
-- **Local QA (session scratchpad, not in the repo):**
-  - `qa/server.mjs` mounts `api/*.js` (including `audit-cron` with `CRON_SECRET=test-cron-secret`) and serves static files.
+- **Local QA (v2.8.1 harness, session scratchpad, not in the repo; rebuild it if the scratchpad has gone):**
+  - `qa/server.mjs <appDir> <port>`: serves the static files and mounts `api/*.js` on an **in-memory PGlite** (`@electric-sql/pglite`). It runs `scripts/migrate.js` at startup and applies the `vercel.json` headers. `qa/hooks.mjs` (`node --import`) redirects `@neondatabase/serverless` to `qa/neon-shim.mjs` (tagged template + `.query`; int8 and numeric come back as strings, like Neon). **Nothing touches the live database.**
+  - `qa/t-api.mjs` runs in the same process (it imports the server) and can read and change the DB directly: 27 checks for the v2.8.1 fixes.
+  - `qa/e2e-climb.mjs` (a guest Truth level with a continue on the last statement), `qa/e2e-ltol.mjs` (two browsers play live Truth or Lie through the UI), `qa/pal.mjs` / `qa/views.mjs` (palette screenshots and tile bounding boxes), `qa/sheet.mjs` (contact sheets via the browser; there's no Pillow here).
+  - pnpm isn't installed in WSL; `corepack pnpm` works (pnpm 12).
+  - Browser: `playwright-core` 1.65 with `executablePath` set to the cached `chromium_headless_shell-1243`.
+  - **Harness gotcha:** the emoji-font injection must put `"QA Emoji"` *before* a trailing generic family (`monospace`), and must not set `font-family` on `body`. Either mistake silently gives every screenshot the wrong fonts.
+- **Older harness (v2.2–v2.7, gone with an old scratchpad):**
+  - `qa/server.mjs` mounted `api/*.js` (including `audit-cron` with `CRON_SECRET=test-cron-secret`) against the live database with `qa.*` users.
   - `qa/test2.mjs` holds the 61 checks; it creates `qa.*.<tag>@example.com` users, sets roles via SQL, and cleans up after itself.
   - `qa/shots4.mjs` takes the screenshots.
   - `qa/test3.mjs` holds the 49 live API checks. `qa/shots5.mjs` runs two browser contexts (desktop paper + phone blackboard) through a full private live game with a rematch.
@@ -404,7 +371,11 @@ There's no retention limit: everything is kept.
   | `ADMIN_EMAILS` | Unused leftover, safe to delete |
 
   `.env.example` documents `DATABASE_URL` and `CRON_SECRET`. Locally: `vercel env pull .env.local` (gitignored). No secrets in the repo.
-- **Schema:** edit `scripts/migrate.js`, then `npm run migrate`. **Roles:** `npm run role -- <email> <role>`.
+- **Schema:** by hand, never from a request path. First query the live database and state what's there, then get the owner's go. Then either `npm run migrate` (the whole idempotent script) or just the new statements. For v2.8 that's just these:
+  `node --env-file=.env.local -e "import('./api/_schema.js').then(async ({V28}) => { const { neon } = await import('@neondatabase/serverless'); const sql = neon(process.env.DATABASE_URL); for (const s of V28) await sql.query(s); console.log('v2.8 schema applied') })"`
+  **Apply it before merging v2.8**: the functions assume the tables exist.
+- **Preview deployments share the production database** (`DATABASE_URL` is one value for production, preview and development), so anything tested on a preview writes to the live database.
+- **Roles:** `npm run role -- <email> <role>`.
 
 ## 7. Roles & permissions
 | Role | Set by | Sees / can do |
