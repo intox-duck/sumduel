@@ -633,7 +633,7 @@
   // Players dashboard (v2.7): every player's report, visible to signed-in players only
   // =====================================================================
   var PL = { sort: 'battles', q: '', data: null };
-  var GAME_NAMES = { duel: 'Duel', live: 'Live', tol: 'Truth or Lie', sprint: 'Sprint', daily: 'Daily', vs: 'Daily VS' };
+  var GAME_NAMES = { duel: 'Duel', live: 'Live', tol: 'Truth or Lie', sprint: 'Sprint', daily: 'Daily', vs: 'Daily\u00A0VS' };
   function renderPlayers() {
     var el = $('v-players');
     var head = '<p class="kicker"><b>5</b> Players</p><h2 class="title">Everyone’s Reports</h2>';
@@ -693,7 +693,7 @@
       '<div class="filters" id="plSort" role="group" aria-label="Sort players">' + [['battles', 'Most games'], ['wins', 'Most wins'], ['climb', 'Highest climb'], ['sprint', 'Best Sprint'], ['daily', 'Fastest Daily'], ['recent', 'Recent']].map(function (s) {
         return '<button data-s="' + s[0] + '" aria-pressed="' + (PL.sort === s[0]) + '">' + s[1] + '</button>';
       }).join('') + '</div></div>';
-    html += '<div class="legend wld-legend" aria-hidden="true"><span style="--c:var(--c-win)">Wins</span><span style="--c:var(--c-loss)">Losses</span><span style="--c:var(--c-draw)">Draws</span><small>Duels, Live games, Truth or Lie and Daily VS</small></div>';
+    html += '<div class="legend wld-legend" aria-hidden="true"><span style="--c:var(--c-win)">Wins</span><span style="--c:var(--c-loss)">Losses</span><span style="--c:var(--c-draw)">Draws</span><small>Duels, Live games, Truth or Lie and Daily\u00A0VS</small></div>';
     html += list.length ? '<div class="pl-grid has-tips">' + list.map(playerCard).join('') + '</div>' : '<div class="blank">No player called “' + esc(PL.q) + '”.</div>';
     body.innerHTML = html;
     $('plSort').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; PL.sort = b.dataset.s; paintPlayers(); };
@@ -895,7 +895,7 @@
       if (i < steps.length) {
         list.forEach(function (pi) { var u = G.ui[pi]; u.cover.classList.remove('hidden'); u.big.textContent = steps[i];
           u.sub.textContent = i === 0 ? (G.kind === 'climb' ? 'Level ' + G.lv.L : G.kind === 'vs' ? G.names[pi] + ' vs ' + G.rival.name : G.names[pi])
-            : (G.kind === 'sprint' ? '60 seconds' : G.kind === 'daily' ? 'Daily · ' + G.day : G.kind === 'climb' ? KIND[G.lv.kind].title : G.kind === 'vs' ? 'Daily VS · ' + G.day : ''); });
+            : (G.kind === 'sprint' ? '60 seconds' : G.kind === 'daily' ? 'Daily · ' + G.day : G.kind === 'climb' ? KIND[G.lv.kind].title : G.kind === 'vs' ? 'Daily\u00A0VS · ' + G.day : ''); });
         if (i < 3) sfx.tick(); else sfx.go();
         i++; setTimeout(tick, i === steps.length ? 450 : 700);
       } else {
@@ -1749,7 +1749,7 @@
   function vsMineLocal(day) { var m = store.get('sd_vs_local', null); return m && m.day === day ? m : null; }
   function renderVs() {
     var el = $('v-vs'), day = utcDay();
-    el.innerHTML = '<p class="kicker"><b>2.7</b> Daily VS</p><h2 class="title">Daily VS</h2>' +
+    el.innerHTML = '<p class="kicker"><b>2.7</b> Daily\u00A0VS</p><h2 class="title">Daily\u00A0VS</h2>' +
       '<p class="lede">Fifteen sums, the same for everyone today. Pick a rival and race their ghost: you’ll see them moving along the top of your screen at the speed they really went.</p><div id="vsBody"><div class="skel"></div></div>';
     var bots = function () { return VS_BOTS.map(function (b) { var r = botRun(b, day); return { id: b.id, name: b.name, time: r.time, raw: r.raw, wrong: r.wrong, splits: r.splits }; }); };
     api('/api/rewards?vs=1&d=' + day).then(function (j) { paintVs(j); })
@@ -1818,7 +1818,7 @@
       players: [{ name: g.names[0], time: time, raw: raw, wrong: p.wrong, splits: p.splits, bestStreak: p.bestStreak, wrongBy: p.wrongBy },
         { name: rv.name, time: rv.time, raw: rv.raw, wrong: rv.wrong, splits: (rv.splits || []).slice(0, VSN), bestStreak: 0, wrongBy: {} }] };
     renderResults(b, null);
-    var kick = document.querySelector('#resBody .kicker b'); if (kick) kick.textContent = 'DAILY VS';
+    var kick = document.querySelector('#resBody .kicker b'); if (kick) kick.textContent = 'DAILY\u00A0VS';
     var slot = document.createElement('div'); slot.className = 'vs-res'; slot.innerHTML = '<div class="blank">Checking your prize…</div>';
     var verdict = document.querySelector('#resBody .series'); if (verdict) verdict.parentNode.insertBefore(slot, verdict.nextSibling);
     rewards('vsFinish', { d: g.day, raw: raw, wrong: p.wrong, splits: p.splits, rival: { type: rv.type, id: rv.id }, rivalTime: rv.time, rivalName: rv.name })
@@ -1826,13 +1826,13 @@
         if (j.first) store.set('sd_vs_day', g.day);
         if (!G || G.token !== my) return;
         var pz = j.prize || { coins: 0 };
-        slot.innerHTML = pz.coins ? '<div class="vs-prize won">' + chestSvg('sm open') + '<div><b>' + (j.first ? 'Daily VS prize' : 'Rematch prize') + ': ' + prizeText(pz) + '</b><span>' +
+        slot.innerHTML = pz.coins ? '<div class="vs-prize won">' + chestSvg('sm open') + '<div><b>' + (j.first ? 'Daily\u00A0VS prize' : 'Rematch prize') + ': ' + prizeText(pz) + '</b><span>' +
           (j.first ? (j.won ? 'You won your first race of the day!' : 'Your first race of the day still pays.') + (ME ? ' Your run is now a ghost for everyone else.' : '') : 'Nice rematch win.') + '</span></div></div>'
           : '<div class="savebar"><span>Rematches are for fun. Win one for ' + ECON.VS_REMATCH_WIN.coins + ' coins.</span></div>';
       }).catch(function (e) { slot.innerHTML = '<div class="savebar"><span>' + esc(e.status ? e.message : 'Couldn’t reach the server, so no prize this time.') + '</span></div>'; });
     $('again').textContent = 'Race again';
     $('again').onclick = function () { startVs(rv); };
-    $('toArena').textContent = 'Daily VS';
+    $('toArena').textContent = 'Daily\u00A0VS';
     $('toArena').onclick = function () { abortGame(); go('vs'); };
   }
 
@@ -2029,7 +2029,7 @@
             var wp = r.n ? r.w / r.n * 100 : 0, lp = r.n ? r.l / r.n * 100 : 0;
             return '<tr><td>' + esc(r.name) + '</td><td class="n">' + r.n + '</td><td class="n">' + r.w + '–' + r.l + (r.d ? '–' + r.d : '') + '</td><td><span class="wl"><i style="width:' + wp + '%;background:var(--p1)"></i><i style="width:' + lp + '%;background:var(--p2)"></i></span></td></tr>';
           }).join('') + '</tbody></table>';
-      } else html += '<p class="hint">Play a Duel, a Live game or the Daily VS to start a rivalry.</p>';
+      } else html += '<p class="hint">Play a Duel, a Live game or the Daily\u00A0VS to start a rivalry.</p>';
       html += '</div>';
       // Sprint trend
       html += '<div class="panel spark"><p class="kicker"><b>3.2</b> Sprint Trend</p>' + sparkline(st.sprintSeries) +
@@ -2037,7 +2037,7 @@
       html += '</div>';
       // History
       html += '<div class="section"><p class="kicker"><b>3.3</b> History</p><div class="filters" id="recF">' +
-        [['all', 'All'], ['duel', 'Duels'], ['live', 'Live'], ['tol', 'Truth or Lie'], ['sprint', 'Sprint'], ['daily', 'Daily'], ['vs', 'Daily VS']].filter(function (f) { return f[0] === 'all' || f[0] === 'duel' || st.byGame[f[0]]; }).map(function (f) { return '<button data-f="' + f[0] + '" aria-pressed="' + (recFilter === f[0]) + '">' + f[1] + (f[0] !== 'all' && st.byGame[f[0]] ? ' · ' + st.byGame[f[0]] : '') + '</button>'; }).join('') +
+        [['all', 'All'], ['duel', 'Duels'], ['live', 'Live'], ['tol', 'Truth or Lie'], ['sprint', 'Sprint'], ['daily', 'Daily'], ['vs', 'Daily\u00A0VS']].filter(function (f) { return f[0] === 'all' || f[0] === 'duel' || st.byGame[f[0]]; }).map(function (f) { return '<button data-f="' + f[0] + '" aria-pressed="' + (recFilter === f[0]) + '">' + f[1] + (f[0] !== 'all' && st.byGame[f[0]] ? ' · ' + st.byGame[f[0]] : '') + '</button>'; }).join('') +
         '</div><div class="list">' + list.filter(function (b) { return recFilter === 'all' || recKind(b) === recFilter; }).slice(0, 200).map(itemHtml).join('') + '</div></div>';
       el.innerHTML = html;
       $('recF').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; recFilter = b.dataset.f; paint(list); };
@@ -2050,7 +2050,7 @@
     if (isH2H(b)) {
       var res = b.winner === 0 ? 'W' : b.winner === 1 ? 'L' : 'D';
       badge = '<span class="badge ' + res + '">' + res + ' · ' + (b.mode === 'ghost' ? 'VS' : b.game === 'duel' ? 'Duel' : b.game === 'tol' ? 'T/L' : 'Sprint') + '</span>';
-      main = '<b>' + esc(P[0] && P[0].name) + ' vs ' + esc(P[1] && P[1].name) + '</b><small>' + fmtDate(b.at) + (b.mode === 'live' ? ' · live' : b.mode === 'ghost' ? ' · Daily VS ' + esc(b.day || '') : '') + (b.cfg && b.mode !== 'ghost' ? ' · ' + esc((b.cfg.ops || []).join(' ')) + ' · ' + esc(b.cfg.level || '') : '') + (b.mode === 'turns' ? ' · turns' : '') + '</small>';
+      main = '<b>' + esc(P[0] && P[0].name) + ' vs ' + esc(P[1] && P[1].name) + '</b><small>' + fmtDate(b.at) + (b.mode === 'live' ? ' · live' : b.mode === 'ghost' ? ' · Daily\u00A0VS ' + esc(b.day || '') : '') + (b.cfg && b.mode !== 'ghost' ? ' · ' + esc((b.cfg.ops || []).join(' ')) + ' · ' + esc(b.cfg.level || '') : '') + (b.mode === 'turns' ? ' · turns' : '') + '</small>';
       var tm = function (p) { return p.dnf ? 'DNF' : Number(p.time).toFixed(2); };
       right = b.game === 'duel' ? (tm(P[0]) + ' / ' + tm(P[1])) : (P[0].score + '–' + P[1].score);
     } else if (b.game === 'sprint') {

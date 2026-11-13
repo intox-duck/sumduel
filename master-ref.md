@@ -8,14 +8,20 @@ Live: **https://sumduel.app** (`www.sumduel.app` 308-redirects to the apex; `sum
 
 ## Now (2026-11-13)
 
-- **Task:** review PR #1 (v2.8) and the app, fix what the review found, and add a palette picker ("shades of blue, shades of pink or ascii mode") in the game menu. All of it is on the PR branch `ccr-e7766a6c-jji1bl` as v2.8.1, **not merged**.
-- **Done:** a 15-finding review, every finding fixed; palettes; title case across the app; QA (27 in-process API checks, a guest Climb run, a full two-browser live Truth or Lie game, and screenshots of 4 palettes × day/night × phone/desktop). Details are in the v2.8.1 bullet below.
-- **Next (owner):** say go for the v2.8 migration on the live database: two new empty tables (`wallets`, `daily_vs`) plus one index, nothing else touched. Then merge PR #1, which auto-deploys. Order matters: **migration first, then merge**, because the functions no longer create tables themselves.
-- **Gotchas this session:** the old QA harness had gone with an old scratchpad, so it was rebuilt (§5). The preview deployment uses the **production** `DATABASE_URL` (one env var for production, preview and development), so testing on the preview writes to the live database.
+- **State:** v2.8 (PR #1) is **merged and live**. The owner said: "confirm pull request has been reviewed, your happy with QA then push."
+  - The v2.8 schema was applied to the live DB on 2026-11-13 at about 08:33 UTC, before the merge. The DB was checked first (2 users, 81 battles, 52 live games; no `wallets`/`daily_vs`), and the counts were unchanged afterwards.
+  - Merged by rebase as `3cac915` + `82c8886`; production deploy READY.
+- **Then v2.8.2 (`main`):** the Daily VS heading read "DailyVS": Fredoka kerns a space before "V" by −0.15 em. Fixed with a non-breaking space (see §4).
+- **QA on the merged code:**
+  - local (PGlite): 27/27 API checks, the Climb e2e, a two-browser live Truth or Lie (7–0), 8 palette × theme view runs, picker tiles measured;
+  - production, guest-only and read-only: the endpoints, all 8 palette × theme runs with no console errors; `/api/rewards?vs=1` reads `daily_vs`.
+- **Next:** nothing pending. The `v28-review` worktree and the remote PR branch can be pruned.
+- **Gotchas:** `pgrep -f server.mjs` inside a Bash call matches its own shell and kills it (exit 144). Use `ps aux | grep "[s]erver\.mjs"`.
 
 ## Handoff log (newest first)
 
-- **v2.8.1 (on the PR branch, not merged): review fixes, palettes, title case.**
+- **v2.8.2 (2026-11-13, `main`): heading spacing.** Fredoka's kerning pulls a space and a following "V" together by 0.15 em (every other letter is within 0.02 em), so "Daily VS" showed as "DailyVS". The user-facing strings now use `Daily\u00A0VS` (`&nbsp;` in the card markup); a no-break space isn't kerned and also stops the title wrapping. Service worker `sd-v2.8.2`.
+- **v2.8.1 (merged 2026-11-13 as `82c8886`, live): review fixes, palettes, title case.**
   - **Review fixes** (from a code review of PR #1 plus local QA):
     - The Climb, Truth levels: a third mistake on the **last** statement, then "keep going", crashed and locked the level (`G.qs[n]` undefined). Now it clears the level. The clock can't run out while an answer's feedback is showing, and Stop can't race a win that's being saved (`G.ending`).
     - Sharing a drawn live Truth or Lie (or Sprint) game threw. Fixed.
@@ -31,7 +37,7 @@ Live: **https://sumduel.app** (`www.sumduel.app` 308-redirects to the apex; `sum
   - Service worker `sd-v2.8.1`.
 
 
-- **v2.8 (PR #1, branch `ccr-e7766a6c-jji1bl`, not merged): live game types, the Climb, coins and hearts, daily gift, Daily VS.** The owner asked (2026-11-12) for "live games of a variety of games, truth or lie on 2 devices… climb trail version, with lives given out as coins, be generous… a daily vs". Read as:
+- **v2.8 (PR #1, merged 2026-11-13 as `3cac915`; schema applied by hand first): live game types, the Climb, coins and hearts, daily gift, Daily VS.** The owner asked (2026-11-12) for "live games of a variety of games, truth or lie on 2 devices… climb trail version, with lives given out as coins, be generous… a daily vs". Read as:
   - Live offers Duel, Truth or Lie and Sprint on two devices;
   - **The Climb**: a Wordscapes-style trail, 12 levels per area, a chest at each area's end;
   - **hearts** gate Climb levels and **coins** buy hearts and extra goes, both handed out generously;
@@ -76,7 +82,7 @@ A static single-page app plus eight Vercel serverless functions (Hobby limit 12;
 | `index.html` | Markup for every view plus **all CSS inline**. Preloads three fonts. Loads `app.js` (defer). |
 | `app.js` | The whole player client: router, games (incl. **Little Ones**), auth, sync, record, boards, **chat**, sound, speech, confetti. ES5-style IIFE. |
 | `admin.html` + `admin-portal.js` | The admin portal at `/admin` (clean URL). Inline CSS, no inline JS (strict CSP). Shows a plain 404 page to anyone who isn't an admin. |
-| `sw.js` | Service worker `sd-v2.8.0`: precaches the shell and fonts; navigations network-first with **only `/` cached**; never caches `/api/*` or `/admin*`. Bump `VERSION` when shell files change. |
+| `sw.js` | Service worker `sd-v2.8.2`: precaches the shell and fonts; navigations network-first with **only `/` cached**; never caches `/api/*` or `/admin*`. Bump `VERSION` when shell files change. |
 | `fonts/` | Self-hosted woff2 subsets and their licences (`fonts/README.md`). |
 | `api/_lib.js` | Neon client, `route()`, scrypt, player sessions (`currentUser` returns `role`, `muted_until`), `publicUser`, `isMod`/`isSuper`, **`logEvent()`**. |
 | `api/_safety.js` | Chat safeguarding filter (`screen()`). |
@@ -264,24 +270,14 @@ There's no retention limit: everything is kept.
   - Questions are withheld until just before GO, so nobody can practise them in the lobby.
   - Battles are written server-side, so the record exists even if a device closes on the results screen.
   - You = blue on every device, because the results screen and the record always treat the device's owner as player 0.
-- **v2.6 review, ranked by severity (finding → fix):**
-  1. **Critical: the logo was from the dead v1 neon design.** → a seaside ÷ mark plus a header lockup in the app and admin.
-  2. **Critical: the manifest colours were `#050B18`** (a black splash and status bar on install). → `#FFF8EE`.
-  3. **High: iOS ignores an SVG apple-touch-icon** (it showed a screenshot), there were no PNG icons, and the maskable icon had no safe zone. → a full PNG set.
-  4. **High: no og:image, and the "one phone" pitch was outdated.** → `og.png` plus new copy and `twitter:card`.
-  5. **High: on phones the Game 6 tag collided with its eyebrow.** → tags are `position:static` at ≤ 520 px.
-  6. **Medium: the phone hero equations pushed every game below the fold.** → hidden below 640 px.
-  7. **Medium: justified, auto-hyphenated prose made rivers** on narrow screens. → left-aligned, `hyphens:manual`, in the app and the admin.
-  8. **Medium: the signed-out "?" avatar read as Help.** → a person glyph.
-  9. **Low: the account label was in mono capitals, with dead space and ragged buttons.** → `.flab`, `.panel .err:empty`, `.acts-grid`.
-  10. **Low: kicker numbers had a gap after chat was removed.** → Account 5, Preferences 6.
+- **v2.6 review** (ten findings, all fixed; full list on the Claude Design canvas in the handoff log): the v1 neon logo and `#050B18` manifest colours replaced by the seaside mark and `#FFF8EE`; a PNG icon set (iOS ignores SVG touch icons) with a safe-zone maskable icon; `og.png` and new share copy; static tags at ≤ 520 px; the phone hero equations hidden; left-aligned prose (justified text made rivers); a person glyph for the signed-out avatar; tidier account labels and kicker numbers.
 - **Little Ones (v2.5):** the owner asked for a level for 4-year-olds. The design rules follow from what that age can do: they can't read (so a voice and pictures), they can't use a keypad (so 3 huge buttons, at least 88 px tall), they shouldn't be timed or penalised (so no clock, a soft wrong-answer sound, and a count-along instead of a fail), and they love collecting things (so stars). It's kept out of the battle record so it doesn't inflate the stats or need an account.
 - **v2.1 service worker fix:** only `/` is cached, so other pages can't overwrite the shell.
 - **v2.8 design decisions:**
   - *Live Truth or Lie is judged per round, not as a buzzer race.* With 0.5–1 s polling, a first-tap-wins buzzer would hand rounds to whoever had the better network. Revealing on server time and comparing on-device reaction times is fair on any connection, and one call per round keeps it a guessing game with a cost.
   - *A heart is taken at the start of a level and refunded on a win* (the Candy Crush model), so closing the app mid-level can't dodge losing one.
   - *Server-owned wallet for accounts, local rules for guests:* accounts sync across devices and can't be edited from the browser; guests still get the whole game, and their progress moves over once, into a new account only.
-  - *`ensureSchema()` in the functions:* this session had no database credentials, so the tables create themselves on first use instead of relying on someone running `npm run migrate` before the deploy.
+  - *No DDL in the functions (v2.8.1):* the PR first created its tables from request paths (`ensureSchema()`). The review removed that, because schema changes are applied by hand after a live check (owner rule). The v2.8 tables went in by hand on 2026-11-13.
   - *Generosity is in the numbers, not the rules:* fast heart refills, cheap hearts, payouts on every game and a prize for losing your first Daily VS. Change `ECON` (both copies) to tune it.
 
 ## 4. Styling & design system
@@ -305,13 +301,11 @@ There's no retention limit: everything is kept.
   - `--num` = Nunito with `tabular-nums`, for clocks, tables, stats and scores.
   - `em` in headings is upright and coloured. No italics for hints (v2.7 removed them).
   - **Do not** go back to Latin Modern / JuliaMono: the owner rejected that look.
+  - **Fredoka kerns space→V by −0.15 em**, so in Fredoka text write a no-break space before a word starting with V (`Daily\u00A0VS`, `&nbsp;` in markup).
 - **Motifs:**
   - Section numbers: 1 arena, 2 games, 2.5 live duel (lobby A/B/C, rooms), 3 numbers/record, 4 boards, 5 chat, 6 account, 7 preferences. The Arena has a full-width "Live Duel" card (ONLINE · 2 DEVICES) under the main event. The admin portal uses §1 Players … §5 Audits with Lean type-signature headings (`players : List User`) and the same seaside tokens, pills and ✦.
   - Kept from the textbook base: numbered equations, booktabs tables, "Figure n" captions, ballot-box toggles (now rounded, teal).
-- **Chat window exception:** `.irc` deliberately uses **classic Win9x/mIRC chrome in both themes**:
-  - grey `#C0C0C0` bevels; title bar gradient `#000080 → #1084D0`; white log;
-  - mIRC nick colours from `NICKC`; system lines green `#009300`; actions purple `#9C009C`; errors `#FC0000`.
-  - A decorative menu bar (hidden under 640 px), a channel switchbar, and a nick list (on phones a "Nicks (n)" toggle shows it under the log).
+- **Chat window exception (chat is off since v2.6):** `.irc` keeps classic Win9x/mIRC chrome in both themes (grey `#C0C0C0` bevels, `#000080 → #1084D0` title bar, mIRC nick colours from `NICKC`, a nick list that toggles on phones).
 - **Shape:** base radius 2 px, overridden by the friendly layer (16/12 px, pills); 18 px gutter; max width 1080 px. Tab bar under 760 px with 5 tabs.
 - **Motion:** wrong-answer shake + `--bad` wash (not in Little Ones, which uses a gentle wobble); countdown; ink-coloured confetti; everything respects `prefers-reduced-motion`.
 - **Little Ones layer (v2.5, `.lt*`, `.game.little`):** new tokens `--sun-deep` (day `#FFF3C4`, night `#3B3420`) and `--sun-ink` (day `#7A5200`, night `#FFE08A`) for the sunny card and tag. Full-screen `.lt` with a sun radial background. Answer buttons have 3 px teal borders, a 24 px radius and a 5 px ledge. Right = `--win` fill, wrong = wobble + 35 % opacity. Progress stars are CSS clip-path stars (not emoji), so they show even without an emoji font. Picture size comes from `--sz` on `.lt-scene` (count: `min(17vw,11vh)`; add: `min(14vw,9vh)`; more: `min(11.5vw,8vh)`; larger caps at ≥ 760 px). Animations (`lt-pop`, `lt-wobble`, `lt-hop`, `lt-breathe`) are cut by the global reduced-motion rule.
@@ -328,6 +322,7 @@ There's no retention limit: everything is kept.
 - **Do NOT:**
   - run DDL (create/alter) from a request path: schema changes are applied by hand, after checking the live database (owner rule);
   - set a palette token in only one of its day/night blocks;
+  - put a plain space before a V-word in Fredoka text (it reads as one word);
   - use `var()` in SVG presentation attributes;
   - add a framework or build step without reason;
   - re-add `user-scalable=no`;
@@ -373,7 +368,7 @@ There's no retention limit: everything is kept.
   `.env.example` documents `DATABASE_URL` and `CRON_SECRET`. Locally: `vercel env pull .env.local` (gitignored). No secrets in the repo.
 - **Schema:** by hand, never from a request path. First query the live database and state what's there, then get the owner's go. Then either `npm run migrate` (the whole idempotent script) or just the new statements. For v2.8 that's just these:
   `node --env-file=.env.local -e "import('./api/_schema.js').then(async ({V28}) => { const { neon } = await import('@neondatabase/serverless'); const sql = neon(process.env.DATABASE_URL); for (const s of V28) await sql.query(s); console.log('v2.8 schema applied') })"`
-  **Apply it before merging v2.8**: the functions assume the tables exist.
+  **Applied to the live DB on 2026-11-13** (before the merge). The functions assume the tables exist.
 - **Preview deployments share the production database** (`DATABASE_URL` is one value for production, preview and development), so anything tested on a preview writes to the live database.
 - **Roles:** `npm run role -- <email> <role>`.
 
