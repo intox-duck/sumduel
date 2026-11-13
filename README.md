@@ -2,18 +2,29 @@
 
 Quick maths, head to head: **https://sumduel.app**
 
-- **The Duel**: face to face on a split screen, or take turns. Same questions, separate clocks, +3 s per wrong answer.
-- **Truth or Lie**: a buzzer round. Call the equation true or false; first to 7 wins.
-- **Sprint**: as many as you can in 60 s, with a global leaderboard.
-- **The Daily**: 20 questions, the same for everyone that day, first attempt counts.
-- **Live games**: play a friend on their own device: the Duel, Truth or Lie (judged round by round on server time) or a 60-second Sprint; public or private (password) games.
-- **The Climb**: a seaside trail of levels, 12 per area, each a short challenge (beat the clock, truth or lie, missing number, target, mix-up, and a big one that opens a treasure chest). Stars and coins to win.
-- **Coins, hearts and the daily gift**: every game pays coins; a Climb level costs a heart only if you don't make it; hearts refill every 10 minutes or cost a few coins; a 7-day gift calendar.
-- **Daily VS**: race the ghost of anyone who's already played today, or one of three sea bots. The first race of the day pays a prize.
+**Play Online**: seven live two-player games, on two devices (both players signed in), server-timed, public or private (password) games, and "Find an opponent" for one-tap matches:
+
+- **Duel**: the same sums for both of you, separate clocks, +3 s per wrong answer. Fastest time wins.
+- **The Climb**: race up a cliff of 12 ledges that gets harder as you go. A wrong answer slips you down a ledge. First to the top wins.
+- **Truth or Lie**: call each sum true or a lie; the quickest right call scores. First to 7.
+- **Sprint**: 60 seconds of sums. Most right answers wins.
+- **Missing Number**: find the hidden number, like 7 × ? = 42.
+- **Target**: combine the number tiles with + − × ÷ to hit the target. Five puzzles; a skip costs 10 s.
+- **Bigger**: two sums side by side; tap the bigger one. Fifteen pairs, +3 s per wrong tap.
+
+**On This Device**:
+
+- **Climb the Coast**: a seaside trail of levels, 12 per area, with stars, coins and a treasure chest at the end of every area.
+- **The Daily**: 20 questions, the same for everyone that day; the first attempt counts.
+- **Daily VS**: race the ghost of anyone who's already played today, or one of three bots. The first race of the day pays a prize.
+- **Sprint** (solo, with a global leaderboard), **Pass the Phone** (a take-turns Duel on one device) and **Little Ones** (counting with pictures and a voice, for ages 4 to 6).
+
+Also:
+
+- **Coins, hearts and the daily gift**: every game pays coins; a Climb the Coast level costs a heart only if you don't make it; hearts refill every 10 minutes or cost a few coins; a 7-day gift calendar.
 - **Home leaderboard**: today's Daily and Sprint top 5, with podiums, on the Arena.
 - **Players dashboard**: once signed in, everyone's game report (games, wins, best scores, activity chart), by display name only.
-- **Little Ones**: a picture level for 4-year-olds: count, find the side with more, tiny sums. Spoken prompts, no clock.
-- **Your Colours**: four palettes on the Arena and in Preferences: Seaside, Shades of Blue, Shades of Pink and ASCII Mode (a text-only terminal look), each with day and night.
+- **Your Colours**: four palettes on the Arena and in Preferences (Seaside, Shades of Blue, Shades of Pink and ASCII Mode), each with day and night.
 - **Accounts**: email + password, no confirmation. Every battle goes on your record, with head-to-head stats against each rival.
 
 Static frontend (no build) + Vercel functions + Neon Postgres. Works offline as a PWA. Chat exists in the code but is switched off (`api/_features.js`).

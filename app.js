@@ -40,10 +40,12 @@
   // =====================================================================
   // Settings
   // =====================================================================
-  var DEFAULTS = { names: ['Player 1', 'Player 2'], mode: 'split', ops: ['+', '−', '×', '÷'], level: 'medium', n: 10, sound: true, haptics: true, theme: 'paper', palette: 'seaside' };
+  var DEFAULTS = { names: ['Player 1', 'Player 2'], mode: 'turns', ops: ['+', '−', '×', '÷'], level: 'medium', n: 10, sound: true, haptics: true, theme: 'paper', palette: 'seaside' };
   var S = Object.assign({}, DEFAULTS, store.get('sumduel', {}));
   if (!Array.isArray(S.ops) || !S.ops.length) S.ops = DEFAULTS.ops.slice();
   if (!Array.isArray(S.names)) S.names = DEFAULTS.names.slice();
+  // One device never hosts two players at once. A saved "split" setting is take-turns now.
+  if (S.mode !== 'turns') S.mode = 'turns';
   function save() { store.set('sumduel', S); }
   // v2.8.1 palettes. Two settings make the look: S.theme ('paper' day or 'night') and S.palette. The <head> script in
   // index.html applies both before the first paint; keep its palette list in step with PALETTES.
@@ -59,7 +61,7 @@
     var night = S.theme === 'night', pal = palId(), d = document.documentElement;
     d.setAttribute('data-theme', night ? 'night' : 'paper');
     if (pal === 'seaside') d.removeAttribute('data-palette'); else d.setAttribute('data-palette', pal);
-    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = cssVar('--bg') || (night ? '#13203A' : '#FFF8EE');
+    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = cssVar('--bg') || (night ? '#0F1115' : '#F7F7F5');
     syncPal();
   }
   var TICK_SVG = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.5l2.5 2.5L10 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -106,6 +108,66 @@
   applyTheme();
 
   // =====================================================================
+  // v3 game catalogue: names, one-liners, icons and colours, shared by the Arena, the live lobby,
+  // results and the record. The live rules are in api/live.js (PEN mirrors its penalties).
+  // =====================================================================
+  var LV_GAMES = ['duel', 'climb', 'tol', 'sprint', 'missing', 'target', 'bigger'];
+  var GNAME = { duel: 'Duel', climb: 'The Climb', tol: 'Truth or Lie', sprint: 'Sprint', missing: 'Missing Number', target: 'Target', bigger: 'Bigger' };
+  var PEN = { duel: 3, missing: 3, bigger: 3, target: 10, climb: 0 };   // seconds added per wrong answer (Target: per skip)
+  function penOf(game) { return PEN[game] != null ? PEN[game] : PENALTY; }
+  function isTimed(game) { return PEN[game] != null; }   // fastest time to the end wins; the rest are scored
+  var GINFO = {
+    duel: { tag: 'The same sums for both of you. Fastest time wins.', time: '1–2 min', c: 'duel', a: '>x<' },
+    climb: { tag: 'Race up a cliff that gets harder. A wrong answer slips you down a ledge.', time: '2–3 min', c: 'climb', a: '_/^' },
+    tol: { tag: 'Is the sum true or a lie? The quickest right call scores.', time: '2 min', c: 'tol', a: 'T|F' },
+    sprint: { tag: 'Sixty seconds of sums. Most right answers wins.', time: '1 min', c: 'sprint', a: '60s' },
+    missing: { tag: 'Find the hidden number, like 7 × ? = 42.', time: '1–2 min', c: 'missing', a: '[?]' },
+    target: { tag: 'Combine the number tiles to hit the target.', time: '2–3 min', c: 'target', a: '(o)' },
+    bigger: { tag: 'Two sums side by side. Tap the bigger one.', time: '1 min', c: 'bigger', a: '>.<' }
+  };
+  // Icon glyphs, drawn in currentColor on a tile of the game's colour (.gicon, --gc).
+  var GICON = {
+    duel: '<path d="M14 34L37 11M34 34L11 11M9 29l10 10M39 29L29 39"/>',
+    climb: '<path d="M6 41h9v-8h8v-8h8v-8h9"/><path d="M40 17V6"/><path d="M40 6l6 3.5-6 3.5z" fill="currentColor"/>',
+    tol: '<path d="M7 25l5.5 5.5L22 20"/><path d="M28 18l12 12M40 18L28 30"/>',
+    sprint: '<path d="M27 4L11 27h11l-3 17 18-24H26z" fill="currentColor" stroke-width="2"/>',
+    missing: '<rect x="9" y="9" width="30" height="30" rx="8" stroke-dasharray="5 4" stroke-width="3"/><path d="M19 20a5 5 0 1 1 7.4 4.4c-1.6.9-2.4 1.9-2.4 3.6" stroke-width="3.5"/><circle cx="24" cy="33.5" r="2.2" fill="currentColor" stroke="none"/>',
+    target: '<circle cx="24" cy="24" r="16" stroke-width="3.5"/><circle cx="24" cy="24" r="8.5" stroke-width="3.5"/><circle cx="24" cy="24" r="3" fill="currentColor" stroke="none"/>',
+    bigger: '<rect x="8" y="9" width="13" height="30" rx="3.5" fill="currentColor" stroke="none"/><rect x="27" y="21" width="13" height="18" rx="3.5" fill="currentColor" stroke="none" opacity=".55"/>',
+    trail: '<path d="M14 40c0-9 20-7 20-16S14 17 14 8" stroke-dasharray="1 7"/><circle cx="14" cy="40" r="4.5" fill="currentColor" stroke="none"/><circle cx="34" cy="24" r="4.5" fill="currentColor" stroke="none"/><circle cx="14" cy="8" r="4.5" fill="currentColor" stroke="none"/>',
+    daily: '<rect x="8" y="10" width="32" height="30" rx="7" stroke-width="3.5"/><path d="M8 19h32M17 6v8M31 6v8" stroke-width="3.5"/><path d="M17 29l4.5 4.5L31 24"/>',
+    vs: '<circle cx="17" cy="24" r="10" fill="currentColor" stroke="none"/><circle cx="31" cy="24" r="10" stroke-dasharray="3.5 3.5" stroke-width="3"/>',
+    turns: '<rect x="15" y="5" width="18" height="29" rx="4.5" stroke-width="3.5"/><path d="M10 39c7 5 21 5 28 0" stroke-width="3.5"/><path d="M33 35.5l5 3.5-4.5 4" stroke-width="3.5"/>',
+    little: '<circle cx="15" cy="31" r="7" fill="currentColor" stroke="none"/><circle cx="33" cy="31" r="7" fill="currentColor" stroke="none"/><circle cx="24" cy="15" r="7" fill="currentColor" stroke="none" opacity=".7"/>'
+  };
+  function gicon(id, ascii) {
+    return '<span class="gicon" data-ascii="' + esc(ascii || '') + '"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + GICON[id] + '</svg></span>';
+  }
+  // On this device: the solo games and the pass-the-phone Duel.
+  var SOLO = [
+    { go: 'climb', icon: 'trail', c: 'climb', a: '.:*', name: 'Climb the Coast', tag: 'Level after level up the seaside trail. Stars, coins and a chest at the end of every area.', meta: '<span id="climbTag">Levels</span>' },
+    { go: 'daily', icon: 'daily', c: 'daily', a: '[1]', name: 'The Daily', tag: 'Twenty sums, the same for everyone today. Only your first go counts.', meta: '<span id="dailyTag">Today</span>' },
+    { go: 'vs', icon: 'vs', c: 'vs', a: 'o:o', name: 'Daily VS', tag: 'Race the ghost of someone who played today, or one of three bots.', meta: '<span id="vsTag">Today</span>' },
+    { go: 'sprint', icon: 'sprint', c: 'sprint', a: '60s', name: 'Sprint', tag: 'As many as you can in 60 seconds. Your best goes on the board.', meta: '1 min' },
+    { go: 'duel', icon: 'turns', c: 'duel', a: '[]>', name: 'Pass the Phone', tag: 'A Duel on one phone: one of you plays, then hands it over.', meta: '2 players' },
+    { go: 'little', icon: 'little', c: 'little', a: '...', name: 'Little Ones', tag: 'Counting with pictures and a friendly voice, for ages 4 to 6.', meta: 'Age 4+' }
+  ];
+  var CHEV = '<svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  function gcard(o) {
+    return '<button type="button" class="gcard' + (o.feat ? ' feat' : '') + '" ' + o.attr + ' style="--gc:var(--g-' + o.c + ')">' + gicon(o.icon, o.a) +
+      '<span class="gtx"><b>' + o.name + '</b><span>' + o.tag + '</span></span><span class="gmeta">' + o.meta + CHEV + '</span>' + (o.extra || '') + '</button>';
+  }
+  function renderHomeCards() {
+    $('onlineGames').innerHTML = ['climb', 'duel', 'tol', 'sprint', 'missing', 'target', 'bigger'].map(function (k) {
+      var I = GINFO[k];
+      return gcard({ attr: 'data-live="' + k + '"', icon: k, c: I.c, a: I.a, name: GNAME[k], tag: I.tag, meta: I.time + ' · 2 players', feat: k === 'climb',
+        extra: k === 'climb' ? '<span class="gfeat" aria-hidden="true">' + cliffMini(8, 3, 5) + '</span>' : '' });
+    }).join('');
+    $('soloGames').innerHTML = SOLO.map(function (o) { return gcard({ attr: 'data-go="' + o.go + '"', icon: o.icon, c: o.c, a: o.a, name: o.name, tag: o.tag, meta: o.meta }); }).join('');
+  }
+  var pendingJoin = null;   // a game code typed while signed out: after sign-in, go straight to that room
+
+  // =====================================================================
   // Sound (WebAudio blips, zero assets) + haptics
   // =====================================================================
   var AC = null;
@@ -144,10 +206,13 @@
   // =====================================================================
   function confetti(colors) {
     if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    // The canvas is sized by CSS (#fx: fixed, 100% x 100%). Its pixel size comes from the viewport's client size: setting
+    // width/height from innerWidth/innerHeight made it, for a moment, a fixed box bigger than the screen, and mobile
+    // browsers then grew the layout viewport (innerHeight doubled until reload).
     var cv = $('fx'), cx = cv.getContext('2d'), dpr = Math.min(window.devicePixelRatio || 1, 2);
-    var W = cv.width = innerWidth * dpr, H = cv.height = innerHeight * dpr;
-    cv.style.width = innerWidth + 'px'; cv.style.height = innerHeight + 'px';
-    var P = [], N = innerWidth < 600 ? 90 : 160;
+    var vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
+    var W = cv.width = Math.round(vw * dpr), H = cv.height = Math.round(vh * dpr);
+    var P = [], N = vw < 600 ? 90 : 160;
     for (var i = 0; i < N; i++) P.push({ x: W / 2 + (Math.random() - .5) * W * .3, y: H * .35, vx: (Math.random() - .5) * 18 * dpr, vy: (-Math.random() * 16 - 6) * dpr, s: (4 + Math.random() * 6) * dpr, r: Math.random() * 6, vr: (Math.random() - .5) * .4, c: colors[i % colors.length] });
     var t0 = performance.now();
     (function step(t) {
@@ -528,7 +593,8 @@
     else if (h === 'climb') { showScreen('climb'); renderClimb(); }
     else if (h === 'vs') { showScreen('vs'); renderVs(); }
     else if (h === 'live' || h.indexOf('live/') === 0) { showScreen('live'); renderLive((h.split('/')[1] || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5) || null); }
-    else if (h === 'duel' || h === 'tol') { setupFor = h; showScreen('setup'); renderSetup(); }
+    else if (h === 'tol') { LCFG.game = 'tol'; go('live'); return; }
+    else if (h === 'duel') { setupFor = 'duel'; showScreen('setup'); renderSetup(); }
     else { showScreen('home'); renderHome(); }
   }
   window.addEventListener('hashchange', route);
@@ -537,33 +603,37 @@
   // =====================================================================
   // Home
   // =====================================================================
-  qsa('[data-go]').forEach(function (b) {
-    b.addEventListener('click', function () {
-      var g = b.dataset.go; ac();
-      if (g === 'duel' || g === 'tol') go(g);
-      else if (g === 'sprint') startSoloGame('sprint');
-      else if (g === 'daily') startSoloGame('daily');
-      else if (g === 'live') go('live');
-      else if (g === 'little') startLittle();
-      else if (g === 'climb') go('climb');
-      else if (g === 'vs') go('vs');
-    });
+  // The game cards are drawn from the catalogue (renderHomeCards), so clicks are handled here, once.
+  // data-live = a live game (opens Play Online with it picked); data-go = a solo game or a page.
+  $('v-home').addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-go],[data-live]'); if (!b) return;
+    ac();
+    if (b.dataset.live) { LCFG.game = b.dataset.live; saveLcfg(); go('live'); return; }
+    var g = b.dataset.go;
+    if (g === 'duel') go('duel');
+    else if (g === 'sprint' || g === 'daily') startSoloGame(g);
+    else if (g === 'live') go('live');
+    else if (g === 'little') startLittle();
+    else if (g === 'climb') go('climb');
+    else if (g === 'vs') go('vs');
+  });
+  $('hjCode').addEventListener('input', function () { this.value = codeClean(this.value); });
+  $('homeJoin').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var c = codeClean($('hjCode').value);
+    if (c.length !== 5) { toast('Game codes are 5 letters and numbers.'); $('hjCode').focus(); return; }
+    if (!ME) { pendingJoin = c; toast('Sign in first. Then you’ll go straight into game ' + c + '.'); go('account'); return; }
+    go('live/' + c);
   });
   // =====================================================================
   // v2.7 visuals shared by the home leaderboard and the players dashboard
   // =====================================================================
-  var BLOB_CLS = ['il-p1', 'il-p2', 'il-sun', 'il-win'];
-  function blobIdx(name) { var h = 0; name = String(name || ''); for (var i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0; return Math.abs(h) % BLOB_CLS.length; }
-  // A small round character as an avatar; the colour follows the player's name, never their rank.
+  // v3: an avatar is the first letter of the name on a coloured circle. The colour follows the name, never the rank.
+  var AV_N = 7;
+  function blobIdx(name) { var h = 0; name = String(name || ''); for (var i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0; return Math.abs(h) % AV_N; }
   function avatar(name, size) {
-    var c = BLOB_CLS[blobIdx(name)], s = size || 44;
-    return '<svg class="ava" width="' + s + '" height="' + s + '" viewBox="0 0 60 60" aria-hidden="true">' +
-      '<ellipse class="' + c + '" cx="30" cy="32" rx="26" ry="24"/>' +
-      '<ellipse class="il-hi" cx="20" cy="20" rx="6" ry="3.5" transform="rotate(-30 20 20)"/>' +
-      '<circle class="il-w" cx="22" cy="29" r="5.4"/><circle class="il-w" cx="38" cy="29" r="5.4"/>' +
-      '<circle class="il-ink" cx="23" cy="29.5" r="2.6"/><circle class="il-ink" cx="39" cy="29.5" r="2.6"/>' +
-      '<circle class="il-blush" cx="15" cy="37" r="3"/><circle class="il-blush" cx="45" cy="37" r="3"/>' +
-      '<path class="il-line" style="stroke-width:2.2px" d="M26 38q4 4 8 0"/></svg>';
+    var s = size || 44, n = String(name == null ? '' : name).trim();
+    return '<span class="ava av' + blobIdx(n) + '" style="width:' + s + 'px;height:' + s + 'px;font-size:' + Math.round(s * 0.44) + 'px" aria-hidden="true">' + esc(initial(n)) + '</span>';
   }
   function ago(iso) {
     if (!iso) return 'not played yet';
@@ -636,7 +706,7 @@
   var GAME_NAMES = { duel: 'Duel', live: 'Live', tol: 'Truth or Lie', sprint: 'Sprint', daily: 'Daily', vs: 'Daily\u00A0VS' };
   function renderPlayers() {
     var el = $('v-players');
-    var head = '<p class="kicker"><b>5</b> Players</p><h2 class="title">Everyone’s Reports</h2>';
+    var head = '<p class="kicker">Players</p><h2 class="title">Everyone’s Reports</h2>';
     if (!ME) {
       el.innerHTML = head + '<div class="pl-locked panel">' + avatar('Sum', 72) + avatar('Duel', 72) +
         '<p>Sign in to see how every player is doing: games played, wins, best Sprint and fastest Daily.</p><a class="btn primary" href="#/account">Sign in</a></div>';
@@ -718,7 +788,7 @@
 
   function renderHome() {
     var day = utcDay(), played = localBattles().some(function (b) { return b.game === 'daily' && b.day === day; });
-    var tag = $('dailyTag'); tag.textContent = played ? 'DONE ✓' : 'TODAY'; tag.classList.toggle('live', !played);
+    var tag = $('dailyTag'); tag.textContent = played ? 'Done ✓' : 'Today'; tag.classList.toggle('live', !played);
     paintGiftBar(); paintHomeTags();
     var st = computeStats(localBattles());
     renderHomeBoard();
@@ -728,9 +798,9 @@
       (ME ? '' : '<p class="foot">These stats only live on this device for now. <a href="#/account">Sign in</a> to keep them for good.</p>');
   }
   function paintHomeTags() {
-    var ct = $('climbTag'); if (ct && W) ct.textContent = 'LEVEL ' + W.climb.level + ' · ' + W.climb.total + ' ★';
+    var ct = $('climbTag'); if (ct && W) ct.textContent = 'Level ' + W.climb.level + ' · ' + W.climb.total + ' ★';
     var vt = $('vsTag'), raced = store.get('sd_vs_day', null) === utcDay();
-    if (vt) { vt.textContent = raced ? 'RACED ✓' : 'TODAY'; vt.classList.toggle('live', !raced); }
+    if (vt) { vt.textContent = raced ? 'Raced ✓' : 'Today'; vt.classList.toggle('live', !raced); }
   }
   function kpiRow(st) {
     return '<div class="kpis">' +
@@ -750,15 +820,8 @@
     el.addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; S[key] = cast(b.dataset.v); save(); paint(); after && after(); });
     paint();
   }
-  bindSeg('mode', 'mode', String, modeHint);
   bindSeg('level', 'level', String);
   bindSeg('count', 'n', Number);
-  function modeHint() {
-    $('modeHint').textContent = S.mode === 'split'
-      ? 'Lay the phone flat between you. The screen splits in two and you race at the same time.'
-      : 'One player goes, then passes the phone. You get the same questions and the fastest total time wins.';
-  }
-  modeHint();
   var opsEl = $('ops');
   function paintOps() { qsa('button', opsEl).forEach(function (b) { b.setAttribute('aria-pressed', String(S.ops.indexOf(b.dataset.v) >= 0)); }); }
   opsEl.addEventListener('click', function (e) {
@@ -773,16 +836,11 @@
   qsa('[data-back]').forEach(function (b) { b.addEventListener('click', function () { go(''); }); });
 
   function renderSetup() {
-    var tol = setupFor === 'tol';
-    $('setupTitle').textContent = tol ? 'Truth or Lie' : 'The Duel';
-    $('setupKicker').textContent = tol ? 'Set up the buzzer round' : 'Set up the duel';
-    $('setupLede').textContent = tol
-      ? 'One equation goes up for both of you. Hit TRUE or LIE first and get it right to score. Call it wrong and you’re locked out for that round. First to seven wins.'
-      : 'Two players, one phone. You get the same questions on separate clocks, and every wrong answer adds three seconds.';
-    $('f-mode').classList.toggle('hidden', tol);
-    $('f-count').classList.toggle('hidden', tol);
-    $('start').textContent = tol ? 'Start Truth or Lie' : 'Start duel';
-    $('kbdNote').textContent = tol ? 'On a keyboard, P1 presses A (true) / S (lie) and P2 presses K (true) / L (lie).' : 'On a keyboard, P1 types on the number row and P2 on the numpad.';
+    $('setupTitle').textContent = 'The Duel';
+    $('setupKicker').textContent = 'Pass the Phone';
+    $('setupLede').textContent = 'One player goes, then hands the phone over. Same questions, separate clocks, and every wrong answer adds three seconds. To race at the same time, both sign in and open a Live game.';
+    $('start').textContent = 'Start duel';
+    $('kbdNote').textContent = 'Type the answer. Backspace deletes. Esc clears.';
     if (ME && (!S.names[0] || S.names[0] === 'Player 1')) { S.names[0] = ME.name; save(); }
     $('n0').value = S.names[0] || ''; $('n1').value = S.names[1] || '';
     $('n0').placeholder = ME ? ME.name : 'Player 1'; $('n1').placeholder = 'Player 2';
@@ -791,10 +849,10 @@
     r.innerHTML = st.rivals.slice(0, 6).map(function (x) { return '<button type="button" data-n="' + esc(x.name) + '">vs ' + esc(x.name) + '</button>'; }).join('');
   }
   $('rivals').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; S.names[1] = b.dataset.n; $('n1').value = b.dataset.n; save(); });
-  $('start').addEventListener('click', function () { ac(); if (setupFor === 'tol') startTol(); else startDuel(); });
+  $('start').addEventListener('click', function () { ac(); startDuel(); });
 
   // =====================================================================
-  // Pad-game engine (Duel split/turns, Sprint, Daily)
+  // Pad-game engine (take-turns Duel, Sprint, Daily). Two players at once is a live game, on two devices.
   // =====================================================================
   var G = null, token = 0, raf = 0, series = {};
   function playerNames() { return [0, 1].map(function (i) { return (S.names[i] || '').trim() || (i === 0 && ME ? ME.name : 'Player ' + (i + 1)); }); }
@@ -806,10 +864,10 @@
   function startDuel() {
     abortGame(); token++;
     var names = playerNames();
-    G = { kind: 'duel', token: token, mode: S.mode, n: S.n, names: names, cfg: { ops: S.ops.slice(), level: S.level, n: S.n },
+    G = { kind: 'duel', token: token, mode: 'turns', n: S.n, names: names, cfg: { ops: S.ops.slice(), level: S.level, n: S.n },
       qs: makeQuestions(S.n, S.ops.slice(), S.level, (Math.random() * 2147483647) | 0),
       p: [0, 1].map(newP), ui: [], live: true };
-    if (G.mode === 'split') layoutSplit(); else handoff(0);
+    handoff(0);
   }
   function startSoloGame(kind) {
     abortGame(); token++;
@@ -856,13 +914,6 @@
   function hit(b) { b.classList.add('hit'); setTimeout(function () { b.classList.remove('hit'); }, 90); }
   function quitBtn() { var b = document.createElement('button'); b.className = 'chipbtn'; b.textContent = 'Quit'; b.addEventListener('click', function () { abortGame(); route(); }); return b; }
 
-  function layoutSplit() {
-    var play = $('play'); play.innerHTML = '';
-    play.appendChild(makeHalf(1, true, false));
-    var mid = document.createElement('div'); mid.className = 'mid'; mid.appendChild(quitBtn()); play.appendChild(mid);
-    play.appendChild(makeHalf(0, false, false));
-    showScreen('play'); wakeOn(); countdown([0, 1]);
-  }
   function layoutSolo(pi) {
     var play = $('play'); play.innerHTML = '';
     var half = makeHalf(pi, false, true);
@@ -905,7 +956,7 @@
       }
     })();
   }
-  function elapsed(p) { return ((p.done ? p.end : performance.now()) - p.start) / 1000 + p.wrong * PENALTY; }
+  function elapsed(p) { return ((p.done ? p.end : performance.now()) - p.start) / 1000 + p.wrong * (G && G.pen != null ? G.pen : PENALTY); }
   function loop() {
     cancelAnimationFrame(raf);
     (function step() {
@@ -928,14 +979,17 @@
   function paintQ(pi) {
     var p = G.p[pi], u = G.ui[pi]; if (!u) return;
     if (G.kind === 'climb' && G.lv.kind === 'truth') return truthPaint();
-    var q = G.qs[Math.min(p.idx, G.qs.length - 1)];
+    if (G.sub === 'target') return tgPaint();
+    if (G.sub === 'bigger') return bgPaint();
+    var q = curQ(pi);
     u.q.textContent = q.full ? q.text : q.text + ' =';
     u.q.classList.toggle('long', !!q.full || q.text.length > 9);
     u.ans.textContent = p.input || '?'; u.ans.classList.toggle('empty', !p.input);
     if (G.kind === 'climb' && G.lv.kind === 'target') { u.prog.textContent = p.idx + ' / ' + G.lv.goal + (p.idx >= G.lv.goal ? ' ✓' : ''); }
+    else if (G.sub === 'climb') { u.prog.textContent = 'Ledge ' + p.idx + ' of ' + G.n; u.bar.style.width = (p.idx / G.n * 100) + '%'; }
     else if (G.kind === 'sprint' || G.sprint) { u.prog.textContent = p.idx + ' correct'; }
     else { u.prog.textContent = Math.min(p.idx + 1, G.n) + ' / ' + G.n; u.bar.style.width = (p.idx / G.n * 100) + '%'; }
-    u.streak.textContent = p.streak >= 3 ? p.streak + ' IN A ROW' : '';
+    u.streak.textContent = p.streak >= 3 ? p.streak + ' in a row' : ''; u.streak.classList.remove('slip');
   }
   function press(pi, k) {
     if (!G || !G.p || !G.p[pi]) return;
@@ -944,11 +998,12 @@
     if (k === '⌫') { p.input = p.input.slice(0, -1); paintQ(pi); return; }
     if (p.input.length >= 6) return;
     p.input += k;
-    var q = G.qs[p.idx], ans = q.ans;
+    var q = curQ(pi), ans = q.ans;
     if (p.input === ans) {
       var now = performance.now();
       p.splits.push(Math.round(now - p.last) / 1000); p.last = now;
       p.idx++; p.input = ''; p.streak++; if (p.streak > p.bestStreak) p.bestStreak = p.streak;
+      if (G.sub === 'climb') cliffPaint('me', p.idx);
       sfx.good();
       var el = G.ui[pi].el; el.classList.add('good'); setTimeout(function () { el.classList.remove('good'); }, 120);
       if (!clockGame() && p.idx >= G.n) { finish(pi); return; }
@@ -959,13 +1014,18 @@
       p.wrong++; p.input = ''; p.streak = 0; p.wrongBy[q.op] = (p.wrongBy[q.op] || 0) + 1;
       var e2 = G.ui[pi].el; e2.classList.remove('wrong'); void e2.offsetWidth; e2.classList.add('wrong');
       setTimeout(function () { e2.classList.remove('wrong'); }, 350);
+      // The Climb (live): a wrong answer slips you down a ledge, and both ledges get a fresh sum next time.
+      var slip = null;
+      if (G.sub === 'climb') { var from = p.idx; G.visits[Math.min(from, G.n - 1)]++; if (from > 0) { p.idx = from - 1; G.visits[p.idx]++; } slip = from; cliffPaint('me', p.idx); }
       sfx.bad(); buzz(70); paintQ(pi);
+      if (slip != null) { G.ui[pi].streak.textContent = slip > 0 ? 'Slipped to ledge ' + p.idx : 'Try this one'; G.ui[pi].streak.classList.add('slip'); }
       if (G.kind === 'live') liveReport();
     } else paintQ(pi);
   }
-  function finish(pi) {
+  // at: when the last answer went in (games that show feedback first finish a moment later, on the right time).
+  function finish(pi, at) {
     var p = G.p[pi], u = G.ui[pi];
-    p.end = performance.now(); p.running = false; p.done = true;
+    p.end = at || performance.now(); p.running = false; p.done = true;
     u.bar.style.width = '100%';
     u.cover.classList.remove('hidden'); u.big.style.fontSize = 'min(17vw,11vh)';
     var my = G.token;
@@ -986,29 +1046,24 @@
     u.clock.textContent = elapsed(p).toFixed(1) + ' s'; u.big.textContent = elapsed(p).toFixed(1) + ' s';
     sfx.done();
     if (G.kind === 'daily') { u.sub.textContent = 'Finished'; wakeOff(); setTimeout(function () { if (G && G.token === my) resultsSolo(); }, 1300); return; }
-    var other = G.p[1 - pi];
-    if (G.mode === 'split') {
-      u.sub.textContent = other.done ? '' : 'Done. Waiting for ' + G.names[1 - pi] + '…';
-      if (G.p.every(function (x) { return x.done; })) { G.ui.forEach(function (x) { x.sub.textContent = ''; }); setTimeout(function () { if (G && G.token === my) resultsDuel(); }, 1100); }
-    } else {
-      u.sub.textContent = 'Finished';
-      setTimeout(function () { if (!G || G.token !== my) return; if (pi === 0) handoff(1); else resultsDuel(); }, 1300);
-    }
+    u.sub.textContent = 'Finished';
+    setTimeout(function () { if (!G || G.token !== my) return; if (pi === 0) handoff(1); else resultsDuel(); }, 1300);
   }
 
   // ---------- keyboard (desktop) ----------
   document.addEventListener('keydown', function (e) {
     if (!G || e.metaKey || e.ctrlKey || e.altKey) return;
     if ($('play').classList.contains('hidden')) return;
-    if (G.kind === 'tol') return tolKey(e);
     if (G.kind === 'little') return littleKey(e);
+    if (G.sub === 'target') return tgKey(e);
+    if (G.sub === 'bigger') return bgKey(e);
     if (G.kind === 'ltol' || (G.kind === 'climb' && G.lv.kind === 'truth')) {
       var kk = (e.key || '').toLowerCase(), said = (kk === 'a' || kk === 'arrowleft' || kk === 't') ? true : (kk === 's' || kk === 'arrowright' || kk === 'l') ? false : null;
       if (said === null) return; e.preventDefault();
       return G.kind === 'ltol' ? liveTolCall(said) : truthAnswer(said);
     }
-    // Map on physical key (e.code) so the numpad works with NumLock on or off.
-    var k = null, code = e.code || '', isPad = code.indexOf('Numpad') === 0;
+    // One player at a time. The number row and the numpad both type for whoever has the phone.
+    var k = null, code = e.code || '';
     var m = /^(?:Digit|Numpad)([0-9])$/.exec(code);
     if (m) k = m[1];
     else if (!code && /^[0-9]$/.test(e.key)) k = e.key;
@@ -1016,100 +1071,13 @@
     else if (e.key === 'Escape' || e.key === 'Delete' || code === 'NumpadMultiply') k = 'C';
     if (!k) return;
     e.preventDefault();
-    var pi = 0;
-    if (G.mode === 'split') pi = isPad ? 1 : 0;
-    else pi = G.p.findIndex ? G.p.findIndex(function (p) { return p.running; }) : 0;
+    var pi = G.p.findIndex ? G.p.findIndex(function (p) { return p.running; }) : 0;
     if (pi < 0) return;
     var btn = G.ui[pi] && G.ui[pi].el.querySelector('[data-k="' + k + '"]'); if (btn) hit(btn);
     press(pi, k);
   });
 
-  // =====================================================================
-  // Truth or Lie (split-screen buzzer)
-  // =====================================================================
-  var TOL_TARGET = 7;
-  function startTol() {
-    abortGame(); token++;
-    var names = playerNames();
-    G = { kind: 'tol', token: token, mode: 'split', names: names, cfg: { ops: S.ops.slice(), level: S.level },
-      qs: makeTol(80, S.ops.slice(), S.level, (Math.random() * 2147483647) | 0), round: 0,
-      sc: [0, 0], wrong: [0, 0], locked: [false, false], open: false, ui: [], live: true, rt: [[], []], t0: 0 };
-    var play = $('play'); play.innerHTML = '';
-    play.appendChild(tolHalf(1, true));
-    var mid = document.createElement('div'); mid.className = 'mid'; mid.appendChild(quitBtn()); play.appendChild(mid);
-    play.appendChild(tolHalf(0, false));
-    showScreen('play'); wakeOn();
-    var my = G.token, steps = ['3', '2', '1', 'GO'], i = 0;
-    (function tick() {
-      if (!G || G.token !== my) return;
-      if (i < steps.length) { G.ui.forEach(function (u, pi) { u.cover.classList.remove('hidden'); u.big.textContent = steps[i]; u.sub.textContent = i === 0 ? G.names[pi] : ''; }); i < 3 ? sfx.tick() : sfx.go(); i++; setTimeout(tick, i === steps.length ? 450 : 700); }
-      else { G.ui.forEach(function (u) { u.cover.classList.add('hidden'); }); tolNext(); }
-    })();
-  }
-  function tolHalf(pi, flip) {
-    var el = document.createElement('section');
-    el.className = 'half' + (flip ? ' flip' : ''); paintPlayer(el, pi);
-    el.innerHTML = '<div class="hud"><span class="nm"></span><span class="tol-score"></span><span class="clock">0</span></div>' +
-      '<div class="tol-stage"><div class="tol-eq">…</div><div class="tol-flash"></div></div>' +
-      '<div class="tol-btns"><button class="t" data-a="1">TRUE</button><button class="f" data-a="0">LIE</button></div>' +
-      '<div class="keyhint">' + (pi === 0 ? 'A = TRUE · S = LIE' : 'K = TRUE · L = LIE') + '</div>' +
-      '<div class="cover"><div class="big"></div><div class="sub"></div></div>';
-    el.querySelector('.nm').textContent = G.names[pi];
-    el.querySelector('.tol-score').innerHTML = new Array(TOL_TARGET + 1).join('<i></i>');
-    el.querySelector('.tol-btns').addEventListener('pointerdown', function (e) {
-      var b = e.target.closest('button'); if (!b) return; e.preventDefault(); hit(b); tolAnswer(pi, b.dataset.a === '1');
-    });
-    G.ui[pi] = { el: el, eq: el.querySelector('.tol-eq'), flash: el.querySelector('.tol-flash'), clock: el.querySelector('.clock'), pips: el.querySelector('.tol-score'),
-      cover: el.querySelector('.cover'), big: el.querySelector('.cover .big'), sub: el.querySelector('.cover .sub') };
-    return el;
-  }
-  function tolPaint() {
-    G.ui.forEach(function (u, pi) {
-      qsa('i', u.pips).forEach(function (pip, k) { pip.classList.toggle('on', k < G.sc[pi]); });
-      u.clock.textContent = G.sc[pi];
-      u.el.classList.toggle('locked', G.locked[pi]);
-    });
-  }
-  function tolNext() {
-    if (!G || G.kind !== 'tol') return;
-    var q = G.qs[G.round % G.qs.length];
-    G.locked = [false, false]; G.open = true; G.t0 = performance.now();
-    G.ui.forEach(function (u) { u.eq.textContent = q.text; u.flash.textContent = ''; });
-    tolPaint();
-  }
-  function tolAnswer(pi, said) {
-    if (!G || G.kind !== 'tol' || !G.open || G.locked[pi]) return;
-    var q = G.qs[G.round % G.qs.length], my = G.token;
-    if (said === q.truth) {
-      G.open = false; G.sc[pi]++; G.rt[pi].push((performance.now() - G.t0) / 1000);
-      sfx.good();
-      G.ui[pi].flash.textContent = '+1 ' + (q.truth ? 'TRUE' : 'LIE');
-      G.ui[1 - pi].flash.textContent = G.names[pi] + ' got it · ' + (q.truth ? 'true' : 'a lie');
-      tolPaint();
-      if (G.sc[pi] >= TOL_TARGET) { setTimeout(function () { if (G && G.token === my) tolFinish(pi); }, 700); return; }
-      G.round++; setTimeout(function () { if (G && G.token === my) tolNext(); }, 900);
-    } else {
-      G.locked[pi] = true; G.wrong[pi]++; sfx.bad(); buzz(80);
-      var el = G.ui[pi].el; el.classList.remove('wrong'); void el.offsetWidth; el.classList.add('wrong'); setTimeout(function () { el.classList.remove('wrong'); }, 350);
-      G.ui[pi].flash.textContent = 'Locked out';
-      tolPaint();
-      if (G.locked[0] && G.locked[1]) {
-        G.open = false; G.ui.forEach(function (u) { u.flash.textContent = 'Both wrong · it was ' + (q.truth ? 'true' : 'a lie'); });
-        G.round++; setTimeout(function () { if (G && G.token === my) tolNext(); }, 1100);
-      }
-    }
-  }
-  function tolKey(e) {
-    var k = (e.key || '').toLowerCase(), map = { a: [0, true], s: [0, false], k: [1, true], l: [1, false] };
-    if (!map[k]) return; e.preventDefault(); tolAnswer(map[k][0], map[k][1]);
-  }
-  function tolFinish(w) {
-    G.live = false; wakeOff();
-    var b = { game: 'tol', mode: 'split', cfg: G.cfg, winner: w,
-      players: [0, 1].map(function (i) { return { name: G.names[i], score: G.sc[i], wrong: G.wrong[i], avgRt: G.rt[i].length ? +(G.rt[i].reduce(function (a, c) { return a + c; }, 0) / G.rt[i].length).toFixed(2) : null }; }) };
-    var ser = bumpSeries('tol', G.names, w);
-    renderResults(b, ser);
-  }
+  // Truth or Lie is a live game only (two devices, both signed in). There is no same-device buzzer.
 
   // =====================================================================
   // Results
@@ -1465,13 +1433,16 @@
     var el = $('v-climb');
     var paint = function () {
       var cur = W ? W.climb.level : 1, curArea = Math.floor((cur - 1) / AREA), nAreas = Math.max(AREAS.length, curArea + 2), html = '';
-      html += '<p class="kicker"><b>2.6</b> The Climb</p><h2 class="title">The Climb</h2>' +
+      html += '<a class="back" href="#/">← Arena</a><p class="kicker">On This Device</p><h2 class="title">Climb the Coast</h2>' +
         '<p class="lede">Climb the coast one level at a time. Win stars and coins, and open a treasure chest at the end of every area. A level costs a heart only if you don’t make it.</p>' +
+        '<div class="savebar climb-lobby" id="climbLobby"><span><b>Race a friend.</b> The Climb is a live game too: twelve ledges, harder as you go, first to the top wins.</span>' +
+        (ME ? '<button class="btn primary" id="climbLobbyBtn" type="button">Race a friend</button>' : '<a class="btn" href="#/account">Sign in to race</a>') + '</div>' +
         '<div class="climb-bar" id="climbBar"></div><div class="trail" id="trail">';
       for (var a = nAreas - 1; a >= 0; a--) html += areaHtml(a, cur);
       html += '<div class="trail-start">' + avatar('Start', 34) + '<span>Start here</span></div></div>';
       el.innerHTML = html;
       paintClimbBar();
+      if ($('climbLobbyBtn')) $('climbLobbyBtn').onclick = function () { ac(); LCFG.game = 'climb'; saveLcfg(); go('live'); };
       $('trail').onclick = function (e) {
         var b = e.target.closest('.node'); if (!b) return;
         ac();
@@ -1749,7 +1720,7 @@
   function vsMineLocal(day) { var m = store.get('sd_vs_local', null); return m && m.day === day ? m : null; }
   function renderVs() {
     var el = $('v-vs'), day = utcDay();
-    el.innerHTML = '<p class="kicker"><b>2.7</b> Daily\u00A0VS</p><h2 class="title">Daily\u00A0VS</h2>' +
+    el.innerHTML = '<a class="back" href="#/">← Arena</a><p class="kicker">Every Day</p><h2 class="title">Daily\u00A0VS</h2>' +
       '<p class="lede">Fifteen sums, the same for everyone today. Pick a rival and race their ghost: you’ll see them moving along the top of your screen at the speed they really went.</p><div id="vsBody"><div class="skel"></div></div>';
     var bots = function () { return VS_BOTS.map(function (b) { var r = botRun(b, day); return { id: b.id, name: b.name, time: r.time, raw: r.raw, wrong: r.wrong, splits: r.splits }; }); };
     api('/api/rewards?vs=1&d=' + day).then(function (j) { paintVs(j); })
@@ -1863,26 +1834,28 @@
     var el = $('resBody'), html = '', winColor = null;
     var P = b.players;
     if (isH2H(b)) {
-      var w = b.winner, vsSprint = b.game === 'sprint';
-      html += '<p class="kicker"><b>' + (b.game === 'duel' ? 'DUEL' : b.game === 'tol' ? 'TRUTH OR LIE' : 'SPRINT') + '</b> Final Result</p>';
-      html += '<div class="verdict" style="color:' + (w < 0 ? 'var(--ink)' : COL[w].c) + ';text-shadow:0 0 30px ' + (w < 0 ? 'none' : COL[w].g) + '">' + (w < 0 ? (b.game === 'duel' ? 'Dead <em>heat.</em>' : 'A <em>draw.</em>') : esc(P[w].name) + ' <em>wins.</em>') + '</div>';
-      if (b.game === 'duel') html += '<p class="margin">' + (w < 0 ? 'Level to the hundredth of a second. Remarkable, or suspicious.' : 'By ' + Math.abs(P[0].time - P[1].time).toFixed(2) + ' seconds.') + '</p>';
-      else if (w < 0) html += '<p class="margin">Level at ' + P[0].score + '–' + P[1].score + (vsSprint ? ' correct' : '') + '.</p>';
-      else html += '<p class="margin">' + P[w].score + '–' + P[1 - w].score + (vsSprint ? ' correct answers.' : '.') + '</p>';
+      var w = b.winner, timed = isTimed(b.game), scored = b.game === 'sprint', pen = penOf(b.game);
+      var WL = b.game === 'climb' ? 'Slips' : b.game === 'target' ? 'Skipped' : 'Wrong';
+      var PQ = b.game === 'climb' ? 'Per ledge' : b.game === 'target' ? 'Per puzzle' : b.game === 'bigger' ? 'Per pair' : 'Per Q';
+      html += '<p class="kicker"><b>' + (GNAME[b.game] || 'Game') + '</b> Final Result</p>';
+      html += '<div class="verdict" style="color:' + (w < 0 ? 'var(--ink)' : COL[w].c) + ';text-shadow:0 0 30px ' + (w < 0 ? 'none' : COL[w].g) + '">' + (w < 0 ? (timed ? 'Dead <em>heat.</em>' : 'A <em>draw.</em>') : esc(P[w].name) + ' <em>wins.</em>') + '</div>';
+      if (timed) html += '<p class="margin">' + (w < 0 ? (b.game === 'duel' ? 'Level to the hundredth of a second. Remarkable, or suspicious.' : 'Same time to the hundredth of a second.') : 'By ' + Math.abs(P[0].time - P[1].time).toFixed(2) + ' seconds.') + '</p>';
+      else if (w < 0) html += '<p class="margin">Level at ' + P[0].score + '–' + P[1].score + (scored ? ' correct' : '') + '.</p>';
+      else html += '<p class="margin">' + P[w].score + '–' + P[1 - w].score + (scored ? ' correct answers.' : '.') + '</p>';
       if (ser && (ser[0] + ser[1] + ser[2]) > 1) html += '<p class="series">Series · ' + esc(P[0].name) + ' ' + ser[0] + ' – ' + ser[1] + ' ' + esc(P[1].name) + (ser[2] ? ' · ' + ser[2] + ' drawn' : '') + '</p>';
       else html += '<p class="series">&nbsp;</p>';
       html += '<div class="cards">' + [0, 1].map(function (i) {
         var p = P[i], lose = w >= 0 && w !== i;
         var style = 'style="--pc:' + COL[i].c + ';--pd:' + COL[i].d + ';--pg:' + COL[i].g + '"';
-        if (b.game === 'duel') return '<div class="card' + (lose ? ' lose' : '') + '" ' + style + '><div class="whoc">' + esc(p.name) + '</div><div class="t">' + (p.dnf ? 'DNF' : p.time.toFixed(2) + ' s') + '</div><dl>' +
-          '<dt>Raw time</dt><dd>' + p.raw.toFixed(2) + ' s</dd><dt>Wrong</dt><dd>' + p.wrong + (p.wrong ? ' · +' + p.wrong * PENALTY + 's' : '') + '</dd><dt>Per Q</dt><dd>' + (p.time / b.cfg.n).toFixed(2) + ' s</dd><dt>Streak</dt><dd>' + (p.bestStreak || 0) + '</dd></dl></div>';
-        if (vsSprint) return '<div class="card' + (lose ? ' lose' : '') + '" ' + style + '><div class="whoc">' + esc(p.name) + '</div><div class="t">' + p.score + ' correct</div><dl>' +
+        if (timed) return '<div class="card' + (lose ? ' lose' : '') + '" ' + style + '><div class="whoc">' + esc(p.name) + '</div><div class="t">' + (p.dnf ? 'DNF' : p.time.toFixed(2) + ' s') + '</div><dl>' +
+          '<dt>Raw time</dt><dd>' + p.raw.toFixed(2) + ' s</dd><dt>' + WL + '</dt><dd>' + p.wrong + (p.wrong && pen ? ' · +' + p.wrong * pen + ' s' : '') + '</dd><dt>' + PQ + '</dt><dd>' + (p.time / b.cfg.n).toFixed(2) + ' s</dd><dt>Streak</dt><dd>' + (p.bestStreak || 0) + '</dd></dl></div>';
+        if (scored) return '<div class="card' + (lose ? ' lose' : '') + '" ' + style + '><div class="whoc">' + esc(p.name) + '</div><div class="t">' + p.score + ' correct</div><dl>' +
           '<dt>Wrong</dt><dd>' + p.wrong + '</dd><dt>Accuracy</dt><dd>' + (p.score + p.wrong ? Math.round(p.score / (p.score + p.wrong) * 100) : 0) + '%</dd><dt>Best streak</dt><dd>' + (p.bestStreak || 0) + '</dd></dl></div>';
         return '<div class="card' + (lose ? ' lose' : '') + '" ' + style + '><div class="whoc">' + esc(p.name) + '</div><div class="t">' + p.score + ' pts</div><dl>' +
           '<dt>Wrong calls</dt><dd>' + p.wrong + '</dd><dt>Reaction</dt><dd>' + (p.avgRt == null ? '–' : p.avgRt.toFixed(2) + ' s') + '</dd></dl></div>';
       }).join('') + '</div>';
-      if (b.game === 'duel') html += exhibitSplits(P, 'Figure 1: seconds per question, penalties excluded');
-      if (vsSprint) html += exhibitSplits(P, 'Figure 1: seconds per correct answer');
+      if (timed) html += exhibitSplits(P, b.game === 'climb' ? 'Seconds per ledge climbed' : b.game === 'target' ? 'Seconds per puzzle' : 'Seconds per question, penalties not included');
+      if (scored) html += exhibitSplits(P, 'Seconds per correct answer');
       winColor = w < 0 ? null : (w === 0 ? cssVar('--p1') : cssVar('--p2'));
     } else if (b.game === 'sprint') {
       var p0 = P[0], best = computeStats(localBattles()).bestSprint, pb = best == null || p0.score > best;
@@ -1891,7 +1864,7 @@
       html += '<p class="margin">' + (pb && p0.score > 0 ? 'New personal best.' : 'Personal best: ' + best + '.') + ' ' + (p0.score ? (60 / p0.score).toFixed(2) + ' s per answer.' : '') + '</p><p class="series">&nbsp;</p>';
       html += '<div class="cards one"><div class="card" style="--pc:var(--p1);--pd:var(--p1-deep);--pg:var(--p1-glow)"><div class="whoc">' + esc(p0.name) + '</div><dl>' +
         '<dt>Correct</dt><dd>' + p0.score + '</dd><dt>Wrong</dt><dd>' + p0.wrong + '</dd><dt>Accuracy</dt><dd>' + (p0.score + p0.wrong ? Math.round(p0.score / (p0.score + p0.wrong) * 100) : 0) + '%</dd><dt>Best streak</dt><dd>' + p0.bestStreak + '</dd>' + weakSpot(p0.wrongBy) + '</dl></div></div>';
-      html += exhibitSplits([p0], 'Figure 1: seconds per correct answer');
+      html += exhibitSplits([p0], 'Seconds per correct answer');
       if (pb && p0.score > 0) winColor = cssVar('--p1');
     } else {
       var d0 = P[0];
@@ -1900,7 +1873,7 @@
       html += '<p class="margin">' + (b.practice ? 'Practice run. Only your first attempt counts on the board.' : 'That’s your time for today. See where it ranks.') + '</p><p class="series">&nbsp;</p>';
       html += '<div class="cards one"><div class="card" style="--pc:var(--p2);--pd:var(--p2-deep);--pg:var(--p2-glow)"><div class="whoc">' + esc(d0.name) + '</div><dl>' +
         '<dt>Answering</dt><dd>' + d0.raw.toFixed(2) + ' s</dd><dt>Wrong</dt><dd>' + d0.wrong + ' (+' + d0.wrong * PENALTY + ' s)</dd><dt>Best streak</dt><dd>' + d0.bestStreak + '</dd>' + weakSpot(d0.wrongBy) + '</dl></div></div>';
-      html += exhibitSplits([d0], 'Figure 1: seconds per question');
+      html += exhibitSplits([d0], 'Seconds per question');
       if (!b.practice) winColor = cssVar('--p2');
     }
     html += payBattle(b);
@@ -1927,7 +1900,7 @@
     $('again').onclick = function () {
       if (b.game === 'daily') { boardTab = 'daily'; go('boards'); return; }
       if (b.game === 'sprint') return startSoloGame('sprint');
-      if (b.game === 'tol') return startTol();
+      if (b.game === 'tol') { LCFG.game = 'tol'; go('live'); return; }
       startDuel();
     };
     $('toArena').onclick = function () { abortGame(); go(''); };
@@ -1967,10 +1940,17 @@
   function shareResult(b) {
     var P = b.players, txt;
     if (b.game === 'duel') txt = b.winner < 0 ? 'Dead heat on Sum Duel. ' + P[0].name + ' and ' + P[1].name + ' both on ' + P[0].time.toFixed(2) + ' s.' : P[b.winner].name + ' beat ' + P[1 - b.winner].name + ' on Sum Duel by ' + Math.abs(P[0].time - P[1].time).toFixed(2) + ' s ⚔';
+    else if (isTimed(b.game)) {
+      var nm = GNAME[b.game] + ' on Sum Duel';
+      txt = b.winner < 0 ? 'Dead heat in ' + nm + '. ' + P[0].name + ' and ' + P[1].name + ' both on ' + P[0].time.toFixed(2) + ' s.'
+        : P[b.winner].name + ' beat ' + P[1 - b.winner].name + ' in ' + nm + ' by ' + Math.abs(P[0].time - P[1].time).toFixed(2) + ' s';
+    }
     else if (b.game === 'tol') txt = b.winner < 0 ? 'Truth or Lie ended level ' + P[0].score + '–' + P[1].score + ' on Sum Duel'
       : P[b.winner].name + ' won Truth or Lie ' + P[b.winner].score + '–' + P[1 - b.winner].score + ' on Sum Duel';
-    else if (b.game === 'sprint' && P.length > 1) txt = b.winner < 0 ? 'A Sprint tie on Sum Duel: ' + P[0].score + ' each.'
-      : P[b.winner].name + ' won a live Sprint ' + P[b.winner].score + '–' + P[1 - b.winner].score + ' on Sum Duel';
+    else if (b.game === 'sprint' && P.length > 1) {
+      txt = b.winner < 0 ? 'A Sprint tie on Sum Duel: ' + P[0].score + ' each.'
+        : P[b.winner].name + ' won a live Sprint ' + P[b.winner].score + '–' + P[1 - b.winner].score + ' on Sum Duel';
+    }
     else if (b.game === 'sprint') txt = 'I got ' + P[0].score + ' correct in 60 s on Sum Duel Sprint. Beat that.';
     else txt = 'Sum Duel Daily ' + b.day + ': ' + P[0].time.toFixed(2) + ' s with ' + P[0].wrong + ' wrong. Your move.';
     var url = location.origin + '/';
@@ -1983,7 +1963,7 @@
   // Stats + Record
   // =====================================================================
   // Head to head: duels, Truth or Lie, Daily VS ghost races, and live games of every kind (incl. Sprint).
-  function isH2H(b) { return b.game === 'duel' || b.game === 'tol' || (b.game === 'sprint' && (b.players || []).length > 1); }
+  function isH2H(b) { return isTimed(b.game) || b.game === 'tol' || (b.game === 'sprint' && (b.players || []).length > 1); }
   function recKind(b) { return b.mode === 'live' ? 'live' : b.mode === 'ghost' ? 'vs' : b.game; }
   function computeStats(list) {
     var st = { total: list.length, duels: 0, w: 0, l: 0, d: 0, bestSprint: null, bestDaily: null, streak: 0, bestStreak: 0, rivals: [], byGame: { duel: 0, tol: 0, sprint: 0, daily: 0, live: 0, vs: 0 }, sprintSeries: [] };
@@ -2016,13 +1996,13 @@
     var el = $('v-record');
     var paint = function (list) {
       var st = computeStats(list);
-      var html = '<p class="kicker"><b>3</b> ' + (ME ? esc(ME.name) + '’s Record' : 'Your Record · This Device') + '</p><h2 class="title">Every Battle, on the Record</h2>';
+      var html = '<p class="kicker">' + (ME ? esc(ME.name) + '’s Record' : 'Your Record · This Device') + '</p><h2 class="title">Every Battle, on the Record</h2>';
       if (!ME) html += '<div class="savebar"><span>You’re not signed in, so this record only lives in this browser.</span><a class="btn" href="#/account" style="padding:8px 12px">Sign in</a></div>';
       if (!list.length) { el.innerHTML = html + '<div class="blank">No battles yet. <a href="#/">Go and pick a fight.</a></div>'; return; }
       html += '<div class="section" style="margin-top:18px">' + kpiRow(st) + '</div>';
       html += '<div class="grid2">';
       // Head to head
-      html += '<div class="panel"><p class="kicker"><b>3.1</b> Head to Head</p>';
+      html += '<div class="panel"><h3 class="h3">Head to Head</h3>';
       if (st.rivals.length) {
         html += '<table class="tbl"><thead><tr><th>Rival</th><th class="n">P</th><th class="n">W–L</th><th></th></tr></thead><tbody>' +
           st.rivals.slice(0, 12).map(function (r) {
@@ -2032,11 +2012,11 @@
       } else html += '<p class="hint">Play a Duel, a Live game or the Daily\u00A0VS to start a rivalry.</p>';
       html += '</div>';
       // Sprint trend
-      html += '<div class="panel spark"><p class="kicker"><b>3.2</b> Sprint Trend</p>' + sparkline(st.sprintSeries) +
+      html += '<div class="panel spark"><h3 class="h3">Sprint Trend</h3>' + sparkline(st.sprintSeries) +
         '<p class="hint">' + (st.sprintSeries.length ? st.sprintSeries.length + (st.sprintSeries.length === 1 ? ' sprint' : ' sprints') + ' · best ' + st.bestSprint + (st.bestDaily != null ? ' · best Daily ' + st.bestDaily.toFixed(2) + ' s' : '') : 'No sprints yet.') + '</p></div>';
       html += '</div>';
       // History
-      html += '<div class="section"><p class="kicker"><b>3.3</b> History</p><div class="filters" id="recF">' +
+      html += '<div class="section"><h3 class="h3">History</h3><div class="filters" id="recF">' +
         [['all', 'All'], ['duel', 'Duels'], ['live', 'Live'], ['tol', 'Truth or Lie'], ['sprint', 'Sprint'], ['daily', 'Daily'], ['vs', 'Daily\u00A0VS']].filter(function (f) { return f[0] === 'all' || f[0] === 'duel' || st.byGame[f[0]]; }).map(function (f) { return '<button data-f="' + f[0] + '" aria-pressed="' + (recFilter === f[0]) + '">' + f[1] + (f[0] !== 'all' && st.byGame[f[0]] ? ' · ' + st.byGame[f[0]] : '') + '</button>'; }).join('') +
         '</div><div class="list">' + list.filter(function (b) { return recFilter === 'all' || recKind(b) === recFilter; }).slice(0, 200).map(itemHtml).join('') + '</div></div>';
       el.innerHTML = html;
@@ -2049,10 +2029,11 @@
     var P = b.players || [], badge, main, right;
     if (isH2H(b)) {
       var res = b.winner === 0 ? 'W' : b.winner === 1 ? 'L' : 'D';
-      badge = '<span class="badge ' + res + '">' + res + ' · ' + (b.mode === 'ghost' ? 'VS' : b.game === 'duel' ? 'Duel' : b.game === 'tol' ? 'T/L' : 'Sprint') + '</span>';
+      var LAB = { duel: 'Duel', tol: 'T/L', sprint: 'Sprint', climb: 'Climb', missing: 'Missing', target: 'Target', bigger: 'Bigger' };
+      badge = '<span class="badge ' + res + '">' + res + ' · ' + (b.mode === 'ghost' ? 'VS' : (LAB[b.game] || 'Live')) + '</span>';
       main = '<b>' + esc(P[0] && P[0].name) + ' vs ' + esc(P[1] && P[1].name) + '</b><small>' + fmtDate(b.at) + (b.mode === 'live' ? ' · live' : b.mode === 'ghost' ? ' · Daily\u00A0VS ' + esc(b.day || '') : '') + (b.cfg && b.mode !== 'ghost' ? ' · ' + esc((b.cfg.ops || []).join(' ')) + ' · ' + esc(b.cfg.level || '') : '') + (b.mode === 'turns' ? ' · turns' : '') + '</small>';
       var tm = function (p) { return p.dnf ? 'DNF' : Number(p.time).toFixed(2); };
-      right = b.game === 'duel' ? (tm(P[0]) + ' / ' + tm(P[1])) : (P[0].score + '–' + P[1].score);
+      right = isTimed(b.game) ? (tm(P[0]) + ' / ' + tm(P[1])) : (P[0].score + '–' + P[1].score);
     } else if (b.game === 'sprint') {
       badge = '<span class="badge">Sprint</span>'; main = '<b>' + P[0].score + ' correct</b><small>' + fmtDate(b.at) + ' · ' + P[0].wrong + ' wrong</small>'; right = P[0].score;
     } else {
@@ -2097,16 +2078,35 @@
   }
 
   // =====================================================================
-  // Live duel: two devices, server-timed, polled
+  // Live games: two devices, server-timed, polled. Seven games; the rules are in api/live.js.
+  // The lobby is a game picker (tiles) with a detail panel: how it works, a worked example, the options,
+  // "Find an opponent" (join an open public game of that kind, or open one) and "Make a game for a friend".
   // =====================================================================
   var LV = { timer: null, offset: 0, rtt: 1e9, g: null, sending: false, again: false, finalSent: false };
   var LCFG = Object.assign({ game: 'duel', ops: ['+', '−', '×', '÷'], level: 'medium', n: 10, priv: false }, store.get('sd_live_cfg', {}));
-  var GNAME = { duel: 'Duel', tol: 'Truth or Lie', sprint: 'Sprint' };
+  if (!GNAME[LCFG.game]) LCFG.game = 'duel';
+  if (!Array.isArray(LCFG.ops) || !LCFG.ops.length) LCFG.ops = ['+', '−', '×', '÷'];
+  function saveLcfg() { store.set('sd_live_cfg', { game: LCFG.game, ops: LCFG.ops, level: LCFG.level, n: LCFG.n, priv: LCFG.priv }); }
   var GHOW = {
-    duel: 'Same questions, separate clocks. Fastest time wins; every wrong answer adds 3 seconds.',
-    tol: 'The same sum pops up on both screens. Call it true or a lie: the quickest right call scores. First to 7 wins.',
-    sprint: 'Sixty seconds, the same questions. Most right answers wins.'
+    duel: 'You both get the same sums, each on your own clock. Every wrong answer adds 3 seconds. Fastest total time wins.',
+    climb: 'Twelve ledges to the top: easy at the bottom, hard at the top. A right answer climbs one ledge and a wrong one slips you down one. You can see each other on the cliff. First to the top wins.',
+    tol: 'The same sum pops up on both screens. Call it true or a lie: the quickest right call scores, and a wrong call can’t score that round. First to 7 wins.',
+    sprint: 'Sixty seconds of sums, the same for both of you. Most right answers wins, and fewer mistakes breaks a tie.',
+    missing: 'Every sum has a number missing, like 7 × ? = 42. Same sums, separate clocks, and 3 seconds added for every wrong answer. Fastest time wins.',
+    target: 'Five number puzzles. Tap a number, a sign, then another number to combine them, and keep going until you make the target. You don’t need every number. Stuck? Skip it for 10 seconds. Fastest time wins.',
+    bigger: 'Fifteen pairs of sums. Tap the one that’s bigger. A wrong tap adds 3 seconds. Fastest time wins.'
   };
+  // A worked example for each game, drawn in HTML so it follows the palette.
+  var GEX = {
+    duel: '<span class="ex-q">7 × 8 = <b class="ex-ans">56</b></span><span class="ex-sub">fastest through all ten</span>',
+    climb: cliffMini(6, 2, 4),
+    tol: '<span class="ex-q">6 × 7 = 42</span><span class="ex-chip ok">True</span><span class="ex-chip">Lie</span>',
+    sprint: '<span class="ex-q">60 s</span><span class="ex-sub">as many as you can</span>',
+    missing: '<span class="ex-q">7 × <b class="ex-gap">?</b> = 42</span><span class="ex-sub">the gap is 6</span>',
+    target: '<span class="ex-tiles"><i>3</i><i>4</i><i>6</i></span><span class="ex-sub">make</span><span class="ex-q">30</span><span class="ex-sub">(4 + 6) × 3</span>',
+    bigger: '<span class="ex-q">7 × 8</span><span class="ex-sub">or</span><span class="ex-q">9 × 6</span><span class="ex-sub">56 is bigger</span>'
+  };
+  var OPNAME = { '+': 'plus', '−': 'minus', '×': 'times', '÷': 'divided by' };
   function liveGame(c) { return (c && GNAME[c.game]) ? c.game : 'duel'; }
   function inLive(code) { return !!G && (G.kind === 'live' || G.kind === 'ltol') && (!code || G.code === code); }
   function serverNow() { return Date.now() + LV.offset; }
@@ -2121,70 +2121,46 @@
     });
   }
   function cfgText(c) {
-    var g = liveGame(c);
-    return GNAME[g] + ' · ' + (c.ops || []).join(' ') + ' · ' + c.level + (g === 'duel' ? ' · ' + c.n + ' questions' : g === 'tol' ? ' · first to 7' : ' · 60 seconds');
+    var g = liveGame(c), n = c.n;
+    var tail = g === 'tol' ? 'first to 7' : g === 'sprint' ? '60 seconds' : g === 'climb' ? n + ' ledges, easy to hard'
+      : g === 'target' ? n + ' puzzles' : g === 'bigger' ? n + ' pairs' : n + ' questions';
+    return GNAME[g] + ' · ' + (c.ops || []).join(' ') + (g === 'climb' ? '' : ' · ' + c.level) + ' · ' + tail;
   }
   function liveOther(r) { return r === 'host' ? 'guest' : 'host'; }
   function liveVisible(id) { return !$(id).classList.contains('hidden'); }
+  function codeClean(v) { return String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5); }
 
   function renderLive(code) {
     liveStop();
     var el = $('v-live');
-    if (!ME) {
-      el.innerHTML = '<p class="kicker"><b>2.5</b> Live Games</p><h2 class="title">Live Games</h2>' +
-        '<p class="lede">Play a friend on their own device: a Duel, Truth or Lie, or a 60-second Sprint. You need an account so the game knows who’s who.</p><a class="btn primary" href="#/account">Sign in to play</a>';
-      return;
-    }
-    if (code) return renderRoom(code);
-    el.innerHTML = '<p class="kicker"><b>2.5</b> Live Games</p><h2 class="title">Live Games</h2>' +
-      '<p class="lede">Two devices, one race. Pick a game, create it and share its code, or join an open game below. Private games need their password.</p>' +
+    if (code && ME) return renderRoom(code);
+    if (code) pendingJoin = code;   // signed out with a code: sign in, then go straight to that room
+    el.innerHTML = '<a class="back" href="#/">← Arena</a><p class="kicker">Play Online</p><h2 class="title">Two Players, Two Devices</h2>' +
+      '<p class="lede">' + (ME ? 'Pick a game. Then find an opponent, or make a game for a friend and send them the code.'
+        : 'Play a friend on their own phone, tablet or computer. You both need to sign in, so the game knows who’s who.') + '</p>' +
+      (!ME && code ? '<div class="savebar"><span>Sign in and you’ll go straight into game <b class="mono">' + esc(code) + '</b>.</span><a class="btn primary" href="#/account">Sign in</a></div>' : '') +
       '<div id="lvActive"></div>' +
-      '<div class="grid2">' +
-        '<div class="panel"><p class="kicker"><b>A</b> Create a Game</p>' +
-          '<div class="field"><span class="lab">Game</span><div class="lv-games" id="lvGame">' + ['duel', 'tol', 'sprint'].map(function (k) { return '<button type="button" data-v="' + k + '"><b>' + GNAME[k] + '</b></button>'; }).join('') + '</div><p class="hint" id="lvHow"></p></div>' +
-          '<div class="field"><span class="lab">Name</span><input class="inp" id="lvName" maxlength="30" placeholder="' + esc(ME.name) + '’s game"></div>' +
-          '<div class="field"><span class="lab">Operations</span><div class="ops" id="lvOps">' + ['+', '−', '×', '÷'].map(function (o) { return '<button type="button" data-v="' + o + '">' + o + '</button>'; }).join('') + '</div></div>' +
-          '<div class="field"><span class="lab">Difficulty</span><div class="seg" id="lvLevel"><button data-v="easy">Easy</button><button data-v="medium">Medium</button><button data-v="hard">Hard</button></div></div>' +
-          '<div class="field" id="lvNField"><span class="lab">Questions</span><div class="seg" id="lvN"><button data-v="5">5</button><button data-v="10">10</button><button data-v="15">15</button><button data-v="20">20</button></div></div>' +
-          '<div class="setrow" style="border:0;padding-top:0"><div>Private game<small>Only people with the password can join</small></div><button class="toggle" id="lvPriv" aria-label="Private game"></button></div>' +
-          '<input class="inp hidden" id="lvPw" maxlength="50" placeholder="Game password (3+ characters)" autocomplete="off">' +
-          '<div class="err" id="lvErr" role="alert"></div><button class="btn primary block lg" id="lvCreateBtn">Create game</button></div>' +
-        '<div><div class="panel"><p class="kicker"><b>B</b> Join With a Code</p>' +
-          '<div class="row"><input class="inp" id="lvCode" maxlength="5" placeholder="ABCDE" style="flex:1;margin:0;min-width:0;text-transform:uppercase;font-family:var(--mono)" autocomplete="off"><button class="btn" id="lvCodeBtn">Join</button></div>' +
+      '<div class="lv-wrap"><div class="lv-pick" id="lvGame" role="radiogroup" aria-label="Choose a game">' + LV_GAMES.map(function (k) {
+        return '<button type="button" class="gpick" role="radio" data-v="' + k + '" style="--gc:var(--g-' + GINFO[k].c + ')">' + gicon(k, GINFO[k].a) + '<b>' + GNAME[k] + '</b></button>';
+      }).join('') + '</div><div class="panel lv-detail" id="lvDetail"></div></div>' +
+      (ME ? '<div class="grid2 lv-lower">' +
+        '<div class="panel"><h3 class="h3">Join With a Code</h3><p class="hint" style="margin:0 0 10px">Your friend’s screen shows a 5-character code.</p>' +
+          '<div class="row"><input class="inp code" id="lvCode" maxlength="5" placeholder="ABCDE" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Game code"><button class="btn primary" id="lvCodeBtn">Join</button></div>' +
           '<input class="inp hidden" id="lvCodePw" maxlength="50" placeholder="Password (private games)" autocomplete="off" style="margin-top:10px">' +
           '<div class="err" id="lvCodeErr" role="alert"></div></div>' +
-          '<div class="section" style="margin-top:22px"><p class="kicker"><b>C</b> Open Games</p><div class="list" id="lvList"><div class="blank">Looking for games…</div></div></div></div>' +
-      '</div>';
-    var paintCfg = function () {
-      if (!GNAME[LCFG.game]) LCFG.game = 'duel';
-      qsa('#lvGame button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.v === LCFG.game)); });
-      $('lvHow').textContent = GHOW[LCFG.game]; $('lvNField').classList.toggle('hidden', LCFG.game !== 'duel');
-      qsa('#lvOps button').forEach(function (b) { b.setAttribute('aria-pressed', String(LCFG.ops.indexOf(b.dataset.v) >= 0)); });
-      qsa('#lvLevel button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.v === LCFG.level)); });
-      qsa('#lvN button').forEach(function (b) { b.setAttribute('aria-pressed', String(Number(b.dataset.v) === LCFG.n)); });
-      $('lvPriv').setAttribute('aria-pressed', String(!!LCFG.priv)); $('lvPw').classList.toggle('hidden', !LCFG.priv);
-      store.set('sd_live_cfg', { game: LCFG.game, ops: LCFG.ops, level: LCFG.level, n: LCFG.n, priv: LCFG.priv });
+        '<div class="panel"><h3 class="h3">Open Games</h3><div class="list" id="lvList"><div class="blank">Looking for games…</div></div></div></div>' : '');
+    var pick = $('lvGame');
+    pick.onclick = function (e) { var b = e.target.closest('.gpick'); if (b) { ac(); LCFG.game = b.dataset.v; saveLcfg(); paintDetail(); } };
+    pick.onkeydown = function (e) {   // a radio group: arrow keys move the choice
+      var step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0; if (!step) return;
+      e.preventDefault(); var i = (LV_GAMES.indexOf(LCFG.game) + step + LV_GAMES.length) % LV_GAMES.length;
+      LCFG.game = LV_GAMES[i]; saveLcfg(); paintDetail(); var b = pick.querySelector('[data-v="' + LCFG.game + '"]'); if (b) b.focus();
     };
-    $('lvGame').onclick = function (e) { var b = e.target.closest('button'); if (b) { LCFG.game = b.dataset.v; paintCfg(); } };
-    $('lvOps').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; var v = b.dataset.v;
-      if (LCFG.ops.indexOf(v) >= 0) { if (LCFG.ops.length > 1) LCFG.ops = LCFG.ops.filter(function (o) { return o !== v; }); } else LCFG.ops = LCFG.ops.concat([v]); paintCfg(); };
-    $('lvLevel').onclick = function (e) { var b = e.target.closest('button'); if (b) { LCFG.level = b.dataset.v; paintCfg(); } };
-    $('lvN').onclick = function (e) { var b = e.target.closest('button'); if (b) { LCFG.n = Number(b.dataset.v); paintCfg(); } };
-    $('lvPriv').onclick = function () { LCFG.priv = !LCFG.priv; paintCfg(); if (LCFG.priv) $('lvPw').focus(); };
-    paintCfg();
-    $('lvCreateBtn').onclick = function () {
-      var btn = this; btn.disabled = true; $('lvErr').textContent = '';
-      liveApi('/api/live', { action: 'create', name: $('lvName').value, cfg: { game: LCFG.game, ops: LCFG.ops, level: LCFG.level, n: LCFG.n }, private: !!LCFG.priv, password: $('lvPw').value })
-        .then(function (j) { go('live/' + j.code); })
-        .catch(function (e) { $('lvErr').textContent = e.message; btn.disabled = false; });
-    };
-    var joinCode = function (code, pw, errEl) {
-      return liveApi('/api/live', { action: 'join', code: code, password: pw || '' }).then(function (j) { go('live/' + j.code); })
-        .catch(function (e) { errEl.textContent = e.message; if (/password/i.test(e.message)) return 'pw'; });
-    };
-    $('lvCode').oninput = function () { this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); };
+    paintDetail();
+    if (!ME) return;
+    $('lvCode').oninput = function () { this.value = codeClean(this.value); };
     $('lvCodeBtn').onclick = function () {
-      var c = $('lvCode').value; if (c.length !== 5) { $('lvCodeErr').textContent = 'Codes are 5 characters.'; return; }
+      var c = $('lvCode').value; if (c.length !== 5) { $('lvCodeErr').textContent = 'Codes are 5 letters and numbers.'; return; }
       joinCode(c, $('lvCodePw').value, $('lvCodeErr')).then(function (r) { if (r === 'pw') { $('lvCodePw').classList.remove('hidden'); $('lvCodePw').focus(); } });
     };
     $('lvList').onclick = function (e) {
@@ -2193,26 +2169,91 @@
       var pwEl = it.querySelector('input');
       if (it.dataset.priv === '1' && !pwEl) {
         var box = document.createElement('div'); box.className = 'row'; box.style.gridColumn = '1/-1';
-        box.innerHTML = '<input class="inp" maxlength="50" placeholder="Password" style="flex:1;margin:0;min-width:0" autocomplete="off"><button class="btn" data-a="join">Join</button><div class="err" style="width:100%"></div>';
+        box.innerHTML = '<input class="inp" maxlength="50" placeholder="Password" style="flex:1;margin:0;min-width:0" autocomplete="off"><button class="btn primary" data-a="join">Join</button><div class="err" style="width:100%"></div>';
         it.appendChild(box); box.querySelector('input').focus(); return;
       }
       joinCode(code, pwEl ? pwEl.value : '', it.querySelector('.err') || $('lvCodeErr'));
     };
     pollLobby();
   }
+  function joinCode(code, pw, errEl) {
+    return liveApi('/api/live', { action: 'join', code: code, password: pw || '' }).then(function (j) { go('live/' + j.code); })
+      .catch(function (e) { errEl.textContent = e.message; if (/password/i.test(e.message)) return 'pw'; });
+  }
+  function paintDetail() {
+    var k = LCFG.game, I = GINFO[k], d = $('lvDetail'); if (!d) return;
+    qsa('#lvGame .gpick').forEach(function (b) { var on = b.dataset.v === k; b.setAttribute('aria-checked', String(on)); b.tabIndex = on ? 0 : -1; });
+    d.style.setProperty('--gc', 'var(--g-' + I.c + ')');
+    var html = '<div class="lvd-head">' + gicon(k, I.a) + '<div><h3>' + GNAME[k] + '</h3><span>' + I.time + ' · 2 players</span></div></div>' +
+      '<p class="lvd-how">' + GHOW[k] + '</p><div class="lvd-ex" aria-hidden="true">' + GEX[k] + '</div>';
+    if (!ME) {
+      d.innerHTML = html + '<a class="btn primary lg block" href="#/account">Sign in to play</a><p class="hint lvd-hint">Both players need an account. It takes an email and a password.</p>';
+      return;
+    }
+    var seg = function (id, list, cur) { return '<div class="seg" id="' + id + '">' + list.map(function (x) { return '<button type="button" data-v="' + x[0] + '" aria-pressed="' + (String(x[0]) === String(cur)) + '">' + x[1] + '</button>'; }).join('') + '</div>'; };
+    html += '<div class="field"><span class="lab">Operations</span><div class="ops" id="lvOps">' + ['+', '−', '×', '÷'].map(function (o) {
+      return '<button type="button" data-v="' + o + '" aria-label="' + OPNAME[o] + '" aria-pressed="' + (LCFG.ops.indexOf(o) >= 0) + '">' + o + '</button>'; }).join('') + '</div></div>';
+    html += k === 'climb' ? '<div class="field"><span class="lab">Difficulty</span><p class="hint" style="margin:0">Starts easy and gets harder on the way up.</p></div>'
+      : '<div class="field"><span class="lab">Difficulty</span>' + seg('lvLevel', [['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard']], LCFG.level) + '</div>';
+    if (k === 'duel' || k === 'missing') html += '<div class="field"><span class="lab">Questions</span>' + seg('lvN', [[5, '5'], [10, '10'], [15, '15'], [20, '20']], LCFG.n) + '</div>';
+    html += '<button class="btn primary lg block" id="lvQuick" type="button">Find an opponent</button>' +
+      '<p class="hint lvd-hint">Joins an open ' + GNAME[k] + ' game, or opens one and waits for someone to join.</p>' +
+      '<div class="lvd-friend"><p class="lab">Or play a friend</p>' +
+        '<div class="setrow"><div>Private game<small>Your friend needs the code and a password</small></div><button class="toggle" id="lvPriv" type="button" aria-label="Private game" aria-pressed="' + !!LCFG.priv + '"></button></div>' +
+        '<input class="inp' + (LCFG.priv ? '' : ' hidden') + '" id="lvPw" maxlength="50" placeholder="Game password (3 or more characters)" autocomplete="off">' +
+        '<button class="btn lg block" id="lvCreateBtn" type="button">Make a game for a friend</button></div>' +
+      '<div class="err" id="lvErr" role="alert"></div>';
+    d.innerHTML = html;
+    $('lvOps').onclick = function (e) {
+      var b = e.target.closest('button'); if (!b) return; var v = b.dataset.v;
+      if (LCFG.ops.indexOf(v) >= 0) { if (LCFG.ops.length > 1) LCFG.ops = LCFG.ops.filter(function (o) { return o !== v; }); else toast('Keep at least one operation'); }
+      else LCFG.ops = LCFG.ops.concat([v]);
+      saveLcfg(); qsa('#lvOps button').forEach(function (x) { x.setAttribute('aria-pressed', String(LCFG.ops.indexOf(x.dataset.v) >= 0)); });
+    };
+    var segBind = function (id, key, cast) {
+      var s = $(id); if (!s) return;
+      s.onclick = function (e) { var b = e.target.closest('button'); if (!b) return; LCFG[key] = cast(b.dataset.v); saveLcfg(); qsa('button', s).forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); };
+    };
+    segBind('lvLevel', 'level', String); segBind('lvN', 'n', Number);
+    $('lvPriv').onclick = function () { LCFG.priv = !LCFG.priv; saveLcfg(); this.setAttribute('aria-pressed', String(LCFG.priv)); $('lvPw').classList.toggle('hidden', !LCFG.priv); if (LCFG.priv) $('lvPw').focus(); };
+    $('lvCreateBtn').onclick = function () { createGame(this, !!LCFG.priv); };
+    $('lvQuick').onclick = function () { quickMatch(this); };
+  }
+  function liveCfg() { return { game: LCFG.game, ops: LCFG.ops, level: LCFG.level, n: LCFG.n }; }
+  function createGame(btn, priv) {
+    btn.disabled = true; $('lvErr').textContent = '';
+    return liveApi('/api/live', { action: 'create', cfg: liveCfg(), private: priv, password: priv ? $('lvPw').value : '' })
+      .then(function (j) { go('live/' + j.code); })
+      .catch(function (e) { $('lvErr').textContent = e.message; btn.disabled = false; });
+  }
+  // One tap to a game: join the newest open public game of this kind, or open one and wait in its room.
+  function quickMatch(btn) {
+    btn.disabled = true; $('lvErr').textContent = ''; var label = btn.textContent; btn.textContent = 'Looking…';
+    var done = function () { btn.disabled = false; btn.textContent = label; };
+    liveApi('/api/live?lobby=1').then(function (j) {
+      var same = function (g) { return !g.private && liveGame(g.cfg) === LCFG.game; };
+      var mine = j.games.filter(function (g) { return g.mine && same(g); })[0];
+      if (mine) { go('live/' + mine.code); return; }
+      var them = j.games.filter(function (g) { return !g.mine && same(g); })[0];
+      if (!them) return createGame(btn, false).then(done);
+      return liveApi('/api/live', { action: 'join', code: them.code }).then(function (r) { go('live/' + r.code); },
+        function () { return createGame(btn, false).then(done); });
+    }).catch(function (e) { $('lvErr').textContent = e.status ? e.message : 'Can’t reach the server. Check your connection.'; done(); });
+  }
   function pollLobby() {
     liveStop();
     if (!liveVisible('v-live') || !$('lvList')) return;
     liveApi('/api/live?lobby=1').then(function (j) {
       if (!$('lvList')) return;
-      $('lvActive').innerHTML = j.active ? '<div class="savebar ok" style="margin-bottom:18px"><span class="dot"></span><span>You’re in game <b class="mono">' + esc(j.active) + '</b>.</span><a class="btn" href="#/live/' + esc(j.active) + '">Back to the room</a></div>' : '';
+      $('lvActive').innerHTML = j.active ? '<div class="savebar ok"><span class="dot"></span><span>You’re in game <b class="mono">' + esc(j.active) + '</b>.</span><a class="btn" href="#/live/' + esc(j.active) + '">Back to the room</a></div>' : '';
       var open = document.activeElement && $('lvList').contains(document.activeElement);
       if (open) return; // don't wipe a password the player is typing
       $('lvList').innerHTML = j.games.length ? j.games.map(function (g) {
-        return '<div class="item" data-code="' + esc(g.code) + '" data-priv="' + (g.private ? 1 : 0) + '"><span class="badge g-' + liveGame(g.cfg) + '">' + GNAME[liveGame(g.cfg)] + (g.private ? ' · private' : '') + '</span>' +
-          '<div class="main"><b>' + esc(g.name) + '</b><small>' + esc(g.host) + ' · ' + esc(cfgText(g.cfg)) + ' · <span class="mono">' + esc(g.code) + '</span></small></div>' +
+        var k = liveGame(g.cfg);
+        return '<div class="item" data-code="' + esc(g.code) + '" data-priv="' + (g.private ? 1 : 0) + '">' + gicon(k, GINFO[k].a).replace('class="gicon"', 'class="gicon sm" style="--gc:var(--g-' + GINFO[k].c + ')"') +
+          '<div class="main"><b>' + esc(GNAME[k]) + (g.private ? ' · private' : '') + '</b><small>' + esc(g.host) + ' · ' + esc(cfgText(g.cfg).split(' · ').slice(1).join(' · ')) + ' · <span class="mono">' + esc(g.code) + '</span></small></div>' +
           (g.mine ? '<button class="btn" data-a="open">Your room</button>' : '<button class="btn primary" data-a="join">Join</button>') + '</div>';
-      }).join('') : '<div class="blank">No open games right now. Create one and share the code.</div>';
+      }).join('') : '<div class="blank">No open games right now. Find an opponent above and you’ll be the first.</div>';
     }).catch(function (e) { if (e.status === 401) { setMe(null); renderLive(); } })
       .then(function () { if (liveVisible('v-live') && $('lvList')) LV.timer = setTimeout(pollLobby, 3000); });
   }
@@ -2220,8 +2261,8 @@
   // ---------------- room ----------------
   function renderRoom(code) {
     var el = $('v-live');
-    el.innerHTML = '<button class="back" id="lvBack">← Live lobby</button><p class="kicker"><b>2.5</b> Room <span class="mono" style="margin-left:.4em">' + esc(code) + '</span></p>' +
-      '<h2 class="title" id="lvTitle">…</h2><p class="series" id="lvCfg">&nbsp;</p><div id="lvRoom"><div class="blank">Connecting…</div></div>';
+    el.innerHTML = '<button class="back" id="lvBack" type="button">← Play Online</button><p class="kicker">Game Room</p>' +
+      '<div class="room-head" id="lvHead"><div><h2 class="title" id="lvTitle">…</h2><p class="series" id="lvCfg">&nbsp;</p></div></div><div id="lvRoom"><div class="blank">Connecting…</div></div>';
     $('lvBack').onclick = function () {
       var g = LV.g;
       if (g && g.you && (g.status === 'open' || g.status === 'full')) liveApi('/api/live', { action: 'leave', code: code }).catch(function () {});
@@ -2243,7 +2284,7 @@
       else if (g.status === 'done' && g.result) liveResults(g);
     }).catch(function (e) {
       if (e.status === 401) { setMe(null); return renderLive(); }
-      if (e.status === 404 || e.status === 400) { if ($('lvRoom')) $('lvRoom').innerHTML = '<div class="blank">No game with that code. <a href="#/live">Back to the lobby</a></div>'; LV.g = { status: 'gone' }; }
+      if (e.status === 404 || e.status === 400) { if ($('lvRoom')) $('lvRoom').innerHTML = '<div class="blank">No game with that code. <a href="#/live">Back to Play Online</a></div>'; LV.g = { status: 'gone' }; }
     }).then(function () {
       if (LV.g && LV.g.status === 'gone') return;
       var still = inLive(code) || ($('lvRoom') && liveVisible('v-live'));
@@ -2254,14 +2295,16 @@
   }
   function paintRoom(g) {
     var room = $('lvRoom'); if (!room) return;
-    $('lvTitle').textContent = g.name; $('lvCfg').textContent = cfgText(g.cfg) + (g.private ? ' · private' : ' · public');
-    if (g.status === 'cancelled' || g.status === 'abandoned') { room.innerHTML = '<div class="blank">This game was closed. <a href="#/live">Back to the lobby</a></div>'; return; }
+    var k = liveGame(g.cfg), head = $('lvHead');
+    if (head && !head.querySelector('.gicon')) head.insertAdjacentHTML('afterbegin', gicon(k, GINFO[k].a).replace('class="gicon"', 'class="gicon lg" style="--gc:var(--g-' + GINFO[k].c + ')"'));
+    $('lvTitle').textContent = GNAME[k]; $('lvCfg').textContent = g.name + ' · ' + cfgText(g.cfg).split(' · ').slice(1).join(' · ') + (g.private ? ' · private' : '');
+    if (g.status === 'cancelled' || g.status === 'abandoned') { room.innerHTML = '<div class="blank">This game was closed. <a href="#/live">Back to Play Online</a></div>'; return; }
     if (!g.you) {
       if (g.status === 'open' && $('lvJoin')) return; // keep the password the visitor is typing
       if (g.status !== 'open') { room.innerHTML = '<div class="blank">This game has already started or is full. <a href="#/live">Find another</a></div>'; return; }
-      room.innerHTML = '<div class="panel" style="max-width:460px"><p style="margin-top:0">Hosted by <b>' + esc(g.host.name) + '</b>.</p>' +
+      room.innerHTML = '<div class="panel lv-joinp"><p style="margin-top:0"><b>' + esc(g.host.name) + '</b> is waiting for an opponent.</p><p class="hint">' + esc(GHOW[k]) + '</p>' +
         (g.private && !g.invited ? '<input class="inp" id="lvJoinPw" maxlength="50" placeholder="Password" autocomplete="off">' : '') +
-        '<div class="err" id="lvJoinErr"></div><button class="btn primary block lg" id="lvJoin">Join game</button></div>';
+        '<div class="err" id="lvJoinErr"></div><button class="btn primary block lg" id="lvJoin">Join the game</button></div>';
       $('lvJoin').onclick = function () {
         liveApi('/api/live', { action: 'join', code: g.code, password: $('lvJoinPw') ? $('lvJoinPw').value : '' })
           .then(function () { pollRoom(g.code); }).catch(function (e) { $('lvJoinErr').textContent = e.message; });
@@ -2270,63 +2313,92 @@
     }
     var me = g[g.you], opp = g[liveOther(g.you)];
     var card = function (s, i, label) {
-      var st = 'style="--pc:' + COL[i].c + ';--pd:' + COL[i].d + ';--pg:' + COL[i].g + '"';
-      if (!s) return '<div class="card" ' + st + '><div class="whoc">' + label + '</div><div class="t blink">waiting</div><dl><dt>Share the code</dt><dd class="mono">' + esc(g.code) + '</dd></dl></div>';
-      return '<div class="card" ' + st + '><div class="whoc">' + label + (s.online ? '' : ' · offline') + '</div><div class="t">' + esc(s.name) + '</div><dl><dt>Status</dt><dd>' + (s.ready ? 'Ready ☒' : 'Not ready ☐') + '</dd></dl></div>';
+      var st = 'style="--pc:' + COL[i].c + ';--pd:' + COL[i].d + '"';
+      if (!s) return '<div class="card pl wait" ' + st + '><span class="whoc">' + label + '</span><div class="pl-row"><span class="ava empty">?</span><span class="t">Waiting…</span></div></div>';
+      return '<div class="card pl" ' + st + '><span class="whoc">' + label + (s.online ? '' : ' · offline') + '</span><div class="pl-row">' + avatar(s.name, 40) + '<span class="t">' + esc(s.name) + '</span>' +
+        '<span class="ready' + (s.ready ? ' on' : '') + '">' + (s.ready ? 'Ready' : 'Not ready') + '</span></div></div>';
     };
-    // On every device: you are blue (P1), your opponent is pink (P2), matching the game and the results screen.
-    var myLabel = g.you === 'host' ? 'You · host' : 'You · challenger', oppLabel = g.you === 'host' ? 'Challenger' : 'Host';
-    var html = '<div class="cards">' + card(me, 0, myLabel) + card(opp, 1, oppLabel) + '</div>';
+    // On every device: you are P1 colours, your opponent P2, matching the game and the results screen.
+    var myLabel = g.you === 'host' ? 'You · host' : 'You', oppLabel = g.you === 'host' ? 'Opponent' : 'Host';
+    var html = '';
+    if (g.status === 'open') {
+      html += '<div class="panel lv-wait"><p class="lab">Send your friend this code</p><div class="lv-code" aria-label="Game code ' + esc(g.code.split('').join(' ')) + '">' + esc(g.code) + '</div>' +
+        '<div class="row lv-share"><button class="btn primary" id="lvCopy" type="button">Share the link</button><button class="btn" id="lvCopyCode" type="button">Copy the code</button></div>' +
+        '<p class="hint"><span class="pulse"></span>Waiting for someone to join' + (g.private ? '. They’ll need your password too.' : '…') + '</p></div>';
+    }
+    html += '<div class="cards">' + card(me, 0, myLabel) + card(opp, 1, oppLabel) + '</div>';
     if (g.status === 'playing') {
       var left = Math.max(0, Math.ceil((new Date(g.start_at).getTime() - serverNow()) / 1000));
       html += '<div class="verdict" style="text-align:center">' + (left > 0 ? left : 'Go!') + '</div>';
-    } else if (g.status === 'open') {
-      html += '<div class="savebar"><span>Waiting for someone to join. Share the code <b class="mono">' + esc(g.code) + '</b>' + (g.private ? ' and the password' : '') + '.</span><button class="btn" id="lvCopy">Copy link</button></div>';
     } else if (g.status === 'full') {
-      html += '<p class="hint lv-how">' + esc(GHOW[liveGame(g.cfg)]) + '</p>';
-      html += '<p class="lede" style="margin-bottom:14px">' + (me.ready && opp.ready ? 'Starting…' : me.ready ? 'Waiting for ' + esc(opp.name) + ' to get ready.' : 'Both players are here. Press ready when you are.') + '</p>' +
-        '<button class="btn ' + (me.ready ? '' : 'primary ') + 'block lg" id="lvReady">' + (me.ready ? 'Not ready yet' : 'I’m ready') + '</button>';
+      html += '<div class="panel lv-ready"><p class="lvd-how">' + esc(GHOW[k]) + '</p><div class="lvd-ex" aria-hidden="true">' + GEX[k] + '</div>' +
+        '<p class="lede" style="margin:0 0 14px">' + (me.ready && opp.ready ? 'Starting…' : me.ready ? 'Waiting for ' + esc(opp.name) + ' to get ready.' : 'Both players are here. Press ready when you are.') + '</p>' +
+        '<button class="btn ' + (me.ready ? '' : 'primary ') + 'block lg" id="lvReady">' + (me.ready ? 'Not ready yet' : 'I’m ready') + '</button></div>';
     }
-    if (g.status === 'open' || g.status === 'full') html += '<div class="row" style="margin-top:12px"><button class="btn ghost" id="lvLeave">Leave room</button></div>';
+    if (g.status === 'open' || g.status === 'full') html += '<div class="row" style="margin-top:12px"><button class="btn ghost" id="lvLeave">Leave the room</button></div>';
     room.innerHTML = html;
+    var url = location.origin + '/#/live/' + g.code;
     if ($('lvCopy')) $('lvCopy').onclick = function () {
-      var url = location.origin + '/#/live/' + g.code;
-      (navigator.share ? navigator.share({ title: 'Sum Duel', text: 'Join my Sum Duel game: ' + g.code, url: url }) : navigator.clipboard.writeText(url).then(function () { toast('Link copied'); }))
-        .catch(function () {});
+      (navigator.share ? navigator.share({ title: 'Sum Duel', text: 'Play ' + GNAME[k] + ' with me on Sum Duel. Game code ' + g.code, url: url })
+        : navigator.clipboard.writeText(url).then(function () { toast('Link copied'); })).catch(function () {});
     };
+    if ($('lvCopyCode')) $('lvCopyCode').onclick = function () { if (navigator.clipboard) navigator.clipboard.writeText(g.code).then(function () { toast('Code copied'); }, function () { toast(g.code); }); else toast(g.code); };
     if ($('lvReady')) $('lvReady').onclick = function () { ac(); liveApi('/api/live', { action: 'ready', code: g.code, ready: !me.ready }).then(function () { pollRoom(g.code); }).catch(function (e) { toast(e.message); }); };
     if ($('lvLeave')) $('lvLeave').onclick = function () { liveApi('/api/live', { action: 'leave', code: g.code }).catch(function () {}).then(function () { go('live'); }); };
   }
 
-  // ---------------- in game ----------------
-  function liveStartGame(g) {
+  // ---------------- in game: shared ----------------
+  function liveSetup(g, extra) {
     abortGame(); token++;
-    var me = g[g.you], opp = g[liveOther(g.you)], ci = 0; // you are always P1 colours on your own device
+    var me = g[g.you], opp = g[liveOther(g.you)], k = liveGame(g.cfg);
     LV.finalSent = false; LV.finalPending = false; LV.sending = false; LV.again = false;
-    var sprint = liveGame(g.cfg) === 'sprint';
-    G = { kind: 'live', token: token, mode: 'solo', n: sprint ? g.questions.length : g.cfg.n, names: [me.name], cfg: g.cfg, qs: g.questions, p: [newP()], ui: [], live: true,
-      code: g.code, id: g.id, role: g.you, oppName: opp.name, startAt: new Date(g.start_at).getTime(), started: false, sprint: sprint, limit: g.sprint || 60 };
+    G = { kind: 'live', sub: k, token: token, mode: 'solo', n: g.cfg.n, names: [me.name], cfg: g.cfg, qs: g.questions, p: [newP()], ui: [], live: true,
+      code: g.code, id: g.id, role: g.you, oppName: opp.name, startAt: new Date(g.start_at).getTime(), started: false,
+      sprint: k === 'sprint', pen: g.pen != null ? g.pen : penOf(k), limit: g.sprint || 60, lock: false };
+    if (G.sprint) G.n = g.questions.length;
+    if (extra) Object.keys(extra).forEach(function (x) { G[x] = extra[x]; });
     var p = G.p[0]; p.idx = me.idx || 0; p.wrong = me.wrong || 0;
-    var play = $('play'); play.innerHTML = '';
-    var half = makeHalf(0, false, true);
-    paintPlayer(half, ci);
+    return { me: me, opp: opp };
+  }
+  // The top of every live game: Quit, and a strip with the opponent's progress.
+  function liveChrome(half, stripHtml) {
     var top = document.createElement('div'); top.className = 'solo-top lv';
-    var q = document.createElement('button'); q.className = 'chipbtn'; q.textContent = 'Quit';
+    var q = document.createElement('button'); q.className = 'chipbtn'; q.type = 'button'; q.textContent = 'Quit';
     q.onclick = function () {
       if (!window.confirm('Leave the game? That counts as a loss.')) return;
-      var code = G.code; liveApi('/api/live', { action: 'leave', code: code }).catch(function () {});
-      abortGame(); go('live');
+      liveApi('/api/live', { action: 'leave', code: G.code }).catch(function () {}); abortGame(); go('live');
     };
-    var strip = document.createElement('div'); strip.className = 'lv-opp'; strip.style.setProperty('--oc', COL[1 - ci].c);
-    strip.innerHTML = '<span class="nm">' + esc(opp.name) + '</span>' + (sprint ? '' : '<span class="lv-bar"><i></i></span>') + '<span class="lv-st">' + (sprint ? '0 correct' : '0 / ' + g.cfg.n) + '</span>';
-    top.appendChild(q); top.appendChild(strip); half.appendChild(top);
-    G.strip = strip;
-    play.appendChild(half); showScreen('play'); wakeOn();
-    if (sprint) G.ui[0].clock.textContent = String(G.limit);
-    if (me.done) { p.done = true; var u = G.ui[0]; u.cover.classList.remove('hidden'); u.big.textContent = '✓'; u.sub.textContent = 'Finished · waiting for ' + opp.name; LV.finalSent = true; }
-    else if (sprint && serverNow() > G.startAt + G.limit * 1000) { var u2 = G.ui[0]; p.done = true; u2.cover.classList.remove('hidden'); u2.big.textContent = p.idx; u2.sub.textContent = 'Time! Waiting for ' + opp.name + '…'; p.end = performance.now(); p.start = p.end - G.limit * 1000; liveReport(true); }
+    var s = document.createElement('div'); s.className = 'lv-opp'; s.style.setProperty('--oc', COL[1].c); s.innerHTML = stripHtml;
+    top.appendChild(q); top.appendChild(s); half.appendChild(top); G.strip = s;
+  }
+  function liveShow(half, g, who) {
+    var play = $('play'); play.innerHTML = ''; play.appendChild(half); showScreen('play'); wakeOn();
+    var p = G.p[0], u = G.ui[0];
+    if (who.me.done) { p.done = true; u.cover.classList.remove('hidden'); u.big.textContent = '✓'; u.sub.textContent = 'Finished · waiting for ' + who.opp.name; LV.finalSent = true; }
+    else if (G.sprint && serverNow() > G.startAt + G.limit * 1000) { p.done = true; u.cover.classList.remove('hidden'); u.big.textContent = p.idx; u.sub.textContent = 'Time! Waiting for ' + who.opp.name + '…'; p.end = performance.now(); p.start = p.end - G.limit * 1000; liveReport(true); }
     else liveCountdown();
     liveTick(g);
+  }
+  function wrongAnim(el) { el.classList.remove('wrong'); void el.offsetWidth; el.classList.add('wrong'); setTimeout(function () { el.classList.remove('wrong'); }, 350); }
+  function liveStartGame(g) {
+    var k = liveGame(g.cfg);
+    if (k === 'target') return liveTargetStart(g);
+    if (k === 'bigger') return liveBiggerStart(g);
+    var who = liveSetup(g, k === 'climb' ? { visits: [] } : null);
+    if (k === 'climb') for (var i = 0; i < G.n; i++) G.visits.push(0);
+    var half = makeHalf(0, false, true);
+    if (k === 'climb') {
+      half.classList.add('lclimb');
+      var cl = document.createElement('div'); cl.className = 'cliff'; cl.setAttribute('aria-hidden', 'true'); cl.innerHTML = cliffHtml(G.n, who.me.name, who.opp.name);
+      half.insertBefore(cl, half.querySelector('.stage')); G.cliff = cl;
+      half.querySelector('.pen').textContent = 'Slip!';
+      liveChrome(half, '<span class="nm">' + esc(who.opp.name) + '</span><span class="lv-st">Ledge 0 of ' + G.n + '</span>');
+      cliffPaint('me', G.p[0].idx); cliffPaint('opp', who.opp.idx || 0);
+    } else {
+      liveChrome(half, '<span class="nm">' + esc(who.opp.name) + '</span>' + (G.sprint ? '' : '<span class="lv-bar"><i></i></span>') + '<span class="lv-st">' + (G.sprint ? '0 correct' : '0 / ' + G.n) + '</span>');
+    }
+    if (G.sprint) G.ui[0].clock.textContent = String(G.limit);
+    liveShow(half, g, who);
   }
   function liveCountdown() {
     var my = G.token, lastShown = null;
@@ -2335,7 +2407,7 @@
       var u = G.ui[0], left = G.startAt - serverNow();
       if (left > 0) {
         var shown = left > 3000 ? 'Ready' : String(Math.ceil(left / 1000));
-        if (shown !== lastShown) { u.cover.classList.remove('hidden'); u.big.textContent = shown; u.sub.textContent = 'vs ' + G.oppName; if (shown !== 'Ready') sfx.tick(); lastShown = shown; }
+        if (shown !== lastShown) { u.cover.classList.remove('hidden'); u.big.textContent = shown; u.sub.textContent = GNAME[G.sub] + ' · vs ' + G.oppName; if (shown !== 'Ready') sfx.tick(); lastShown = shown; }
         setTimeout(step, 50); return;
       }
       sfx.go();
@@ -2349,10 +2421,12 @@
     if (!G || G.kind !== 'live') return;
     var opp = g[liveOther(g.you)];
     if (G.strip && opp) {
-      if (G.sprint) G.strip.querySelector('.lv-st').innerHTML = opp.idx + ' correct' + (opp.done ? ' ✓' : '');
+      var st = G.strip.querySelector('.lv-st'), bar = G.strip.querySelector('.lv-bar i');
+      if (G.sprint) st.innerHTML = opp.idx + ' correct' + (opp.done ? ' ✓' : '');
+      else if (G.sub === 'climb') { st.textContent = opp.done ? 'At the top ✓' : 'Ledge ' + opp.idx + ' of ' + G.n; cliffPaint('opp', opp.done ? G.n : opp.idx); }
       else {
-        G.strip.querySelector('.lv-bar i').style.width = (opp.idx / g.cfg.n * 100) + '%';
-        G.strip.querySelector('.lv-st').innerHTML = opp.done ? 'done ✓' : (opp.idx + ' / ' + g.cfg.n + (opp.wrong ? ' · ' + opp.wrong + ' wrong' : ''));
+        if (bar) bar.style.width = (opp.idx / G.n * 100) + '%';
+        st.innerHTML = opp.done ? 'done ✓' : (opp.idx + ' / ' + G.n + (opp.wrong ? ' · ' + opp.wrong + (G.sub === 'target' ? ' skipped' : ' wrong') : ''));
       }
       var claim = G.strip.querySelector('.lv-claim');
       if (g.opp_gone && !claim) {
@@ -2383,6 +2457,175 @@
       });
     })();
   }
+
+  // ---------------- The Climb (live): a cliff of ledges, both climbers drawn on it ----------------
+  // questions[ledge][alt]. A right answer climbs a ledge; a wrong one slips you down one. Every visit to a
+  // ledge shows its next alternative, so slipping never replays a sum you've just seen.
+  function curQ(pi) {
+    var p = G.p[pi];
+    if (G.sub === 'climb') { var L = Math.min(p.idx, G.n - 1), alts = G.qs[L]; return alts[G.visits[L] % alts.length]; }
+    return G.qs[Math.min(p.idx, G.qs.length - 1)];
+  }
+  function initial(name) { var a = Array.from(String(name || '?').trim() || '?'); return a[0].toUpperCase(); }
+  function cliffBand(i, n) { var f = i / n; return f <= 4 / 12 ? 1 : f <= 9 / 12 ? 2 : 3; }   // ledge i of n: easy, medium, hard (api/_questions.js CLIMB_BANDS)
+  function cliffHtml(n, meName, oppName) {
+    var s = '';
+    for (var i = 1; i <= n; i++) s += '<i class="b' + cliffBand(i, n) + '" style="--i:' + i + ';--h:' + (i / n).toFixed(4) + '"></i>';
+    return '<div class="cl-track" style="--n:' + n + '">' + s + '<span class="cl-flag"></span>' +
+      '<b class="cl-dot opp" style="--l:0">' + esc(initial(oppName)) + '</b><b class="cl-dot me" style="--l:0">' + esc(initial(meName)) + '</b></div>' +
+      '<div class="cl-key"><span class="b1">Easy</span><span class="b2">Medium</span><span class="b3">Hard</span></div>';
+  }
+  function cliffPaint(who, L) { if (!G || !G.cliff) return; var d = G.cliff.querySelector('.cl-dot.' + who); if (d) d.style.setProperty('--l', L); }
+  // The small static cliff on the Arena card and in the lobby example.
+  function cliffMini(n, a, b) {
+    var s = ''; for (var i = 1; i <= n; i++) s += '<i class="b' + cliffBand(i, n) + '" style="--i:' + i + ';--h:' + (i / n).toFixed(4) + '"></i>';
+    return '<span class="cl-track mini" style="--n:' + n + '">' + s + '<span class="cl-flag"></span><b class="cl-dot opp" style="--l:' + a + '"></b><b class="cl-dot me" style="--l:' + b + '"></b></span>';
+  }
+
+  // ---------------- Target (live): combine number tiles to make the target ----------------
+  function liveTargetStart(g) {
+    var who = liveSetup(g, { tg: null });
+    var el = document.createElement('section'); el.className = 'half solo ltarget'; paintPlayer(el, 0);
+    el.innerHTML = '<div class="hud"><span class="nm"></span><span class="prog"></span><span class="clock">0.0 s</span></div><div class="bar"><i></i></div>' +
+      '<div class="tg-stage"><p class="tg-ask">Make</p><div class="tg-goal"></div>' +
+      '<div class="tg-tiles" role="group" aria-label="Numbers"></div>' +
+      '<div class="tg-ops" role="group" aria-label="Signs">' + ['+', '−', '×', '÷'].map(function (o) { return '<button type="button" data-op="' + o + '" aria-label="' + OPNAME[o] + '">' + o + '</button>'; }).join('') + '</div>' +
+      '<p class="tg-hint" aria-live="polite"></p><p class="tg-log"></p><div class="pen">+' + G.pen + ' s</div></div>' +
+      '<div class="tg-acts"><button type="button" class="btn" data-a="undo">Undo</button><button type="button" class="btn" data-a="reset">Start again</button><button type="button" class="btn ghost" data-a="skip">Skip (+' + G.pen + ' s)</button></div>' +
+      '<div class="keyhint">1–4 PICK A NUMBER · + − × ÷ · ⌫ UNDO · ESC START AGAIN</div><div class="cover"><div class="big"></div><div class="sub"></div></div>';
+    el.querySelector('.nm').textContent = who.me.name;
+    G.ui[0] = { el: el, clock: el.querySelector('.clock'), prog: el.querySelector('.prog'), bar: el.querySelector('.bar i'), cover: el.querySelector('.cover'),
+      big: el.querySelector('.cover .big'), sub: el.querySelector('.cover .sub'), goal: el.querySelector('.tg-goal'), tiles: el.querySelector('.tg-tiles'),
+      ops: el.querySelector('.tg-ops'), hint: el.querySelector('.tg-hint'), log: el.querySelector('.tg-log') };
+    G.ui[0].tiles.addEventListener('pointerdown', function (e) { var b = e.target.closest('button'); if (!b) return; e.preventDefault(); tgTile(Number(b.dataset.i)); });
+    G.ui[0].ops.addEventListener('pointerdown', function (e) { var b = e.target.closest('button'); if (!b) return; e.preventDefault(); tgOp(b.dataset.op); });
+    el.querySelector('.tg-acts').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; var a = b.dataset.a; if (a === 'undo') tgUndo(); else if (a === 'reset') tgReset(); else tgSkip(); });
+    liveChrome(el, '<span class="nm">' + esc(who.opp.name) + '</span><span class="lv-bar"><i></i></span><span class="lv-st">0 / ' + G.n + '</span>');
+    tgLoad();
+    liveShow(el, g, who);
+  }
+  function tgLoad() {
+    var q = G.qs[Math.min(G.p[0].idx, G.qs.length - 1)];
+    G.tg = { q: q, tiles: q.nums.map(function (v) { return { v: v, made: false }; }), hist: [], log: [], sel: -1, op: null, lock: false, hint: '' };
+    tgPaint();
+  }
+  function tgPaint() {
+    var u = G.ui[0], t = G.tg, p = G.p[0]; if (!t || !u.tiles) return;
+    u.goal.textContent = t.q.target;
+    // While a solved or skipped puzzle is still showing (locked), the label stays on that puzzle.
+    u.prog.textContent = 'Puzzle ' + Math.min(t.lock ? p.idx : p.idx + 1, G.n) + ' of ' + G.n; u.bar.style.width = (p.idx / G.n * 100) + '%';
+    u.tiles.innerHTML = t.tiles.map(function (x, i) {
+      return '<button type="button" class="tg-tile' + (i === t.sel ? ' sel' : '') + (x.made ? ' made' : '') + (x.v === t.q.target ? ' hit' : '') + '" data-i="' + i + '" aria-pressed="' + (i === t.sel) + '">' + x.v + '</button>';
+    }).join('');
+    qsa('button', u.ops).forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.op === t.op)); b.classList.toggle('dim', t.sel < 0); });
+    u.hint.textContent = t.hint || (t.sel < 0 ? (t.tiles.length > 1 ? 'Tap a number.' : '') : t.op ? 'Now tap another number.' : 'Now tap a sign, or another number.');
+    u.log.textContent = t.log.join('   ·   ');
+  }
+  function tgReady() { return G && G.sub === 'target' && G.tg && !G.tg.lock && G.p[0].running; }
+  function tgNudge(msg) { var t = G.tg; t.hint = msg; tgPaint(); t.hint = ''; var r = G.ui[0].tiles; r.classList.remove('nudge'); void r.offsetWidth; r.classList.add('nudge'); sfx.bad(); }
+  function tgTile(i) {
+    if (!tgReady()) return; var t = G.tg; if (!t.tiles[i]) return;
+    if (t.sel < 0) t.sel = i;
+    else if (t.op == null) t.sel = (t.sel === i ? -1 : i);
+    else if (i === t.sel) t.op = null;
+    else return tgCombine(t.sel, i);
+    sfx.tick(); tgPaint();
+  }
+  function tgOp(op) {
+    if (!tgReady()) return; var t = G.tg;
+    if (t.sel < 0) { tgNudge('Pick a number first.'); return; }
+    t.op = t.op === op ? null : op; sfx.tick(); tgPaint();
+  }
+  function tgCombine(i, j) {
+    var t = G.tg, a = t.tiles[i].v, b = t.tiles[j].v, op = t.op, v = null, why = '';
+    // − and ÷ only work one way round with whole, positive numbers, so the bigger number goes first.
+    if ((op === '−' || op === '÷') && a < b) { var s = a; a = b; b = s; }
+    if (op === '+') v = a + b;
+    else if (op === '×') v = a * b;
+    else if (op === '−') { if (a > b) v = a - b; else why = 'That makes 0. Try another way.'; }
+    else if (op === '÷') { if (b > 0 && a % b === 0) v = a / b; else why = a + ' doesn’t divide exactly by ' + b + '.'; }
+    if (v == null) { tgNudge(why); return; }
+    t.hist.push({ tiles: t.tiles.slice(), log: t.log.slice() });
+    var nt = t.tiles.filter(function (_, k) { return k !== i && k !== j; }), pos = Math.min(j > i ? j - 1 : j, nt.length);
+    nt.splice(pos, 0, { v: v, made: true });
+    t.tiles = nt; t.log.push(a + ' ' + op + ' ' + b + ' = ' + v); t.op = null; t.sel = pos;
+    if (v === t.q.target) return tgSolved();
+    if (nt.length === 1) { t.sel = -1; t.hint = 'Not quite. Undo, or start again.'; }
+    sfx.tick(); tgPaint(); t.hint = '';
+  }
+  function tgSolved() {
+    var p = G.p[0], t = G.tg, u = G.ui[0], now = performance.now(), my = G.token;
+    t.lock = true; p.splits.push(Math.round(now - p.last) / 1000); p.last = now; p.idx++; p.streak++; if (p.streak > p.bestStreak) p.bestStreak = p.streak;
+    t.hint = 'Solved!'; tgPaint(); sfx.good();
+    u.el.classList.add('good'); setTimeout(function () { u.el.classList.remove('good'); }, 500);
+    if (p.idx >= G.n) { setTimeout(function () { if (G && G.token === my) finish(0, now); }, 650); return; }
+    liveReport();
+    setTimeout(function () { if (G && G.token === my) tgLoad(); }, 800);
+  }
+  function tgSkip() {
+    if (!tgReady()) return;
+    var p = G.p[0], t = G.tg, u = G.ui[0], now = performance.now(), my = G.token;
+    t.lock = true; p.wrong++; p.streak = 0; p.splits.push(Math.round(now - p.last) / 1000); p.last = now; p.idx++;
+    t.sel = -1; t.op = null; t.hint = 'One way: ' + t.q.sol.join(', then ') + '.'; tgPaint();
+    wrongAnim(u.el); sfx.bad(); buzz(60);
+    if (p.idx >= G.n) { setTimeout(function () { if (G && G.token === my) finish(0, now); }, 1600); return; }
+    liveReport();
+    setTimeout(function () { if (G && G.token === my) tgLoad(); }, 2200);
+  }
+  function tgUndo() { if (!tgReady()) return; var t = G.tg; if (!t.hist.length) return; var h = t.hist.pop(); t.tiles = h.tiles; t.log = h.log; t.sel = -1; t.op = null; sfx.tick(); tgPaint(); }
+  function tgReset() { if (!tgReady()) return; var t = G.tg; if (!t.hist.length) return; t.tiles = t.q.nums.map(function (v) { return { v: v, made: false }; }); t.hist = []; t.log = []; t.sel = -1; t.op = null; sfx.tick(); tgPaint(); }
+  function tgKey(e) {
+    var k = e.key || '';
+    if (/^[1-9]$/.test(k)) { var i = Number(k) - 1; if (G.tg && G.tg.tiles[i]) { e.preventDefault(); tgTile(i); } return; }
+    var op = { '+': '+', '-': '−', '*': '×', x: '×', X: '×', '/': '÷' }[k];
+    if (op) { e.preventDefault(); tgOp(op); return; }
+    if (k === 'Backspace') { e.preventDefault(); tgUndo(); } else if (k === 'Escape') { e.preventDefault(); tgReset(); }
+  }
+
+  // ---------------- Bigger (live): tap the bigger of two sums ----------------
+  function liveBiggerStart(g) {
+    var who = liveSetup(g);
+    var el = document.createElement('section'); el.className = 'half solo lbigger'; paintPlayer(el, 0);
+    var side = function (s) { return '<button type="button" class="bg-c" data-s="' + s + '"><span class="bg-x"></span><span class="bg-v"></span></button>'; };
+    el.innerHTML = '<div class="hud"><span class="nm"></span><span class="prog"></span><span class="clock">0.0 s</span></div><div class="bar"><i></i></div>' +
+      '<div class="bg-stage"><p class="bg-ask">Which is bigger?</p><div class="bg-pair">' + side('l') + '<span class="bg-or">or</span>' + side('r') + '</div>' +
+      '<p class="bg-msg tol-flash" aria-live="polite"></p><div class="pen">+' + G.pen + ' s</div></div>' +
+      '<div class="keyhint">← OR A = LEFT · → OR L = RIGHT</div><div class="cover"><div class="big"></div><div class="sub"></div></div>';
+    el.querySelector('.nm').textContent = who.me.name;
+    G.ui[0] = { el: el, clock: el.querySelector('.clock'), prog: el.querySelector('.prog'), bar: el.querySelector('.bar i'), cover: el.querySelector('.cover'),
+      big: el.querySelector('.cover .big'), sub: el.querySelector('.cover .sub'), l: el.querySelector('[data-s="l"]'), r: el.querySelector('[data-s="r"]'), msg: el.querySelector('.bg-msg') };
+    el.querySelector('.bg-pair').addEventListener('pointerdown', function (e) { var b = e.target.closest('.bg-c'); if (!b) return; e.preventDefault(); bgPick(b.dataset.s); });
+    liveChrome(el, '<span class="nm">' + esc(who.opp.name) + '</span><span class="lv-bar"><i></i></span><span class="lv-st">0 / ' + G.n + '</span>');
+    bgPaint();
+    liveShow(el, g, who);
+  }
+  function bgPaint() {
+    var u = G.ui[0], p = G.p[0], q = G.qs[Math.min(p.idx, G.qs.length - 1)]; if (!u.l) return;
+    u.prog.textContent = Math.min(p.idx + 1, G.n) + ' / ' + G.n; u.bar.style.width = (p.idx / G.n * 100) + '%';
+    ['l', 'r'].forEach(function (s) { var b = u[s]; b.className = 'bg-c'; b.querySelector('.bg-x').textContent = q[s]; b.querySelector('.bg-v').textContent = ''; });
+    u.msg.textContent = p.streak >= 3 ? p.streak + ' in a row' : ''; u.msg.className = 'bg-msg tol-flash';
+  }
+  function bgPick(side) {
+    if (!G || G.sub !== 'bigger' || G.lock) return;
+    var p = G.p[0]; if (!p.running) return;
+    var q = G.qs[p.idx], ok = side === q.ans, u = G.ui[0], now = performance.now(), my = G.token;
+    var big = Math.max(q.lv, q.rv), small = Math.min(q.lv, q.rv);
+    G.lock = true; p.splits.push(Math.round(now - p.last) / 1000); p.last = now;
+    u.l.querySelector('.bg-v').textContent = '= ' + q.lv; u.r.querySelector('.bg-v').textContent = '= ' + q.rv;
+    u[q.ans].classList.add('right'); if (!ok) u[side].classList.add('nope');
+    if (ok) { p.streak++; if (p.streak > p.bestStreak) p.bestStreak = p.streak; sfx.good(); u.msg.textContent = 'Right: ' + big + ' > ' + small; u.msg.className = 'bg-msg tol-flash ok'; }
+    else { p.wrong++; p.streak = 0; p.wrongBy[q.op] = (p.wrongBy[q.op] || 0) + 1; sfx.bad(); buzz(70); wrongAnim(u.el); u.msg.textContent = 'Not this time: ' + big + ' > ' + small; u.msg.className = 'bg-msg tol-flash no'; }
+    p.idx++;
+    if (p.idx >= G.n) { setTimeout(function () { if (G && G.token === my) finish(0, now); }, ok ? 500 : 1000); return; }
+    liveReport();
+    setTimeout(function () { if (!G || G.token !== my) return; G.lock = false; bgPaint(); }, ok ? 500 : 1100);
+  }
+  function bgKey(e) {
+    var k = (e.key || '').toLowerCase(), s = (k === 'arrowleft' || k === 'a' || k === '1') ? 'l' : (k === 'arrowright' || k === 'l' || k === '2') ? 'r' : null;
+    if (!s) return; e.preventDefault(); bgPick(s);
+  }
+
+  // ---------------- results ----------------
   function liveResults(g) {
     if (inLive(g.code) && G.resultFor === g.code) { liveRematchHint(g); return; }
     var me = g.you, op = liveOther(me), r = g.result, mine = r[me], theirs = r[op], game = liveGame(g.cfg);
@@ -2397,7 +2640,7 @@
       { name: g[me].name, score: mine.score, wrong: mine.wrong, splits: p.splits.length ? p.splits : mine.splits || [], bestStreak: p.bestStreak || mine.bestStreak || 0, wrongBy: p.wrongBy },
       { name: g[op].name, score: theirs.score, wrong: theirs.wrong, splits: theirs.splits || [], bestStreak: theirs.bestStreak || 0, wrongBy: {} }];
     else b.players = [
-      { name: g[me].name, time: mine.time, raw: mine.raw, wrong: mine.wrong, dnf: mine.dnf || undefined, splits: p.splits, bestStreak: p.bestStreak, wrongBy: p.wrongBy },
+      { name: g[me].name, time: mine.time, raw: mine.raw, wrong: mine.wrong, dnf: mine.dnf || undefined, splits: p.splits.length ? p.splits : mine.splits || [], bestStreak: p.bestStreak || mine.bestStreak || 0, wrongBy: p.wrongBy },
       { name: g[op].name, time: theirs.time, raw: theirs.raw, wrong: theirs.wrong, dnf: theirs.dnf || undefined, splits: theirs.splits || [], bestStreak: theirs.bestStreak || 0, wrongBy: {} }];
     renderResults(b, null);
     var m = document.querySelector('#resBody .margin');
@@ -2405,9 +2648,9 @@
       var iWon = b.winner === 0;
       m.textContent = r.reason === 'forfeit' ? (iWon ? g[op].name + ' left the game, so you win by forfeit.' : 'You left the game, so ' + g[op].name + ' wins.')
         : 'Time ran out. ' + (b.winner < 0 ? 'Nobody finished.' : (iWon ? 'You got further.' : g[op].name + ' got further.'));
-      if (r.reason === 'forfeit' && game !== 'duel') m.textContent += ' The score was ' + mine.score + '–' + theirs.score + '.';
+      if (r.reason === 'forfeit' && !isTimed(game)) m.textContent += ' The score was ' + mine.score + '–' + theirs.score + '.';
     }
-    var kick = document.querySelector('#resBody .kicker b'); if (kick) kick.textContent = 'LIVE ' + GNAME[game].toUpperCase();
+    var kick = document.querySelector('#resBody .kicker b'); if (kick) kick.textContent = GNAME[game] + ' · Live';
     var hint = document.createElement('div'); hint.id = 'lvRe'; var bar = $('saveBar'); if (bar) bar.parentNode.insertBefore(hint, bar.nextSibling);
     $('again').onclick = function () {
       liveApi('/api/live', { action: 'rematch', code: g.code }).then(function (j) {
@@ -2546,7 +2789,7 @@
     chatStop();
     CH.last = 0; CH.ids = {}; CH.quiet = 0;
     var el = $('v-chat');
-    el.innerHTML = '<p class="kicker"><b>5</b> Chat</p><h2 class="title">#' + CH.c + '</h2>' +
+    el.innerHTML = '<p class="kicker">Chat</p><h2 class="title">#' + CH.c + '</h2>' +
       '<div class="irc" id="irc">' +
         '<div class="irc-title"><span id="ircTitle">mIRC - [#' + CH.c + ']</span><span aria-hidden="true"><i>_</i><i>□</i><i>×</i></span></div>' +
         '<div class="irc-menu" aria-hidden="true"><span><u>F</u>ile</span><span><u>V</u>iew</span><span>F<u>a</u>vorites</span><span><u>T</u>ools</span><span><u>C</u>ommands</span><span><u>W</u>indow</span><span><u>H</u>elp</span></div>' +
@@ -2730,13 +2973,13 @@
   function renderAccount() {
     var el = $('v-account');
     if (ME && ME.mustChange) {
-      el.innerHTML = '<div class="auth"><p class="kicker"><b>6</b> Account</p><h2 class="title">Hi ' + esc(ME.name) + '!</h2>' +
+      el.innerHTML = '<div class="auth"><p class="kicker">Account</p><h2 class="title">Hi ' + esc(ME.name) + '!</h2>' +
         '<p class="lede">Your account starts with a temporary password. Before you play, pick your own secret one that only you know. Use at least 8 characters. Tip: three random words, like <i>pebble-rocket-toast</i>.</p>' +
         pwFormHtml(true) + '</div>';
       bindPwForm(true); return;
     }
     if (!ME) {
-      el.innerHTML = '<div class="auth"><p class="kicker"><b>6</b> Account</p><h2 class="title">Sign In or Sign Up.<br><span class="serif" style="font-style:italic;color:var(--p1)">Same Box.</span></h2>' +
+      el.innerHTML = '<div class="auth"><p class="kicker">Account</p><h2 class="title">Sign In or Sign Up.<br><em>Same Box.</em></h2>' +
         '<p class="lede">Type your email and a password. If you’re new, this makes your account straight away. After that, every game you play is saved to your record.</p>' +
         '<form id="authF" novalidate><label class="sr" for="em">Email</label><input class="inp" id="em" type="email" autocomplete="username" inputmode="email" placeholder="you@example.com" required>' +
         '<label class="sr" for="pw">Password</label><input class="inp" id="pw" type="password" autocomplete="current-password" placeholder="Password (6+ characters)" minlength="6" required>' +
@@ -2761,14 +3004,14 @@
           if (S.names[0] === 'Player 1' || !S.names[0]) { S.names[0] = j.user.name; save(); }
           toast(j.created ? 'Account created. Welcome, ' + j.user.name + '.' : 'Welcome back, ' + j.user.name + '.');
           return (j.created ? adoptGuest() : Promise.resolve()).then(loadWallet).then(pullBattles);
-        }).then(function () { renderAccount(); }).catch(function (e2) {
+        }).then(function () { if (pendingJoin) { var c = pendingJoin; pendingJoin = null; go('live/' + c); } else renderAccount(); }).catch(function (e2) {
           err.textContent = e2.message === 'Failed to fetch' ? 'Can’t reach the server. Check your connection.' : e2.message;
           btn.disabled = false; btn.textContent = 'Continue';
         });
       };
     } else {
       var st = computeStats(localBattles());
-      el.innerHTML = '<div class="auth"><p class="kicker"><b>6</b> Account</p><h2 class="title">' + esc(ME.name) + '</h2><p class="lede" style="margin-bottom:14px">' + esc(ME.email) + ' · ' + st.total + ' battles on record</p>' +
+      el.innerHTML = '<div class="auth"><p class="kicker">Account</p><h2 class="title">' + esc(ME.name) + '</h2><p class="lede" style="margin-bottom:14px">' + esc(ME.email) + ' · ' + st.total + ' battles on record</p>' +
         '<div class="panel"><label class="flab" for="dn">Display name<small>shown on the boards</small></label>' +
         '<div class="row" style="margin-top:8px"><input class="inp" id="dn" maxlength="20" value="' + esc(ME.name) + '" style="flex:1;margin:0;min-width:0"><button class="btn" id="dnSave">Save</button></div><div class="err" id="dnErr"></div></div>' +
         '<details class="panel pwbox" style="margin-top:14px"><summary>Change password</summary>' + pwFormHtml(false) + '</details>' +
@@ -2788,7 +3031,7 @@
     bindSettings();
   }
   function settingsHtml() {
-    return '<div class="section auth"><p class="kicker"><b>7</b> Preferences</p><div class="panel" style="padding:4px 18px">' +
+    return '<div class="section auth"><p class="kicker">Preferences</p><div class="panel" style="padding:4px 18px">' +
       '<div class="setrow"><div>Sound<small>Blips, buzzers and fanfare</small></div><button class="toggle" data-s="sound" aria-pressed="' + !!S.sound + '" aria-label="Sound"></button></div>' +
       '<div class="setrow"><div>Haptics<small>Vibrate on wrong answers (Android)</small></div><button class="toggle" data-s="haptics" aria-pressed="' + !!S.haptics + '" aria-label="Haptics"></button></div>' +
       '<div class="setrow"><div>Night mode<small>Dark colours for the evening</small></div><button class="toggle" data-s="theme" aria-pressed="' + (S.theme === 'night') + '" aria-label="Night mode"></button></div>' +
@@ -2810,6 +3053,7 @@
   // =====================================================================
   // Boot
   // =====================================================================
+  renderHomeCards();
   renderPalPick();
   paintWho();
   loadWallet();

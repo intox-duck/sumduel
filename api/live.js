@@ -2,20 +2,30 @@
 // The server owns the clock: start_at is set server-side, finish times are checked against server time,
 // and the result is decided here. Both players' battles are written server-side (cid "live-<id>").
 //
-// v2.8: three games, chosen when the game is created (cfg.game; games made before v2.8 have none = duel):
-//   duel   - the same N questions on separate clocks; fastest total time (+3 s per wrong) wins.
-//   sprint - 60 seconds, the same question stream; most correct wins (fewer wrong breaks a tie).
-//   tol    - Truth or Lie, judged by the server round by round. Both devices reveal statement k at the same
+// Seven games, chosen when the game is created (cfg.game; games made before v2.8 have none = duel).
+// "Timed" games are races to the end of the same set, on separate clocks: fastest time wins, with a
+// per-game penalty added for each wrong answer (PEN). The others are decided by score.
+//   duel    - timed. N sums (5-20), +3 s per wrong answer. A wrong answer keeps you on the same sum.
+//   climb   - timed. 12 ledges, easy at the bottom and hard at the top (questions[ledge][alt]). A right
+//             answer climbs one ledge, a wrong one slips you down one: the slip is the penalty (PEN 0).
+//             idx is the ledge you're on and can go DOWN, so its progress is ordered by idx + 2*wrong.
+//   missing - timed. N sums, each with a number missing (7 x ? = 42), +3 s per wrong answer.
+//   target  - timed. 5 puzzles: combine the tiles to make the target. idx = puzzles done (solved or
+//             skipped), wrong = skips, +10 s per skip. Any route to the target counts (checked on the device).
+//   bigger  - timed. 15 pairs of sums: tap the bigger one. idx = pairs answered, wrong = wrong taps, +3 s each.
+//   sprint  - scored. 60 seconds of the same question stream; most correct wins (fewer wrong breaks a tie).
+//   tol     - scored. Truth or Lie: both devices reveal statement k at the same
 //            server time. Each player gets one call per statement. The fastest correct call (reaction time
 //            measured on the device, sanity-checked against the server clock) scores. First to 7 wins.
 //            Statements go out one at a time and their answers only after the round, so nobody can peek.
+// v3 removed v2.9's unreleased "mix" and the 45-second "target"; neither was ever deployed.
 //
 // GET  /api/live?lobby=1                 -> { now, games:[open games], active: code|null }
 // GET  /api/live?code=ABCDE              -> { now, game } (participants get full state; others a join preview)
 // POST {action:'create', name, cfg:{game,ops,level,n}, private, password}
 // POST {action:'join', code, password}
 // POST {action:'ready', code, ready}
-// POST {action:'progress', code, idx, wrong, raw?, extra?, final?}   (duel, sprint)
+// POST {action:'progress', code, idx, wrong, raw?, extra?, final?}   (every game except tol)
 // POST {action:'call', code, k, said, rt}                           (tol)
 // POST {action:'leave', code}            (in a running game this forfeits)
 // POST {action:'claim', code}            (opponent silent for 25 s -> win by forfeit)
@@ -23,7 +33,7 @@
 import { randomInt } from 'node:crypto';
 import { route, send, fail, db, requireUser, hashPassword, verifyPassword, logEvent } from './_lib.js';
 import { screen } from './_safety.js';
-import { makeQuestions, makeTol, RANGES, OPS } from './_questions.js';
+import { makeLiveQuestions, RANGES, OPS, CLIMB_BANDS } from './_questions.js';
 import { battleCoins, awardBattle } from './_economy.js';
 
 const PENALTY = 3;
@@ -32,8 +42,12 @@ const START_DELAY = 5;          // seconds from "both ready" to GO
 const STALE_LOBBY = 60;         // host/guest silent this long in the lobby -> dropped
 const GONE = 25;                // opponent silent this long mid-game -> claimable
 const ACTIVE = ['open', 'full', 'playing'];
-const GAMES = ['duel', 'tol', 'sprint'];
+const GAMES = ['duel', 'climb', 'tol', 'sprint', 'missing', 'target', 'bigger'];
 const SPRINT_SECS = 60, SPRINT_Q = 400, SPRINT_MAX = 150;
+const TIMED = new Set(['duel', 'climb', 'missing', 'target', 'bigger']);   // fastest time to the end wins
+const PEN = { duel: PENALTY, missing: PENALTY, bigger: PENALTY, target: 10, climb: 0 };   // seconds per wrong / skip
+const penOf = game => (PEN[game] != null ? PEN[game] : PENALTY);
+const FIXED_N = { climb: CLIMB_BANDS.length, target: 5, bigger: 15, sprint: SPRINT_Q };   // games with a set length
 const TOL_TARGET = 7, TOL_MAX = 25;
 const TOL_WINDOW = 6000;        // ms to make a call once a statement is up
 const TOL_GAP = 1800;           // ms between a round ending and the next statement (time to show who scored)
@@ -41,10 +55,14 @@ const TOL_LEAD = 1200;          // ms before the reveal that the statement text 
 const TOL_SLACK = 1200;         // ms a device's reaction time may undercut the server-measured one (upload delay)
 
 const gameOf = cfg => (cfg && GAMES.includes(cfg.game) ? cfg.game : 'duel');
+// After this long a running game is settled as a timeout ("whoever got further").
 const limitSecs = cfg => {
   const g = gameOf(cfg);
   if (g === 'sprint') return SPRINT_SECS + 15;
   if (g === 'tol') return Math.ceil(TOL_MAX * (TOL_WINDOW + TOL_GAP) / 1000) + 15;
+  if (g === 'climb') return 240;
+  if (g === 'target') return Math.max(180, cfg.n * 45);
+  if (g === 'bigger') return Math.max(120, cfg.n * 12);
   return Math.max(120, cfg.n * 20);
 };
 
@@ -59,7 +77,7 @@ function cleanCfg(c) {
   const game = GAMES.includes(c.game) ? c.game : 'duel';
   const ops = Array.isArray(c.ops) ? [...new Set(c.ops.filter(o => OPS.includes(o)))] : [];
   const level = RANGES[c.level] ? c.level : 'medium';
-  const n = game === 'sprint' ? SPRINT_Q : game === 'tol' ? TOL_MAX : ([5, 10, 15, 20, 30].includes(Number(c.n)) ? Number(c.n) : 10);
+  const n = game === 'tol' ? TOL_MAX : FIXED_N[game] || ([5, 10, 15, 20, 30].includes(Number(c.n)) ? Number(c.n) : 10);
   return { game, ops: ops.length ? ops : OPS.slice(), level, n };
 }
 
@@ -160,6 +178,7 @@ function view(g, u, nowDate) {
     opp_gone: g.status === 'playing' && !!opp && !opp.online && !opp.done,
   };
   if (game === 'sprint') out.sprint = SPRINT_SECS;
+  if (TIMED.has(game)) out.pen = penOf(game);
   if (game === 'tol' && g.status === 'playing' && startMs) out.tol = tolView(g, r, nowMs);
   return out;
 }
@@ -189,7 +208,7 @@ function battleFor(g, r, res) {
 }
 
 function duelResult(g, nowMs, reason, loser) {
-  const startMs = ms(g.start_at), res = { reason };
+  const startMs = ms(g.start_at), res = { reason }, pen = penOf(gameOf(g.cfg));
   for (const r of ['host', 'guest']) {
     const done = g[r + '_done_at'] ? ms(g[r + '_done_at']) : null;
     const serverRaw = ((done || nowMs) - startMs) / 1000;
@@ -197,7 +216,7 @@ function duelResult(g, nowMs, reason, loser) {
     // Prefer the device's own stopwatch (fairer across network delays) if it agrees with the server clock.
     if (done && g[r + '_raw'] != null && g[r + '_raw'] <= serverRaw + 1 && g[r + '_raw'] >= serverRaw - 5) raw = g[r + '_raw'];
     const ex = g[r + '_extra'] || {};
-    res[r] = { raw: +raw.toFixed(3), wrong: g[r + '_wrong'], idx: g[r + '_idx'], time: +(raw + g[r + '_wrong'] * PENALTY).toFixed(3), dnf: !done,
+    res[r] = { raw: +raw.toFixed(3), wrong: g[r + '_wrong'], idx: g[r + '_idx'], time: +(raw + g[r + '_wrong'] * pen).toFixed(3), dnf: !done,
                splits: ex.splits || [], bestStreak: ex.bestStreak || 0 };
   }
   if (reason === 'forfeit') res.winner = other(loser);
@@ -250,7 +269,10 @@ async function finalize(req, actor, sql, g, reason, loser) {
       if (ins.length) await awardBattle(sql, uid, battleCoins(b));
     }
   }
-  const brief = r => (game === 'duel' ? { name: g[r + '_name'], ...res[r] } : { name: g[r + '_name'], score: res[r].score, wrong: res[r].wrong });
+  // Timed games log time, raw, wrong, idx and dnf (the admin activity log shows DNF from it).
+  const brief = r => (TIMED.has(game)
+    ? { name: g[r + '_name'], time: res[r].time, raw: res[r].raw, wrong: res[r].wrong, idx: res[r].idx, dnf: res[r].dnf }
+    : { name: g[r + '_name'], score: res[r].score, wrong: res[r].wrong });
   await logEvent(req, actor, 'live_finish', {
     detail: { code: g.code, game, reason: res.reason, winner: res.winner ? g[res.winner + '_name'] : 'draw', host: brief('host'), guest: brief('guest') },
   });
@@ -304,8 +326,11 @@ export default route(['GET', 'POST'], async (req, res) => {
     const [busy] = await sql`select code from live_games where status = 'playing' and (host_id = ${u.id} or guest_id = ${u.id}) limit 1`;
     if (busy) return fail(res, 409, 'Finish your current game first (' + busy.code + ').');
     const cfg = cleanCfg(req.body.cfg);
-    const rawName = String(req.body.name || '').trim() || (u.name + '’s game');
-    const s = screen(rawName.slice(0, 40));
+    // A typed-in game name goes through the chat filter. The default ("<name>'s game") is built from the display
+    // name, which is already public on the boards, so it isn't screened: a name like "sam123456789" would
+    // otherwise read as a phone number and stop that player creating any game (the lobby has no name field).
+    const typed = String(req.body.name || '').trim();
+    const s = typed ? screen(typed.slice(0, 40)) : { ok: true, text: u.name + '’s game', flags: [] };
     if (!s.ok) return fail(res, 422, s.reason === 'too_long' ? 'Keep the game name short.' : s.message);
     const name = s.text.slice(0, 30);
     const priv = !!req.body.private;
@@ -364,8 +389,7 @@ export default route(['GET', 'POST'], async (req, res) => {
     if (r === 'host') await sql`update live_games set host_ready = ${ready}, host_seen = now(), updated_at = now() where id = ${g.id}`;
     else await sql`update live_games set guest_ready = ${ready}, guest_seen = now(), updated_at = now() where id = ${g.id}`;
     const game = gameOf(g.cfg), seed = randomInt(2147483647);
-    const qs = game === 'tol' ? makeTol(TOL_MAX, g.cfg.ops, g.cfg.level, seed)
-      : makeQuestions(game === 'sprint' ? SPRINT_Q : g.cfg.n, g.cfg.ops, g.cfg.level, seed);
+    const qs = makeLiveQuestions(game, g.cfg.n, g.cfg.ops, g.cfg.level, seed);
     const started = await sql`update live_games set status = 'playing', questions = ${JSON.stringify(qs)}::jsonb,
                                 start_at = now() + make_interval(secs => ${START_DELAY}), updated_at = now()
                               where id = ${g.id} and status = 'full' and host_ready and guest_ready returning start_at`;
@@ -381,18 +405,29 @@ export default route(['GET', 'POST'], async (req, res) => {
     const nowMs = ms(now), startMs = ms(g.start_at);
     if (nowMs < startMs - 1000) return fail(res, 409, 'Not started yet');
     const p = r;
-    let idx, finishing;
+    if (g[p + '_done_at']) return send(res, 200, { ok: true, done: true });   // a finished player's progress is final
+    // Moves so far are capped at a pace no child (or adult) can beat: 2.5 a second, plus a little slack.
+    const plausible = Math.floor(Math.max(0, nowMs - startMs) / 1000 * 2.5) + 3;
+    const askIdx = parseInt(req.body.idx, 10) || 0, askWrong = Math.min(999, parseInt(req.body.wrong, 10) || 0);
+    let idx, wrong, finishing;
     if (game === 'sprint') {
-      // Correct answers so far, capped at a pace no child (or adult) can beat.
-      const plausible = Math.min(SPRINT_MAX, Math.floor(Math.max(0, nowMs - startMs) / 1000 * 2.5) + 3);
-      idx = Math.max(g[p + '_idx'], Math.min(plausible, parseInt(req.body.idx, 10) || 0));
-      finishing = !!req.body.final && !g[p + '_done_at'] && nowMs >= startMs + (SPRINT_SECS - 3) * 1000;
+      idx = Math.max(g[p + '_idx'], Math.min(SPRINT_MAX, plausible, askIdx));
+      wrong = Math.max(g[p + '_wrong'], askWrong);
+      finishing = !!req.body.final && nowMs >= startMs + (SPRINT_SECS - 3) * 1000;
+    } else if (game === 'climb') {
+      // The ledge can go down (a slip), so a report only counts if it's newer: every move adds at least 1 to
+      // idx + 2*wrong (a climb adds 1; a slip takes 1 off idx and adds 1 to wrong; a slip on the ground adds 2).
+      // Moves made are at least idx + wrong, which must fit the pace cap.
+      const n = g.cfg.n, ni = Math.max(0, Math.min(n, askIdx)), nw = Math.max(0, askWrong);
+      const newer = nw >= g[p + '_wrong'] && ni + 2 * nw >= g[p + '_idx'] + 2 * g[p + '_wrong'] && ni + nw <= plausible;
+      idx = newer ? ni : g[p + '_idx']; wrong = newer ? nw : g[p + '_wrong'];
+      finishing = idx >= n;
     } else {
       const n = g.cfg.n;
-      idx = Math.max(g[p + '_idx'], Math.min(n, parseInt(req.body.idx, 10) || 0));
-      finishing = idx >= n && !g[p + '_done_at'];
+      idx = Math.max(g[p + '_idx'], Math.min(n, askIdx));
+      wrong = Math.max(g[p + '_wrong'], askWrong);
+      finishing = idx >= n;
     }
-    const wrong = Math.max(g[p + '_wrong'], Math.min(999, parseInt(req.body.wrong, 10) || 0));
     let extra = null, raw = null;
     if (finishing) {
       raw = Number(req.body.raw); if (!Number.isFinite(raw) || raw <= 0) raw = null;

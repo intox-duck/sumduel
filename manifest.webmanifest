@@ -1,13 +1,13 @@
 {
   "name": "Sum Duel",
   "short_name": "Sum Duel",
-  "description": "Quick maths, head to head. Duel a friend on one phone or two, plus a picture level for 4-year-olds.",
+  "description": "Quick maths, head to head. Seven live two-player maths games, a level trail, the Daily and leaderboards.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#FFF8EE",
-  "theme_color": "#FFF8EE",
+  "background_color": "#F7F7F5",
+  "theme_color": "#F7F7F5",
   "categories": [
     "games",
     "education"

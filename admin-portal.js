@@ -148,6 +148,8 @@
     if (b.game === 'tol') return tag + 'Truth or Lie vs ' + esc(p1.name) + ' · ' + res + ' · ' + p0.score + '–' + p1.score;
     if (b.game === 'sprint' && p1.name) return tag + 'Sprint vs ' + esc(p1.name) + ' · ' + res + ' · ' + p0.score + '–' + p1.score + ' correct';
     if (b.game === 'sprint') return 'Sprint · ' + p0.score + ' correct, ' + p0.wrong + ' wrong';
+    if (b.game === 'climb' || b.game === 'missing' || b.game === 'target' || b.game === 'bigger')
+      return tag + ({ climb: 'The Climb', missing: 'Missing Number', target: 'Target', bigger: 'Bigger' })[b.game] + ' vs ' + esc(p1.name) + ' · ' + res + ' · ' + (p0.time != null ? p0.time.toFixed(2) : '?') + ' s vs ' + (p1.time != null ? p1.time.toFixed(2) : '?') + ' s';
     if (b.game === 'daily') return 'Daily ' + esc(b.day) + ' · ' + (p0.time != null ? p0.time.toFixed(2) : '?') + ' s' + (b.practice ? ' (practice)' : '');
     return esc(b.game);
   }
@@ -236,7 +238,8 @@
     chat_delete: 'Removed a message', chat_mute: 'Muted', chat_unmute: 'Unmuted', admin_open: 'Opened admin', admin_password_reset: 'Reset password',
     admin_role_change: 'Changed role', admin_review: 'Reviewed flag', audit_run: 'Audit ran', audit_reviewed: 'Audit reviewed', role_set_cli: 'Role set (CLI)'
   };
-  var GN = { duel: 'Duel', tol: 'Truth or Lie', sprint: 'Sprint' };
+  var GN = { duel: 'Duel', climb: 'The Climb', tol: 'Truth or Lie', sprint: 'Sprint', missing: 'Missing Number', target: 'Target', bigger: 'Bigger' };
+  var TIMED = { duel: 1, climb: 1, missing: 1, target: 1, bigger: 1 };   // fastest time wins (the rest are scored)
   function describe(r) {
     var d = r.detail || {};
     switch (r.action) {
@@ -246,8 +249,8 @@
       case 'live_join_failed': case 'live_leave': return esc(d.code) + (d.during ? ' · during ' + esc(d.during) : '');
       case 'live_start': return esc(d.code) + ' · ' + esc(GN[d.game] || 'Duel') + ' · ' + esc(d.host) + ' vs ' + esc(d.guest);
       case 'live_finish':
-        if (d.game && d.game !== 'duel') return esc(d.code) + ' · ' + esc(GN[d.game]) + ' · ' + esc(d.host && d.host.name) + ' ' + esc(d.host && d.host.score) + '–' + esc(d.guest && d.guest.score) + ' ' + esc(d.guest && d.guest.name) + ' · winner ' + esc(d.winner) + (d.reason !== 'finished' ? ' (' + esc(d.reason) + ')' : '');
-        return esc(d.code) + ' · ' + esc(d.host && d.host.name) + ' ' + (d.host && d.host.dnf ? 'DNF' : esc(d.host && d.host.time) + ' s') + ' vs ' + esc(d.guest && d.guest.name) + ' ' + (d.guest && d.guest.dnf ? 'DNF' : esc(d.guest && d.guest.time) + ' s') + ' · winner ' + esc(d.winner) + (d.reason !== 'finished' ? ' (' + esc(d.reason) + ')' : '');
+        if (d.game && !TIMED[d.game]) return esc(d.code) + ' · ' + esc(GN[d.game] || d.game) + ' · ' + esc(d.host && d.host.name) + ' ' + esc(d.host && d.host.score) + '–' + esc(d.guest && d.guest.score) + ' ' + esc(d.guest && d.guest.name) + ' · winner ' + esc(d.winner) + (d.reason !== 'finished' ? ' (' + esc(d.reason) + ')' : '');
+        return esc(d.code) + (d.game && d.game !== 'duel' ? ' · ' + esc(GN[d.game] || d.game) : '') + ' · ' + esc(d.host && d.host.name) + ' ' + (d.host && d.host.dnf ? 'DNF' : esc(d.host && d.host.time) + ' s') + ' vs ' + esc(d.guest && d.guest.name) + ' ' + (d.guest && d.guest.dnf ? 'DNF' : esc(d.guest && d.guest.time) + ' s') + ' · winner ' + esc(d.winner) + (d.reason !== 'finished' ? ' (' + esc(d.reason) + ')' : '');
       case 'climb_finish': return 'Level ' + esc(d.level) + ' · ' + (d.won ? new Array((d.stars || 0) + 1).join('★') + ' · +' + esc(d.coins) + ' coins' + (d.chest ? ' · chest' : '') : 'not this time');
       case 'vs_finish': return esc(d.day) + ' vs ' + esc(d.rival) + ' · ' + (d.won ? 'won' : 'lost') + ' · ' + esc(d.time) + ' s vs ' + esc(d.rival_time) + ' s' + (d.first ? '' : ' (rematch)') + (d.coins ? ' · +' + esc(d.coins) + ' coins' : '');
       case 'gift_claimed': return 'Day ' + esc(d.day) + ' · +' + esc(d.coins) + ' coins' + (d.lives ? ' · +' + esc(d.lives) + ' lives' : '');

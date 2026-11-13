@@ -8,18 +8,50 @@ Live: **https://sumduel.app** (`www.sumduel.app` 308-redirects to the apex; `sum
 
 ## Now (2026-11-13)
 
-- **State:** v2.8 (PR #1) is **merged and live**. The owner said: "confirm pull request has been reviewed, your happy with QA then push."
-  - The v2.8 schema was applied to the live DB on 2026-11-13 at about 08:33 UTC, before the merge. The DB was checked first (2 users, 81 battles, 52 live games; no `wallets`/`daily_vs`), and the counts were unchanged afterwards.
-  - Merged by rebase as `3cac915` + `82c8886`; production deploy READY.
-- **Then v2.8.2 (`main`):** the Daily VS heading read "DailyVS": Fredoka kerns a space before "V" by −0.15 em. Fixed with a non-breaking space (see §4).
-- **QA on the merged code:**
-  - local (PGlite): 27/27 API checks, the Climb e2e, a two-browser live Truth or Lie (7–0), 8 palette × theme view runs, picker tiles measured;
-  - production, guest-only and read-only: the endpoints, all 8 palette × theme runs with no console errors; `/api/rewards?vs=1` reads `daily_vs`.
-- **Next:** nothing pending. The `v28-review` worktree and the remote PR branch can be pruned.
-- **Gotchas:** `pgrep -f server.mjs` inside a Bash call matches its own shell and kills it (exit 144). Use `ps aux | grep "[s]erver\.mjs"`.
+- **State: v3.0 on `main`** (pushed 2026-11-13; Vercel deploys it automatically). The last version live before it was v2.8.2.
+  - The owner reviewed Grok's local v2.9/v2.10 work ("it's kind of shit") and asked for: the new games, but in a Brilliant.org style ("something less geared toward a 5 year old, but super easy to use"); the online games listed at the top, separately; at least five different maths games, including the climbing one, as live two-player games.
+  - v3.0 replaces v2.9 and v2.10 (neither was ever deployed): seven live games that each play differently, one rewritten stylesheet, and an Arena that lists the online games first. Details in the v3.0 handoff entry.
+- **No schema change.** `live_games.cfg` is jsonb and already holds `cfg.game`; the new games use the existing columns.
+- **QA (local, in-memory PGlite; nothing touched the live database):** 82/82 live API checks (`qa/t-live.mjs`); 76/76 two-browser checks that play Climb, Target, Bigger, Missing Number and Duel through the UI, then quick match and the record (`qa/e2e-live.mjs`), re-run with player A in Seaside night and player B in ASCII night (50/50); 10/10 solo and guest flows (`qa/e2e-solo.mjs`); every view in 8 looks on phone and desktop with no console errors and no sideways overflow (`qa/views.mjs`); WCAG AA on every text/background token pair (`qa/contrast.cjs`). Live Truth or Lie and live Sprint weren't replayed end to end (their engines are unchanged); their API shapes were checked.
+- **Next:** play the new games for real on two phones. The admin portal (`/admin`) keeps the v2 look (Nunito/Fredoka, its own CSS) and `og.png` still shows the v2 look; both could move to the v3 tokens.
+- **Gotchas:**
+  - `pkill -f server.mjs` / `pgrep -f server.mjs` inside a Bash call matches its own shell and kills it (exit 144). Kill by PID: `ps aux | grep "[s]erver\.mjs" | awk '{print $2}' | xargs -r kill`.
+  - Playwright with `isMobile`: the sticky header and animated buttons (Little Ones' start) make `page.click` time out; click through `$eval(el => el.click())` there.
 
 ## Handoff log (newest first)
 
+- **v3.0 (2026-11-13, `main`): seven live games, a Brilliant-style redesign, online games first.**
+  - **Review of Grok's v2.9/v2.10** (both local, never deployed), and what happened to each part:
+    - v2.9's four "new" live games were the Duel engine with blanks or a different clock: Missing Number (every sum blank), Mix-up (every other sum blank), "The Climb" (12 sums with every third blank, so no climbing at all) and "Target" (Sprint with a 45 s clock). **Kept:** Missing Number. **Rebuilt with real mechanics:** The Climb and Target. **Dropped:** Mix-up (it was Duel plus Missing Number).
+    - v2.9's removal of same-device simultaneous play (split screen and the local Truth or Lie buzzer) is **kept**. The on-device Duel is take-turns, now called "Pass the Phone". Two players at once means two devices.
+    - v2.10's "quieter Arena" was a ninth override layer: `box-shadow:none` everywhere, keyframes blanked to nothing, Blue/Pink ink changed in day mode only. Its `--faint` text failed WCAG AA at about 2.9:1. **Replaced** by the v3 stylesheet.
+    - A Grok regression, fixed: `live_finish` logged timed games without `dnf`/`raw`/`idx`, so the admin activity log couldn't show a DNF.
+  - **Seven live games**, all two-device, signed in and server-timed: Duel, The Climb, Truth or Lie, Sprint, Missing Number, Target, Bigger (rules in §2 Live games).
+    - **The Climb:** a cliff of 12 ledges, easy at the bottom (4), then medium (5), then hard at the top (3). A right answer climbs a ledge and a wrong one slips you down one. Every ledge has 4 alternative sums, so a slip never replays a sum you've just seen. Both climbers are drawn on one cliff. First to the top wins, with no time penalty: the slip is the penalty.
+    - **Target:** 5 number puzzles. Tap a number, a sign, then another number to combine them, and make the target. Each puzzle is built from a real solution that uses every tile with whole, positive steps, but any route counts. A skip costs 10 s and shows one way to do it.
+    - **Bigger:** 15 pairs of sums; tap the bigger one. The pairs are close on purpose (within about 20 %) and never tie; hard mixes the operations. A wrong tap adds 3 s.
+  - **Arena (`#/`):**
+    - The hero, then **Play Online**: the seven live games, with a join-by-code box.
+    - Then the daily gift banner.
+    - Then **On This Device**: Climb the Coast, The Daily, Daily VS, Sprint, Pass the Phone, Little Ones.
+    - Then the leaderboard, your numbers and the colour picker.
+    - The cards are drawn from one catalogue in app.js (`LV_GAMES`, `GNAME`, `GINFO`, `GICON`, `SOLO`, `gcard()`, `renderHomeCards()`).
+  - **Play Online (`#/live`):**
+    - A game picker and a detail panel: how it works, a worked example and the options.
+    - **Find an opponent** joins an open public game of that kind, or opens one and waits. **Make a game for a friend** creates one, public or private.
+    - Rooms show the code big, with Share and Copy.
+    - A code typed while signed out is kept through sign-in (`pendingJoin`).
+  - **Design:** one new stylesheet (Plus Jakarta Sans, tactile tiles with a bottom lip, black primary buttons, initials for avatars, one colour per game). See §4.
+  - **Bugs found and fixed by the v3 QA:**
+    1. Confetti made mobile browsers double `innerHeight` until reload. The canvas was briefly a fixed box larger than the screen, and v3 had also dropped the `#fx` and `.toast` rules (restored).
+    2. A display name with 9+ digits blocked that player from creating any live game ("Phone numbers aren't allowed"), because the default game name went through the chat filter.
+    3. Long email addresses widened the Account page on phones.
+    4. After a Target skip, the label already showed the next puzzle number.
+    5. Bigger's previous right answer stayed green for 150 ms as the next pair appeared.
+    6. **Deploy skew:** assets are stale-while-revalidate in the service worker, so a returning player's first visit after this deploy would have run the old cached app.js on the new index.html and crashed (an empty Arena: "Cannot read properties of null"). v3 loads `/app.js?v=3.0`; `qa/sw-upgrade.mjs` serves v2.8.2, lets its worker cache it, swaps in v3 on the same origin, and checks the first load (it fails without the query, passes with it).
+  - Service worker `sd-v3.0`. Manifest colours `#F7F7F5`. No schema change.
+- **v2.10 (2026-11-13, local, never deployed; superseded by v3.0): quieter Arena.** Same product, less of the nursery look. Nunito carries the headlines (Fredoka dropped from the shell). Sticker shadows are gone on every palette, including blue and pink. ASCII stays square and monospace. Not deployed.
+- **v2.9 (2026-11-13, local, never deployed; superseded by v3.0, which keeps its same-device removal and Missing Number): lobby games, no same-device race.** A split screen shows the other player's answers, and one phone can't host two players fairly at once. Face to face is removed. Local Truth or Lie (the same-device buzzer) is removed; `#/tol` opens the live lobby with Truth or Lie selected. The on-device Duel is take-turns only (`mode: 'turns'`; a saved `split` is rewritten). Live games, all signed-in and two-device: Duel, The Climb (12 questions, every third sum blank, duel scoring; the solo trail stays, with "Race a friend"), Truth or Lie, Sprint, Missing Number, Target (45 s, goal of 12), Mix-up. No schema change. Service worker `sd-v2.9`. Not deployed.
 - **v2.8.2 (2026-11-13, `main`): heading spacing.** Fredoka's kerning pulls a space and a following "V" together by 0.15 em (every other letter is within 0.02 em), so "Daily VS" showed as "DailyVS". The user-facing strings now use `Daily\u00A0VS` (`&nbsp;` in the card markup); a no-break space isn't kerned and also stops the title wrapping. Service worker `sd-v2.8.2`.
 - **v2.8.1 (merged 2026-11-13 as `82c8886`, live): review fixes, palettes, title case.**
   - **Review fixes** (from a code review of PR #1 plus local QA):
@@ -79,11 +111,11 @@ A static single-page app plus eight Vercel serverless functions (Hobby limit 12;
 
 | Path | Role |
 |---|---|
-| `index.html` | Markup for every view plus **all CSS inline**. Preloads three fonts. Loads `app.js` (defer). |
-| `app.js` | The whole player client: router, games (incl. **Little Ones**), auth, sync, record, boards, **chat**, sound, speech, confetti. ES5-style IIFE. |
+| `index.html` | Markup for every view plus **all CSS inline**: the v3 design system, one stylesheet organised by component (§4), plus the kept Little Ones and chat blocks. Preloads Plus Jakarta Sans. Loads `app.js` (defer). |
+| `app.js` | The whole player client: router, the **v3 game catalogue** (names, one-liners, icons, colours, penalties) and the Arena cards, the pad engine, the Climb trail, Little Ones, Daily VS, live games (lobby, room, and the Climb, Target and Bigger engines), auth, sync, record, boards, chat (off), sound, speech, confetti. ES5-style IIFE. |
 | `admin.html` + `admin-portal.js` | The admin portal at `/admin` (clean URL). Inline CSS, no inline JS (strict CSP). Shows a plain 404 page to anyone who isn't an admin. |
-| `sw.js` | Service worker `sd-v2.8.2`: precaches the shell and fonts; navigations network-first with **only `/` cached**; never caches `/api/*` or `/admin*`. Bump `VERSION` when shell files change. |
-| `fonts/` | Self-hosted woff2 subsets and their licences (`fonts/README.md`). |
+| `sw.js` | Service worker `sd-v3.0`: precaches the shell (`/`, `/app.js?v=3.0`, icon, manifest) and Plus Jakarta Sans. **v3: index.html loads `/app.js?v=<version>`; bump it together with `VERSION`.** Assets are stale-while-revalidate, so without the query a returning player's first visit after a deploy got the new index.html with the old cached app.js; navigations network-first with **only `/` cached**; never caches `/api/*` or `/admin*`. Bump `VERSION` when shell files change. |
+| `fonts/` | Self-hosted woff2 files and their licences (`fonts/README.md`): Plus Jakarta Sans for the player app; Nunito and Fredoka, still used by `admin.html`. |
 | `api/_lib.js` | Neon client, `route()`, scrypt, player sessions (`currentUser` returns `role`, `muted_until`), `publicUser`, `isMod`/`isSuper`, **`logEvent()`**. |
 | `api/_safety.js` | Chat safeguarding filter (`screen()`). |
 | `api/_audit.js` | `runAudit(req, actor, trigger)`: builds and stores a safeguarding report. |
@@ -95,25 +127,32 @@ A static single-page app plus eight Vercel serverless functions (Hobby limit 12;
 | `icon.svg`, `icon-maskable.svg` | The v2.6 seaside ÷ mark (a rounded tile; a full-bleed maskable version with the artwork at 86 % in the safe circle). |
 | `apple-touch-icon.png` (180), `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `favicon-32.png`, `og.png` (1200×630) | Rendered from the SVGs and an HTML share card with headless Chromium (render scripts live in the session scratchpad, not the repo). Re-render them whenever the mark changes. |
 | `api/admin.js` | Admin API (role-gated, see §7). |
-| `api/live.js` | Live games API (v2.8: Duel, Sprint, Truth or Lie): lobby, create, join (with password), ready, progress, call (Truth or Lie), leave, claim, rematch. |
+| `api/live.js` | Live games API: Duel, The Climb, Truth or Lie, Sprint, Missing Number, Target, Bigger (`GAMES`, `TIMED`, `PEN`, `FIXED_N`). Lobby, create, join (with password), ready, progress (with the Climb's ordering rule), call (Truth or Lie), leave, claim, rematch. |
 | `api/rewards.js` | v2.8: wallet (coins + hearts), daily gift, buying hearts, Climb start/continue/finish, Daily VS board (public) and finish, guest `adopt`. |
 | `api/_economy.js` | v2.8 rules: `ECON` numbers, `battleCoins`, `climbReward`, heart regen, `mutate` (optimistic lock on `rev`), `awardBattle`, the Daily VS bots (`botRun`). **Mirrored in `app.js`.** |
-| `api/_schema.js` | v2.8 tables (`V28`) and `ensureSchema()`, run once per cold start by the functions that need them; `scripts/migrate.js` also applies `V28`. |
-| `api/_questions.js` | Server copy of `makeQuestions`, `makeTol` (v2.8), `rng`, `hashStr` and `RANGES`. **Keep it identical to `app.js`.** |
+| `api/_schema.js` | The v2.8 tables (`V28`), applied by hand (§6). No request path runs DDL: v2.8.1 removed `ensureSchema()`. `scripts/migrate.js` also applies `V28`. |
+| `api/_questions.js` | Server copy of `makeQuestions`, `makeTol`, `rng`, `hashStr` and `RANGES` (**keep these identical to `app.js`**), plus the server-only v3 generators: `makeClimb` (12 ledges × 4 sums, `CLIMB_BANDS`), `makeTargets` (+ `combine`), `makeBigger`, and `makeLiveQuestions(game, n, ops, level, seed)`. |
 | `api/audit-cron.js` | Vercel cron target. Checks `Authorization: Bearer $CRON_SECRET`, then calls `runAudit`. |
 | `scripts/migrate.js` | Idempotent schema (`npm run migrate`). |
 | `scripts/role.js` | `npm run role -- <email> <player|admin|super_admin>`. **The only way to create a super_admin.** Logs `role_set_cli`. |
 | `vercel.json` | Clean URLs, `lhr1`, headers (strict CSP + noindex + no-store on `/admin*`, immutable `/fonts/*`), and `crons: [{ path: /api/audit-cron, schedule: "0 7 * * *" }]`. |
 
 ### Client views (hash router)
-`#/` Arena · `#/duel`, `#/tol` setup · **`#/climb` (v2.8 trail)** · **`#/vs` (v2.8 Daily VS)** · **`#/live` (lobby) and `#/live/CODE` (room)** · `#/record` · `#/boards` · **`#/players` (v2.7 dashboard, signed-in only)** · `#/chat` (off in v2.6; it falls through to home) · `#/account`. The game screens aren't routed. `route()` calls `chatStop()`, `liveStop()`, `climbStop()` and `closeSheet()` on every navigation, so polling only runs while that view is open. Leaving a live game by navigating away doesn't forfeit, but after 25 s of silence the opponent can claim the win.
+`#/` Arena (Play Online first, then On This Device) · `#/duel` Pass the Phone (take-turns Duel setup) · `#/tol` opens Play Online with Truth or Lie picked · `#/climb` Climb the Coast (the solo trail, plus "Race a friend") · `#/vs` Daily VS · `#/live` Play Online (game picker and detail, join by code, open games) and `#/live/CODE` (a room; signed out, the code is kept through sign-in) · `#/record` · `#/boards` · `#/players` (signed-in only) · `#/chat` (off since v2.6; it falls through to home) · `#/account`. The game screens aren't routed. `route()` calls `chatStop()`, `liveStop()`, `climbStop()` and `closeSheet()` on every navigation, so polling only runs while that view is open. Leaving a live game by navigating away doesn't forfeit, but after 25 s of silence the opponent can claim the win.
 
 ## 2. Code & data workflow
 
+### The Arena (`#/`, v3)
+- **Hero** (`.hero`): kicker, headline, lede, two buttons (Play a friend online → `#/live`; Climb the coast → `#/climb`) and `.hero-demo`, an HTML mock of a live game card. Phones hide the demo and the buttons so Play Online starts on the first screen.
+- **Play Online** (`#online`): a join-by-code form (`#homeJoin`: 5 characters; signed out it keeps the code in `pendingJoin` and opens Account) and `#onlineGames`, the seven live games drawn by `renderHomeCards()` from `GINFO` (The Climb is the wide featured card with a mini cliff). A card (`data-live`) sets `LCFG.game` and opens `#/live` with that game picked.
+- **Gift banner** (`#giftBar`) when the daily gift is ready, then **On This Device** (`#soloGames`, from `SOLO`: `data-go` = climb, daily, vs, sprint, duel, little), then the leaderboard (`#homeBoard`), your numbers (`#homeStats`, when this device has battles) and the colour picker (`#palPick`).
+- Clicks are delegated once on `#v-home`. The meta line of three solo cards updates live: `#climbTag` (level and stars), `#dailyTag` and `#vsTag` (Today / Done ✓ / Raced ✓).
+- **Avatars** (`avatar(name, size)`): the first letter of the name on one of seven game colours, chosen by a hash of the name.
+
 ### Games, battle record shape, offline-first sync
-Unchanged from v2. Duel, Truth or Lie, Sprint and Daily live in `app.js`. Battles are written to `sd_battles` + `sd_pending` and flushed in batches of 200, deduped on `(user_id, client_id)`. Guest battles migrate to the account on sign-in. Shape:
+Unchanged from v2, with the live games' names added in v3. Solo games, the take-turns Duel and the live clients live in `app.js`. Battles are written to `sd_battles` + `sd_pending` and flushed in batches of 200, deduped on `(user_id, client_id)`. Guest battles migrate to the account on sign-in. Shape:
 ```js
-{ cid, at, game: 'duel'|'tol'|'sprint'|'daily', mode?, cfg: { ops, level, n? }, winner?: 0|1|-1, day?, practice?,
+{ cid, at, game: 'duel'|'tol'|'sprint'|'daily'|'climb'|'missing'|'target'|'bigger', mode?: 'turns'|'live'|'ghost', cfg: { ops, level, n? }, winner?: 0|1|-1, day?, practice?,
   players: [{ name, time?, raw?, wrong, score?, splits?, bestStreak?, wrongBy?, avgRt? }] }   // account holder = player 0
 ```
 
@@ -124,7 +163,7 @@ Unchanged from v2. Duel, Truth or Lie, Sprint and Daily live in `app.js`. Battle
 - **Daily gift:** a banner on the Arena when it's ready (`#giftBar`) and a button on the Climb bar; a sheet with the 7-day calendar and a chest that opens.
 - **Sheets:** `openSheet(html)` / `closeSheet()`: one modal at a time, bottom sheet on phones, centred card from 640 px; Esc or the backdrop closes it.
 
-### The Climb (v2.8, `#/climb`)
+### Climb the Coast: the solo trail (v2.8, `#/climb`; the live race is "The Climb" in Live games)
 - **Levels are generated from their number** (`climbDef(L)`): area = ⌊(L−1)/12⌋, position p = (L−1) mod 12 picks the kind from `KINDS` = race, truth, missing, race, target, mixed, race, truth, missing, target, race, **boss**. Areas (`AREAS`): Rock Pools (easy +, then + −), The Harbour (easy + −, then ×), Sand Dunes (easy × ÷, then all), The Pier (medium + −), Cliff Path (medium × ÷), Lighthouse Point (medium all), Starry Sky (hard + −), Moon Beach (hard × ÷ then all); after level 96, endless "Summit n" areas (hard, all, slowly quicker). Clocks come from a per-area seconds-per-question (`tpq`), 2 % quicker per level within an area.
 - **Kinds:** race (n sums before the clock; +3 s per wrong), truth (8 statements, 2 mistakes allowed; uses its own `truthHalf()` screen), missing (`7 × ? = 42`, via `toMissing`), target (45 s, a goal of correct answers; 2★ = goal+3, 3★ = goal+6; ends early at 3★), mixed (every other sum has a missing number), boss (12 sums, every op of the area, opens the chest).
 - **Stars:** timed kinds: ≥ 40 % of the clock left = 3★, ≥ 20 % = 2★, else 1★. Truth: 0/1/2 mistakes = 3/2/1★. Any paid "keep going" caps the level at 1★.
@@ -208,25 +247,54 @@ There's no retention limit: everything is kept.
 - Client: `liveTolStart`, a 50 ms frame loop (`liveTolFrame`) that reveals on server time and runs the call-window bar, `liveTolTick` for round results ("+1 for you! Quicker by 0.21 s"), `liveTolCall`. Keys: A/← true, S/→ lie.
 
 ### Live games (`#/live`, `api/live.js`, `live_games`)
-- **Lobby (`#/live`):** create a game (name, operations, difficulty, 5/10/15/20 questions, public or private + password of 3–50 characters, scrypt-hashed), join by 5-character code, or pick from the open-games list (polled every 3 s). Private games ask for the password inline.
+- **The seven games** (`cfg.game`). The catalogue is `LV_GAMES`/`GNAME`/`GINFO`/`GICON` in app.js; the rules are in api/live.js.
+  - "Timed" games are a race to the end of the same set, on separate clocks. Fastest time wins, with a penalty per wrong answer (`PEN`, mirrored in app.js): Duel 3 s, Missing Number 3 s, Bigger 3 s, Target 10 s per skip, The Climb 0.
+  - Sprint and Truth or Lie are scored.
+
+  | Game | Length | How it's played | Decided by |
+  |---|---|---|---|
+  | Duel | 5/10/15/20 sums | Type the answer. A wrong answer keeps you on the same sum. | Fastest time, +3 s per wrong |
+  | The Climb | 12 ledges (`CLIMB_BANDS`: 4 easy, 5 medium, 3 hard), 4 sums per ledge (`questions[ledge][alt]`) | Right = up a ledge. Wrong = down a ledge, and both ledges show a fresh sum next time (`G.visits`). Both climbers are on one cliff. | First to the top (no penalty) |
+  | Truth or Lie | up to 25 statements | Call true or lie once per round; the server judges the round (see Live Truth or Lie). | First to 7 |
+  | Sprint | 60 s | Type answers. | Most correct; fewer wrong breaks a tie |
+  | Missing Number | 5/10/15/20 sums | Every sum has a gap (`toMissing`): `7 × ? = 42`. | Fastest time, +3 s per wrong |
+  | Target | 5 puzzles (`makeTargets`: easy 3 tiles 1–9 for 6–30; medium 4 tiles 1–10 for 10–60; hard 4 tiles 2–12, half the time one of 15/20/25, for 20–150) | Tap a number, a sign, then another number; the result replaces them and stays selected. Make the target by any route, without needing every tile. − and ÷ put the bigger number first. Undo, Start again, Skip (+10 s, shows one way). | Fastest time, +10 s per skip |
+  | Bigger | 15 pairs (`makeBigger`: within about 20 %, never a tie; hard mixes operations across the two sides) | Tap the bigger sum. Both values show after each tap. | Fastest time, +3 s per wrong tap |
+
+- **Lobby (`#/live`):** a radio group of game tiles (`.gpick`; arrow keys move the choice) and a detail panel (`paintDetail`).
+  - The panel shows how it works (`GHOW`), a worked example (`GEX`), Operations, Difficulty (not for The Climb, which ramps from easy to hard) and Questions (Duel and Missing Number only).
+  - **Find an opponent** (`quickMatch`) joins the newest open public game of that kind that isn't mine. If I already have one open it goes back to it; otherwise it creates a public game and waits in its room.
+  - **Make a game for a friend** (`createGame`) can be private, with a password of 3–50 characters (scrypt-hashed).
+  - Below: Join With a Code (5 characters) and Open Games (polled every 3 s). The settings persist in localStorage `sd_live_cfg`.
+  - The lobby has no name field. The server names a game "<display name>’s game" and only screens a typed-in name with the chat filter: the display name is already public, and screening it blocked names with 9+ digits.
+  - Signed out, the lobby still shows the picker and the detail panel, with "Sign in to play". A code typed on the Arena, or opened as `#/live/CODE`, while signed out is kept in `pendingJoin` and opened straight after sign-in.
   - One active game per player: creating or joining leaves your other lobby.
-  - Game names go through the chat safeguarding filter: PII and links are blocked, profanity is masked.
-- **Room (`#/live/CODE`):** polled every 1.3 s. Both player cards (**you are always blue, your opponent pink, on every device**), Ready toggles, Copy link / share sheet, Leave.
+- **Room (`#/live/CODE`):** polled every 1.3 s.
+  - It shows the game icon and name. While the game is open, the code is shown big with "Share the link" and "Copy the code".
+  - Both player cards show ready states (**you are always P1 colours, your opponent P2, on every device**). When the room is full it shows the rules, the example and "I'm ready".
   - Statuses: `open` → `full` → `playing` → `done`, or `cancelled` / `abandoned`.
   - Housekeeping on each lobby poll: a lobby whose host has been silent for 60 s is abandoned; a silent guest is dropped back to `open`; a game where both players have been silent for 5 min is abandoned.
-- **Start:** when both are ready, the server generates seeded questions (`_questions.js`) and sets `start_at = now() + 5 s`.
-  - Questions, including answers, are only sent from 3.5 s before GO.
-  - Each client estimates its clock offset from the lowest-latency poll (`LV.offset`) and counts down to `start_at` on the game cover. Late arrivals start with their elapsed time already counted.
-- **Play:** reuses the solo play screen and keypad (`makeHalf`, `press`, `finish`). The opponent strip in the top bar shows their progress bar, `idx / n`, wrong count and "done ✓", polled every 0.9 s.
-  - Each correct or wrong answer sends `progress` (queued, retried, only moves forward).
-  - The final report carries the device stopwatch time plus splits, best streak and wrong answers per operation.
+- **Start:** when both are ready, the server generates seeded questions (`makeLiveQuestions`) and sets `start_at = now() + 5 s`.
+  - Questions, with answers, are only sent from 3.5 s before GO. Truth or Lie never sends answers early.
+  - Each client estimates its clock offset from the lowest-latency poll and counts down on server time. Late arrivals start with their elapsed time already counted.
+- **Play (client):** `liveStartGame` dispatches:
+  - Duel, Missing Number, Sprint and The Climb use the pad engine (`makeHalf`, `press`, `finish`). The Climb adds the cliff (`cliffHtml`, `cliffPaint`), the slip in `press` and its question lookup (`curQ`).
+  - Target (`liveTargetStart`, `tg*`) and Bigger (`liveBiggerStart`, `bg*`) have their own screens. Truth or Lie is `liveTolStart`.
+  - Shared pieces: `liveSetup`, `liveChrome` (Quit plus the opponent strip), `liveShow`, `liveCountdown`, `liveTick` (opponent progress and the claim-win button) and `liveReport` (queued, one in flight, retried).
+  - Keys: digits, Backspace and Esc on the pad. Target: 1–9 pick a tile, + − * x / pick a sign, Backspace undoes, Esc starts again. Bigger: ← A 1 for left, → L 2 for right. Truth or Lie: A or ← for true, S or → for lie.
+  - Games that show feedback after the last answer (Target, Bigger) call `finish(0, at)` with the time of that answer, so the feedback delay isn't counted.
+- **Progress (server):** `progress {idx, wrong, final?, raw?, extra?}`. A finished player's progress is ignored. The pace cap: moves can't run faster than 2.5 a second, plus 3.
+  - Duel, Missing Number, Target and Bigger: idx and wrong only move forward, and idx ≥ n finishes. In Target, idx counts puzzles done and wrong counts skips; in Bigger, idx counts pairs answered.
+  - The Climb: idx is the ledge and can go down. A report counts only if neither `wrong` nor `idx + 2·wrong` has gone down (every move adds at least 1 to `idx + 2·wrong`) and `idx + wrong` fits the pace cap. idx = 12 finishes.
+  - Sprint: idx is capped at 150 and by the pace; `final` is only accepted from 57 s.
 - **Result (decided on the server, once, through a conditional update):**
-  - **Time:** the device time is used if it's within −5 s / +1 s of the server-measured time, otherwise the server time is used; then +3 s per wrong answer.
-  - **Winner:** both finished → lower time (a gap under 5 ms is a draw); one finished → that player; timeout (`max(120, n×20)` s) → whoever got further.
+  - **Time (timed games):** the device time is used if it's within −5 s / +1 s of the server-measured time, otherwise the server time is used; then wrong × `PEN` is added.
+  - **Winner:** both finished → the lower time (a gap under 5 ms is a draw); one finished → that player; timeout → whoever got further (idx).
+  - **Timeouts:** The Climb 240 s, Target max(180, n×45) s, Bigger max(120, n×12) s, Duel and Missing Number max(120, n×20) s, Sprint 75 s, Truth or Lie about 3.5 min.
   - **Forfeits:** `leave` mid-game is a forfeit, and so is `claim` after 25 s of opponent silence.
-  - Each player gets a `battles` row from their own perspective (`cid live-<id>`, `mode:'live'`), so the client's re-save dedupes. The result also carries both players' splits for the chart.
+  - Each player gets a `battles` row from their own perspective (`cid live-<id>`, `mode:'live'`), so the client's re-save dedupes. Coins are paid then (`battleCoins`: 15, plus 15 for a win).
 - **Rematch:** either player creates a new game with the same settings, name and password, with the other player as `invited_id`. The old game's `rematch_code` shows the opponent a "wants a rematch → Join" bar on their results screen. The invited player skips the password.
-- **Logging:** `live_create`, `live_join`, `live_join_failed` (10 per 10 min → 429), `live_start`, `live_finish` (both players' times and the winner), `live_leave`. These appear in the activity log under "Games & scores" and as totals in audits.
+- **Logging:** `live_create`, `live_join`, `live_join_failed` (10 per 10 min → 429), `live_start`, `live_finish` and `live_leave`. `live_finish` logs time, raw, wrong, idx and dnf for timed games, and score and wrong for scored ones. The admin log labels all seven games (`GN` and `TIMED` in admin-portal.js).
 - **Budget:** 2 players × about 1 call per second during a game. A 1-minute game is about 150 calls in total, which is fine on Hobby.
 
 ### Safeguarding audits (`audit_reports`)
@@ -280,70 +348,120 @@ There's no retention limit: everything is kept.
   - *No DDL in the functions (v2.8.1):* the PR first created its tables from request paths (`ensureSchema()`). The review removed that, because schema changes are applied by hand after a live check (owner rule). The v2.8 tables went in by hand on 2026-11-13.
   - *Generosity is in the numbers, not the rules:* fast heart refills, cheap hearts, payouts on every game and a prize for losing your first Daily VS. Change `ECON` (both copies) to tune it.
 
+- **v3 design decisions:**
+  - *Seven different games, not seven skins.* The owner asked for "at least 5 different math/arithmetic type games". Each live game now trains something different: speed (Duel, Sprint), judgement (Truth or Lie), inverse operations (Missing Number), comparison and estimation (Bigger), reasoning with operations (Target), and a race with stakes (The Climb, where a mistake costs ground rather than seconds).
+  - *The Climb slips instead of adding seconds.* Sliding down a ledge is visible to both players and turns accuracy into position. Because the ledge can go down, the server orders reports by `idx + 2·wrong` instead of "idx only moves forward".
+  - *Target accepts any route.* Puzzles are built from an all-tile solution, so every one can be done, but children find other routes, and insisting on every tile would mark right answers wrong. − and ÷ take the bigger number first, so tap order doesn't matter.
+  - *One tap to a game.* "Find an opponent" joins someone waiting for the same game, or waits for you. "Make a game for a friend" (with a code, and optionally a password) is one tap too. The lobby lost its name field: fewer steps, and the default name is the display name, which is already public.
+  - *Online games first,* as their own section with a join box (owner request). The solo games follow as "On This Device".
+  - *Brilliant-style, not Brilliant's brand.* The inspiration is the approach: a clean canvas, heavy type, tactile answer tiles, rules with a worked example. Colours, logo, font and icons are Sum Duel's own. Nothing copies Brilliant's name, logo, illustrations or typeface.
+  - *Initials and flat geometric icons* replace the sea-creature avatars and card illustrations, because the owner wanted it "less geared toward a 5 year old". The Climb trail keeps its seaside scenery as the one playful world.
+
 ## 4. Styling & design system
-- **Approach:** hand-written CSS inline in `index.html` and `admin.html` (shared tokens). No framework.
-- **Audience (v2.4):** the owner's daughter (9, reasoning at about 11) and her friends. Keep wording short and plain, keep it colourful but calm. Never put her name or home town in public page text.
-- **Layers:** a **v2.8 layer** (last before the reduced-motion rule: coin/heart/star icons `.ic`, the header `.purse`, `.giftbar`, `.chest` (lid opens with `.open`), `.sheet`, `.gcal`, the Climb (`.climb-bar`, `.trail`, `.area.t-*` sky gradients via `--a1/--a2`, `.node` done/now/lock/boss, `.decor`), level and shop sheets, `.offer` overlay, live Truth or Lie (`.ltol`), Daily VS (`.vs-*`), live game picker (`.lv-games`), new tokens `--coin*`, `--heart`, `--il-rock/sand/grass/wood/moon`, `--trail*`), on top of a **v2.7 layer** (last before the reduced-motion rule: type tuning, `.il-*` illustration colours, `.gart` card art, `.hb*` home board, `.stats`/`.chart`/`.pcard`/`.wld` dashboard, `.tip`, chart tokens `--c-win/--c-loss/--c-draw` and `--il-*`), on top of the v2.6 review layer, on top of the v2.1 textbook base (Latin Modern + Lean Mono, booktabs, numbered equations) plus a **v2.4 "friendly layer"**: a CSS block at the end of the `index.html` styles that overrides radii, button and segment colours, header wave, background dots and kicker star. Remove that block to get the plain textbook look back.
-- **Themes:** `paper` (default, "seaside day") and `night` ("Night by the sea", the Account → Night mode toggle; stored in localStorage `sumduel.theme`). Old `dark`/`light` values fall back to paper.
-- **Day tokens:** `--bg #FFF8EE` (warm sand-cream), `--surface #FFFFFF`, `--surface2 #FFF3E6`, `--ink #22223B`, `--muted #4A4E69`, `--faint #70758F`, `--line rgba(34,34,59,.13)`, `--line2 rgba(34,34,59,.34)`, `--p1 #0F7C8C` (sea teal), `--p2 #D6336C` (raspberry), deep tints `#DDF3F4`/`#FCE4EC`, `--win #2B8A3E`, `--warn #B35C00`, `--bad #C92A2A`, `--sun #F4B400`, `--on-accent #FFFFFF`. `--p1-glow`/`--p2-glow` are `transparent`, which neutralises the glows `app.js` writes inline.
-- **Night tokens:** `--bg #13203A` (navy), `--surface #1A2A48`, `--ink #F5F3FF`, `--p1 #5CD3E0`, `--p2 #FF8FB8`, `--win #8CE99A`, `--bad #FF8787`, `--on-accent #13203A`. `theme-color` meta: day `#FFF8EE`, night `#13203A`.
-- **Friendly layer details:**
-  - `--r 16px` / `--r-sm 12px` on cards, panels, lists, KPI rows and keypads;
-  - pill-shaped buttons, segments, filters, tags and toasts; primary buttons raspberry; selected segments and ops teal;
-  - cards lift on hover with a 4–6 px "shadow ledge";
-  - a teal scalloped wave under the sticky header (`.top::after` radial gradients); a 22 px polka-dot background;
-  - kicker marker ✦ in pink with plain numbers (no `§`, no `--`);
-  - game cards labelled "Game n ·"; home lede "How it works: …" (no "Definition", no QED box).
-- **Type (v2.7):** the token names are historical; read them as roles.
-  - `--serif` = Nunito, for prose.
-  - `--caps` = Nunito, for labels, buttons, nav and kickers (weight 800, `letter-spacing .02em`, no case transform).
-  - `--mono` = Fredoka, for headings (weight 600), the logo, questions, the keypad, big numbers and SVG text.
-  - `--num` = Nunito with `tabular-nums`, for clocks, tables, stats and scores.
-  - `em` in headings is upright and coloured. No italics for hints (v2.7 removed them).
-  - **Do not** go back to Latin Modern / JuliaMono: the owner rejected that look.
-  - **Fredoka kerns space→V by −0.15 em**, so in Fredoka text write a no-break space before a word starting with V (`Daily\u00A0VS`, `&nbsp;` in markup).
-- **Motifs:**
-  - Section numbers: 1 arena, 2 games, 2.5 live duel (lobby A/B/C, rooms), 3 numbers/record, 4 boards, 5 chat, 6 account, 7 preferences. The Arena has a full-width "Live Duel" card (ONLINE · 2 DEVICES) under the main event. The admin portal uses §1 Players … §5 Audits with Lean type-signature headings (`players : List User`) and the same seaside tokens, pills and ✦.
-  - Kept from the textbook base: numbered equations, booktabs tables, "Figure n" captions, ballot-box toggles (now rounded, teal).
-- **Chat window exception (chat is off since v2.6):** `.irc` keeps classic Win9x/mIRC chrome in both themes (grey `#C0C0C0` bevels, `#000080 → #1084D0` title bar, mIRC nick colours from `NICKC`, a nick list that toggles on phones).
-- **Shape:** base radius 2 px, overridden by the friendly layer (16/12 px, pills); 18 px gutter; max width 1080 px. Tab bar under 760 px with 5 tabs.
-- **Motion:** wrong-answer shake + `--bad` wash (not in Little Ones, which uses a gentle wobble); countdown; ink-coloured confetti; everything respects `prefers-reduced-motion`.
-- **Little Ones layer (v2.5, `.lt*`, `.game.little`):** new tokens `--sun-deep` (day `#FFF3C4`, night `#3B3420`) and `--sun-ink` (day `#7A5200`, night `#FFE08A`) for the sunny card and tag. Full-screen `.lt` with a sun radial background. Answer buttons have 3 px teal borders, a 24 px radius and a 5 px ledge. Right = `--win` fill, wrong = wobble + 35 % opacity. Progress stars are CSS clip-path stars (not emoji), so they show even without an emoji font. Picture size comes from `--sz` on `.lt-scene` (count: `min(17vw,11vh)`; add: `min(14vw,9vh)`; more: `min(11.5vw,8vh)`; larger caps at ≥ 760 px). Animations (`lt-pop`, `lt-wobble`, `lt-hop`, `lt-breathe`) are cut by the global reduced-motion rule.
-- **Logo (v2.6):** the mark is a ÷: an ink bar (`x124 y235 w264 h42 rx21` in a 512 box), a `--p1` dot above (`cy150 r46`) and a `--p2` dot below (`cy362`). The header and the admin draw it inline with classes `.mk-bar` / `.mk-a` / `.mk-b`, filled from tokens in CSS (so night mode recolours it; no `var()` in SVG attributes). The icon tile is sand `#FFF8EE` with a `#BFE6EA` scalloped sea (`M0 460`, 64 px scallops) that must stay below the pink dot. Never bring back the dark neon tile.
-- **v2.6 review layer** (a CSS block before the reduced-motion rule): static tags at ≤ 520 px, `.hero .eqn` hidden below 640 px, `.flab`, `.acts-grid`, `.who .av svg`. `.lede` is left-aligned with `hyphens:manual` (justified text is banned at these widths).
-- **Palettes (v2.8.1):** `html[data-palette]` = none (Seaside) | `blue` | `pink` | `ascii`, crossed with `html[data-theme]` = `paper` | `night`. Stored in localStorage `sumduel.palette`. A tiny inline script in `<head>` applies both before first paint; keep its palette list in step with `PALETTES` in `app.js`.
+- **v3 (2026-11-13): one stylesheet, written once.** The owner asked for a Brilliant.org style, "less geared toward a 5 year old, but super easy to use".
+  - v3 replaced the eight v2 override layers (the textbook base, the v2.4 friendly layer, the v2.6 review, v2.7, v2.8, the v2.8.1 palettes and Grok's v2.10) with one stylesheet inline in `index.html`, organised by component.
+  - Two blocks are kept as they were: Little Ones (`.lt*`) and the switched-off chat window (`.irc*`).
+- **Audience:** the owner's daughter (9, reasoning at about 11), her friends, and the adults who play them. Keep wording short and plain. Never put her name or home town in public page text. Little Ones (ages 4–6) keeps its own big, voiced design.
+- **The look:**
+  - an off-white page with white cards and solid hairline borders;
+  - heavy near-black headings with tight tracking;
+  - black primary buttons and a blue selection colour;
+  - one colour per player and one per game;
+  - controls that press down when tapped.
+- **Type:** Plus Jakarta Sans, self-hosted variable (200–800, SIL OFL), `fonts/plus-jakarta-sans-latin-wght.woff2`.
+  - The old token names are kept as roles and all point at it: `--serif` body, `--caps` labels and buttons, `--mono` headings, questions and numbers, `--num` tabular numbers, `--sans`.
+  - Headings (`h1.display`, `h2.title`, `.verdict`, `.gtx b`) are 800 with −0.035 to −0.05 em tracking. Body text is 500, 16 px, line-height 1.55.
+  - Numbers that change (clocks, scores, codes) use `font-variant-numeric: tabular-nums`.
+  - Kickers are small 800 labels in `--muted`: title case, and no section numbers since v3. No italics.
+  - Strings still use `Daily VS` (the v2.8.2 fix for Fredoka's kerning). It's harmless with the new font and stops the title wrapping.
+- **Tactile controls:**
+  - Which: cards (`.gcard`, `.gpick`, `.pal`), buttons (`.btn`, `.chipbtn`), keys (`.pad button`) and answer tiles (`.ops button`, `.tg-tile`, `.tg-ops button`, `.bg-c`, `.tol-btns button`).
+  - All have a 1.5–2 px border and a solid bottom lip, `box-shadow: 0 Npx 0 var(--lip)`. `:active` moves them down by N px and drops the lip.
+  - States: selected = a `--sel` border, `--sel-bg` fill and `--sel` lip; right = `--win`/`--win-bg`; wrong = `--bad`/`--bad-bg`.
+- **Buttons:**
+  - `.btn` is white with a lip. `.btn.primary` (and the old `.btn.duo`) is black (`--ink`) with `--bg` text. `.btn.ghost` is text only. `.btn.lg` is 54 px tall.
+  - `.seg` is a grey track with the chosen item as a white pill (`--seg-on`).
+  - `.toggle` is a switch, green when on.
+- **Tokens, Seaside day (the default):**
+  - Surfaces: `--bg #F7F7F5`, `--surface #FFFFFF`, `--surface2 #F2F2EF`.
+  - Text: `--ink #18181B`, `--ink2 #3F3F46`, `--muted #52525B`, `--faint #6B6B75`.
+  - Lines and lips: `--line #E4E4DF`, `--line2 #D2D2CB`, `--lip #C8C8C0`, `--ink-lip #000`.
+  - Players: `--p1 #0B7C8A` (you, teal) and `--p2 #D6336C` (the other player, raspberry).
+  - States: `--sel #1A5BE0` on `--sel-bg #EAF1FF`, `--win #157A32` on `--win-bg #E4F4E8`, `--bad #C02626` on `--bad-bg #FDECEC`, `--sun #F2B100`, `--on-accent #FFF`.
+- **Tokens, Seaside night:** `--bg #0F1115`, `--surface #171A20`, `--ink #F3F4F6`, `--p1 #3CC6D6`, `--p2 #FF7DA8`, `--sel #6EA1FF`, `--on-accent #0F1115`, dark lips (`--lip #07080A`). The `theme-color` meta follows `--bg` (app.js `applyTheme`).
+- **Game colours** (icon tiles, with a white glyph at 3:1 or better):
+  - `--g-duel` teal, `--g-climb` green, `--g-tol` violet, `--g-sprint` orange, `--g-missing` blue, `--g-target` red, `--g-bigger` grape, `--g-daily` red-orange, `--g-vs` indigo, `--g-little` amber; night has brighter twins.
+  - Avatars use the first seven (`.ava.av0`–`av6`), chosen by a hash of the name, never by rank.
+  - The cliff uses `--cl1/--cl2/--cl3` for easy, medium and hard.
+- **Icons:** `GICON` in app.js, 48×48 inline SVG drawn in `currentColor` on a `.gicon` tile (`--gc`). Every icon also carries `data-ascii` for ASCII mode.
+- **Layout:**
+  - Max width 1120 px, 24 px gutters (16 px on phones), a 16 px card radius and 12 px for controls.
+  - Arena grids: `.gl.four` for Play Online (4 columns from 1000 px, where The Climb card spans 2; 2 columns from 640 px; 1 column on phones, where cards turn horizontal with the icon on the left) and `.gl.three` for On This Device.
+  - Phones get a compact hero (no illustration, no buttons), so Play Online starts on the first screen.
+  - Under 760 px there's a tab bar with 5 tabs. The header is sticky, with a translucent blur.
+- **Game screen:**
+  - `.solo` content is centred, at most 560 px wide.
+  - The top row is the Quit chip and the opponent strip (`.lv-opp`). Then the `.hud` (name in the player colour, progress, clock) and a 10 px rounded progress `.bar`.
+  - The question is 800 weight. The answer box has a 3 px border in the player colour: dashed grey when empty, green when right. Below it, a 3×4 keypad of tactile keys.
+  - A wrong answer shakes, washes the screen red and floats "+N s" up.
+  - The Climb adds the cliff (`.cliff`, `.cl-track`, `.cl-dot.me`/`.opp`, the flag). Target uses `.tg-*` and Bigger `.bg-*`.
+- **Hero illustration:** `.hero-demo`, an HTML mock of a live game card (progress bars, 7 × 8 = 56, keys) on three flat shapes, tilted −2°. ASCII mode shows the text art `pre.hero-asc` instead.
+- **Palettes (v2.8.1, retuned in v3):** `html[data-palette]` = none (Seaside) | `blue` | `pink` | `ascii`, crossed with `html[data-theme]` = `paper` | `night`.
+  - They're stored in localStorage `sumduel.palette` and applied before the first paint by the inline `<head>` script. Keep its list in step with `PALETTES` in app.js.
   - **Rule:** every token a palette changes is set in **both** its day and night blocks. A palette's day block has the same specificity as the Seaside night block and comes later, so a token missing from a night block leaks the day value into night mode.
-  - **Blue:** day `--bg #F1F6FF`, `--ink #0D1B3E`, `--p1 #0A6EB4` (ocean), `--p2 #3B4FD8` (royal); night `--bg #0A1630`, `--p1 #4FC3F7`, `--p2 #9DA8FF`.
-  - **Pink:** day `--bg #FFF4F8`, `--ink #3B0F2A`, `--p1 #A3167F` (fuchsia), `--p2 #D02E6A` (rose); night `--bg #22101B`, `--p1 #F27BD0`, `--p2 #FF9DB8`.
-  - **ASCII:** night is green phosphor (`--bg #050A06`, `--ink #7DFF9A`) with xterm cyan `#5FD7FF` / amber `#FFAF00` players; day is a line-printer page (`--bg #F6F5EE`, `--ink #111`) with blue `#005F87` / orange `#AF5F00`. Both pairs differ on the blue–orange axis, so they stay distinct for every kind of colour blindness. It uses the system monospace stack, square corners, no shadows, dashed boxes, `[ bracketed ]` buttons, a blinking `_` cursor (off under reduced motion), and a "DEL" key.
-    - **Text art:** the hero is a `<pre class="asc hero-asc">`, and each game card's art is in `data-ascii` on its `.gart`, shown via `::after`. Below 980 px the art sits under the text. Every other inline-SVG picture becomes a wireframe in ASCII.
-  - All text/background pairs pass WCAG AA (checked by script). Blue and Pink keep the meaning colours (gold coins, red hearts, green wins) and the validated chart colours. ASCII swaps them for terminal ones.
-  - The picker tiles (`.pal`, `role=radio`, arrow keys move the choice) draw their swatches from per-tile `--pv-*` variables, so each tile shows its own palette whichever palette is active.
+  - **Blue:** day `--bg #F3F7FD`, `--ink #0F1A33`, `--p1 #0A6EB4`, `--p2 #3B4FD8`; night `--bg #0A1426`, `--p1 #4FC3F7`, `--p2 #9DA8FF`.
+  - **Pink:** day `--bg #FFF5F9`, `--ink #2A0F1F`, `--p1 #A3167F`, `--p2 #D02E6A`, with `--sel` = `--p1`; night `--bg #1D0E17`, `--p1 #F27BD0`, `--p2 #FF9DB8`.
+  - Blue and Pink keep the meaning colours (coins, hearts, wins), the game colours and the chart colours.
+  - **ASCII, colours:** night is green phosphor (`--bg #050A06`, `--ink #7DFF9A`, players cyan `#5FD7FF` and amber `#FFAF00`); day is a line-printer page (`--bg #F6F5EE`, `--ink #111`, blue `#005F87` and orange `#AF5F00`). Both player pairs differ on the blue–orange axis, so they stay apart for every kind of colour blindness.
+  - **ASCII, shapes:** the system monospace font; `--r 0`; no shadows, lips or press movement; dashed cards; `[ bracketed ]` buttons; a blinking `_` after the headline (off under reduced motion); icons as `data-ascii` text in a 1 px box; avatars as dashed boxes; inline-SVG scenery as wireframes; a "DEL" key.
+  - The picker tiles (`.pal`, `role=radio`, arrow keys move the choice) draw their swatches from per-tile `--pv-*` variables, so each tile shows its own palette whichever is active. On the Account page they sit 2 across.
+- **Contrast:** checked by `qa/contrast.cjs` in all 8 looks. Every text/background token pair passes WCAG AA: ink, muted and faint on bg, surface and surface2; p1, p2, sel, win and bad on their backgrounds; bg on ink. White glyphs pass 3:1 on every game colour, and on-accent passes 3:1 on p1 and p2.
+- **Chart colours** (validated in v2.7, unchanged): wins `#00879B`/`#21A2B5`, losses `#D6336C`/`#D94C82`, draws `#868CA3`/`#7D86A8` (day/night).
+- **Logo (v2.6):** the ÷ mark.
+  - An ink bar (`x124 y235 w264 h42 rx21` in a 512 box), a `--p1` dot above (`cy150 r46`) and a `--p2` dot below (`cy362`), drawn inline with `.mk-bar`/`.mk-a`/`.mk-b`. They're filled from tokens in CSS, so night mode recolours them.
+  - The icon tile is sand `#FFF8EE` with a `#BFE6EA` scalloped sea. Never bring back the dark neon tile.
+- **The Climb trail** keeps its seaside world: area sky gradients (`.t-*` via `--a1/--a2`) and inline-SVG scenery (`DECOR`/`SCENE`, coloured by `.il-*`). Its chrome is restyled: tactile nodes, a sticky bar, pill area headers.
+- **Motion:** presses (70 ms), the wrong-answer shake, the slip on the cliff (`cubic-bezier(.3,1.4,.5,1)`, 0.4 s), a pop on a solved target, the pulsing current Climb node, and confetti on wins. Everything respects `prefers-reduced-motion` (the last rule in the stylesheet).
+- **Confetti (`#fx`):** a fixed canvas sized by CSS (100 % × 100 %). Its pixel size comes from `documentElement.clientWidth/Height`.
+  - Never size it from `innerWidth`/`innerHeight` again: that made it, for a moment, a fixed box larger than the screen, and mobile browsers then doubled `innerHeight` until reload (found in v3 QA).
 - **Do NOT:**
+  - add a new override layer: change the stylesheet in place, component by component;
   - run DDL (create/alter) from a request path: schema changes are applied by hand, after checking the live database (owner rule);
   - set a palette token in only one of its day/night blocks;
-  - put a plain space before a V-word in Fredoka text (it reads as one word);
-  - use `var()` in SVG presentation attributes;
+  - use `var()` in SVG presentation attributes (colour SVG by class, or use `currentColor`);
+  - bring back the cute v2 look on the shell: sea-creature avatars, the polka-dot background, the scalloped header wave, sticker shadows, glows or neon. The Climb trail's scenery is the one place the seaside cartoon stays;
+  - go back to Latin Modern / JuliaMono (rejected in v2.1), or put Nunito/Fredoka back in the player app (the admin page still uses them);
   - add a framework or build step without reason;
   - re-add `user-scalable=no`;
   - use `.empty` except for the answer slot;
-  - bring back glows or neon;
   - load Google Fonts (blocked by the admin CSP);
-  - use the original font names for the subsets;
   - **expose the super_admin role in any player-facing or admin-facing response.**
 
 ## 5. Frameworks, libraries & tooling
 - Runtime dependency: `@neondatabase/serverless@^1.2` (server only). Clients have zero dependencies.
 - Node ≥ 20 (Vercel uses 26.x), ESM.
-- **Fonts (v2.7):** about 110 KB total, immutable cache: `nunito-latin-wght.woff2`, `nunito-latin-wght-italic.woff2` (`@fontsource-variable/nunito@5.2.7`) and `fredoka-latin-wght.woff2` (`@fontsource-variable/fredoka@5.2.10`). They're unmodified, so the original names are kept. Sources and licences are in `fonts/README.md`.
+- **Fonts (v3):** the player app loads one file, `plus-jakarta-sans-latin-wght.woff2` (27 KB, `@fontsource-variable/plus-jakarta-sans@5.2.8`, weights 200–800). It is unmodified, so the original name is kept; the licence has no Reserved Font Name. It has tabular figures, and the Latin subset covers × ÷ −. Glyphs outside it (→ ✓ ⌫ ★) fall back to the system font. `admin.html` still loads Nunito (+ italic) and Fredoka (`@fontsource-variable/nunito@5.2.7`, `@fontsource-variable/fredoka@5.2.10`). Licences and sources are in `fonts/`.
 - **npm scripts:** `migrate`, `role`.
-- **Local QA (v2.8.1 harness, session scratchpad, not in the repo; rebuild it if the scratchpad has gone):**
-  - `qa/server.mjs <appDir> <port>`: serves the static files and mounts `api/*.js` on an **in-memory PGlite** (`@electric-sql/pglite`). It runs `scripts/migrate.js` at startup and applies the `vercel.json` headers. `qa/hooks.mjs` (`node --import`) redirects `@neondatabase/serverless` to `qa/neon-shim.mjs` (tagged template + `.query`; int8 and numeric come back as strings, like Neon). **Nothing touches the live database.**
-  - `qa/t-api.mjs` runs in the same process (it imports the server) and can read and change the DB directly: 27 checks for the v2.8.1 fixes.
-  - `qa/e2e-climb.mjs` (a guest Truth level with a continue on the last statement), `qa/e2e-ltol.mjs` (two browsers play live Truth or Lie through the UI), `qa/pal.mjs` / `qa/views.mjs` (palette screenshots and tile bounding boxes), `qa/sheet.mjs` (contact sheets via the browser; there's no Pillow here).
-  - pnpm isn't installed in WSL; `corepack pnpm` works (pnpm 12).
-  - Browser: `playwright-core` 1.65 with `executablePath` set to the cached `chromium_headless_shell-1243`.
-  - **Harness gotcha:** the emoji-font injection must put `"QA Emoji"` *before* a trailing generic family (`monospace`), and must not set `font-family` on `body`. Either mistake silently gives every screenshot the wrong fonts.
+- **Local QA (v3 harness; it lives in the session scratchpad, not the repo; rebuild it if the scratchpad has gone):**
+  - Setup: in a scratch folder, `npm i @electric-sql/pglite@0.3.14 playwright-core@1.56.1`. The browser is the cached `~/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell`.
+  - `qa/server.mjs <appDir> <port>`, started with `node --import ./register.mjs server.mjs /mnt/c/Apps/sumDu3l 8787`:
+    - serves the static files and mounts `api/*.js` on an **in-memory PGlite**, importing `scripts/migrate.js` at startup;
+    - `register.mjs` and `hooks.mjs` redirect `@neondatabase/serverless` to `neon-shim.mjs` (tagged templates plus `.query`; int8 and numeric come back as strings, like Neon);
+    - **nothing touches the live database**, and it doesn't apply the vercel.json headers.
+  - `qa/t-live.mjs`: 82 API checks of the live games:
+    - question shapes and answers;
+    - the Climb's slip ordering and pace cap;
+    - penalties, winners, server-written battles from both sides, and forfeits;
+    - Truth or Lie sending no answers, cfg clean-up, the default game name, and the battles API.
+  - `qa/e2e-live.mjs [games…]`: a phone browser (390×844, mobile) and a desktop browser play Climb, Target, Bigger, Missing Number and Duel through the UI, then quick match.
+    - The flow: Arena card → lobby → make a game → the other player joins by code on the Arena → ready → play → both screens name the same winner → the record.
+    - `LOOK_A=seaside:night LOOK_B=ascii:night` sets each player's palette, and `SHOTS=./dir/` the screenshot folder.
+  - `qa/e2e-solo.mjs`: Pass the Phone, a Climb trail level, Daily VS against a bot, Sprint, Little Ones, the signed-out lobby, and join-by-code through sign-in.
+  - `qa/views.mjs [quick]`: every view in the 8 looks, on phone and desktop. It takes full-page screenshots and checks for console errors and sideways overflow (the Players sort strip scrolls sideways on purpose).
+  - `qa/contrast.cjs`, run from the app folder: the WCAG pairs.
+  - `qa/sw-upgrade.mjs <scratch> [newDir]`: the deploy-upgrade check. It serves the last commit (exported with `git archive HEAD` into `<scratch>/old`) on port 8790, lets its service worker cache it, restarts the server on the new files, and checks the first load after the "deploy".
+  - `qa/sheet.mjs`, `crop.mjs` and `clip.mjs`: contact sheets and crops made in the browser (there's no Pillow here).
+  - Headless has no emoji font, so Little Ones' pictures render as boxes in screenshots.
 - **Older harness (v2.2–v2.7, gone with an old scratchpad):**
   - `qa/server.mjs` mounted `api/*.js` (including `audit-cron` with `CRON_SECRET=test-cron-secret`) against the live database with `qa.*` users.
   - `qa/test2.mjs` holds the 61 checks; it creates `qa.*.<tag>@example.com` users, sets roles via SQL, and cleans up after itself.
@@ -368,7 +486,7 @@ There's no retention limit: everything is kept.
   `.env.example` documents `DATABASE_URL` and `CRON_SECRET`. Locally: `vercel env pull .env.local` (gitignored). No secrets in the repo.
 - **Schema:** by hand, never from a request path. First query the live database and state what's there, then get the owner's go. Then either `npm run migrate` (the whole idempotent script) or just the new statements. For v2.8 that's just these:
   `node --env-file=.env.local -e "import('./api/_schema.js').then(async ({V28}) => { const { neon } = await import('@neondatabase/serverless'); const sql = neon(process.env.DATABASE_URL); for (const s of V28) await sql.query(s); console.log('v2.8 schema applied') })"`
-  **Applied to the live DB on 2026-11-13** (before the merge). The functions assume the tables exist.
+  **Applied to the live DB on 2026-11-13** (before the merge). The functions assume the tables exist. v3.0 needed no schema change.
 - **Preview deployments share the production database** (`DATABASE_URL` is one value for production, preview and development), so anything tested on a preview writes to the live database.
 - **Roles:** `npm run role -- <email> <role>`.
 
