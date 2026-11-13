@@ -18,6 +18,8 @@ export const ECON = {
   VS_FIRST_LOSS: { coins: 40, lives: 1 },
   VS_REMATCH_WIN: { coins: 10 },
   EARN_CAP: 80,            // coin-paying battles per UTC day (stops a forged-battle loop, never reached in play)
+  CLIMB_CAP: 200,          // coin-paying Climb wins per UTC day; past it, wins still unlock levels and keep stars
+  CLIMB_MIN_MS: 6000,      // no Climb level can honestly be cleared faster than this
 };
 export const AREA = 12;    // levels per area
 
@@ -96,27 +98,32 @@ export async function mutate(sql, uid, fn) {
     const rows = await sql`update wallets set coins = ${w.coins}, lives = ${w.lives}, lives_at = ${new Date(w.lives_at).toISOString()}::timestamptz,
                              climb_level = ${w.climb_level}, climb_stars = ${JSON.stringify(w.climb_stars)}::jsonb,
                              gift_day = ${w.gift_day}, gift_streak = ${w.gift_streak}, run = ${w.run ? JSON.stringify(w.run) : null}::jsonb,
-                             earn_day = ${w.earn_day}, earn_n = ${w.earn_n}, rev = rev + 1, updated_at = now()
+                             earn_day = ${w.earn_day}, earn_n = ${w.earn_n}, climb_day = ${w.climb_day}, climb_n = ${w.climb_n},
+                             rev = rev + 1, updated_at = now()
                            where user_id = ${uid} and rev = ${w0.rev} returning *`;
     if (rows.length) return { wallet: pubWallet(rows[0], nowMs), ...out };
   }
   throw err(409, 'Busy. Try again.');
 }
 
-// Pay coins for a finished battle, within the daily cap. Never throws: rewards must not break saving a game.
-export async function awardBattle(sql, uid, coins) {
-  if (!coins) return 0;
+// Pay coins for finished battles (in order, until the daily cap), in ONE wallet write however many there are.
+// Never throws: rewards must not break saving a game.
+export async function awardBattles(sql, uid, list) {
+  const pay = (list || []).map(c => Math.max(0, Math.round(Number(c) || 0))).filter(c => c > 0);
+  if (!pay.length) return 0;
   try {
     const r = await mutate(sql, uid, (w, nowMs) => {
       const today = dayOf(nowMs);
       if (w.earn_day !== today) { w.earn_day = today; w.earn_n = 0; }
-      if (w.earn_n >= ECON.EARN_CAP) return { paid: 0 };
-      w.earn_n++; w.coins += coins;
-      return { paid: coins };
+      const take = pay.slice(0, Math.max(0, ECON.EARN_CAP - w.earn_n));
+      const paid = take.reduce((a, c) => a + c, 0);
+      w.earn_n += take.length; w.coins += paid;
+      return { paid };
     });
     return r.paid;
-  } catch (e) { console.error('awardBattle failed', e.message); return 0; }
+  } catch (e) { console.error('awardBattles failed', e.message); return 0; }
 }
+export const awardBattle = (sql, uid, coins) => awardBattles(sql, uid, [coins]);
 
 export const newRunId = () => randomBytes(6).toString('base64url');
 
@@ -134,4 +141,3 @@ export function botRun(bot, day) {
   const raw = Math.round(splits.reduce((a, s) => a + s, 0) * 1000) / 1000;
   return { splits, raw, wrong: bot.wrong, time: Math.round((raw + bot.wrong * 3) * 1000) / 1000 };
 }
-export const vsSeed = day => hashStr('sumduel-vs-' + day);

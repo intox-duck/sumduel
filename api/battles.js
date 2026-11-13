@@ -1,9 +1,9 @@
 // GET  /api/battles?limit=500   -> { battles: [...] } newest first
 // POST /api/battles {battles:[...]}  -> idempotent insert by client id (cid); returns { saved, coins }
-//      v2.8: each newly saved battle from the last 24 h pays coins into the wallet (see _economy.js battleCoins).
+//      v2.8: each newly saved battle from the last 24 h, played since the account was made, pays coins into the wallet
+//      (see _economy.js battleCoins). A guest's earlier games were paid into the guest wallet, which adopt carries over.
 import { route, send, fail, db, requireUser, logEvent } from './_lib.js';
-import { ensureSchema } from './_schema.js';
-import { battleCoins, awardBattle } from './_economy.js';
+import { battleCoins, awardBattles } from './_economy.js';
 
 const GAMES = new Set(['duel', 'tol', 'sprint', 'daily']);
 const MAX_BATCH = 200;
@@ -40,16 +40,17 @@ export default route(['GET', 'POST'], async (req, res) => {
     on conflict (user_id, client_id) do nothing
     returning id, client_id`;
   // One activity row per newly saved battle, with a compact score summary, and its coins.
-  // Old battles (e.g. a guest's history moving to a new account) are saved but don't pay.
+  // Old battles, and a guest's games from before the account existed (already paid into the guest wallet, which
+  // adopt carries over), are saved but don't pay. All the coins go into the wallet in one write.
   const fresh = new Set(rows.map(r => r.client_id));
-  let coins = 0;
-  if (fresh.size) await ensureSchema();
+  const since = Math.max(Date.now() - 86400000, new Date(u.created_at).getTime() || 0), pay = [];
   for (const b of list) {
     if (!b || !fresh.has(String(b.cid || '').slice(0, 40))) continue;
     fresh.delete(String(b.cid).slice(0, 40));
     await logEvent(req, u, 'battle_saved', { detail: summarise(b) });
-    if (b.mode !== 'live' && Date.now() - Date.parse(b.at) < 86400000) coins += await awardBattle(sql, u.id, battleCoins(b));
+    if (b.mode !== 'live' && Date.parse(b.at) >= since) pay.push(battleCoins(b));
   }
+  const coins = await awardBattles(sql, u.id, pay);
   send(res, 200, { saved: rows.length, received: clean.length, coins });
 });
 

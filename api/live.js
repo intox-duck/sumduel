@@ -24,7 +24,6 @@ import { randomInt } from 'node:crypto';
 import { route, send, fail, db, requireUser, hashPassword, verifyPassword, logEvent } from './_lib.js';
 import { screen } from './_safety.js';
 import { makeQuestions, makeTol, RANGES, OPS } from './_questions.js';
-import { ensureSchema } from './_schema.js';
 import { battleCoins, awardBattle } from './_economy.js';
 
 const PENALTY = 3;
@@ -39,6 +38,7 @@ const TOL_TARGET = 7, TOL_MAX = 25;
 const TOL_WINDOW = 6000;        // ms to make a call once a statement is up
 const TOL_GAP = 1800;           // ms between a round ending and the next statement (time to show who scored)
 const TOL_LEAD = 1200;          // ms before the reveal that the statement text is sent, so both devices show it on time
+const TOL_SLACK = 1200;         // ms a device's reaction time may undercut the server-measured one (upload delay)
 
 const gameOf = cfg => (cfg && GAMES.includes(cfg.game) ? cfg.game : 'duel');
 const limitSecs = cfg => {
@@ -267,7 +267,6 @@ async function settle(req, u, sql, g, nowMs) {
 
 export default route(['GET', 'POST'], async (req, res) => {
   const u = await requireUser(req, res); if (!u) return;
-  await ensureSchema();
   const sql = db();
 
   if (req.method === 'GET') {
@@ -426,13 +425,16 @@ export default route(['GET', 'POST'], async (req, res) => {
     const [{ now }] = await sql`select now()`;
     const nowMs = ms(now), T = tolTimeline(g, nowMs), k = parseInt(req.body.k, 10);
     if (!T.cur || T.cur.k !== k) return send(res, 200, { ok: false, late: true, game: view(g, u, new Date(now)) });
-    if (nowMs < T.cur.R - 600) return fail(res, 409, 'Wait for the statement.');
-    // Reaction time from the device, kept honest by the server clock: never faster than it could have
-    // been given the network (2.5 s allowance), never slower than when the call actually arrived.
+    // Nothing can honestly arrive before the reveal (the 150 ms covers clock-sync error), even though the
+    // text itself goes out TOL_LEAD early so both devices can show it on time.
+    if (nowMs < T.cur.R - 150) return fail(res, 409, 'Wait for the statement.');
+    // Reaction time comes from the device (fairer across networks) but is bounded by the server clock: at most
+    // TOL_SLACK faster than the call's arrival allows, never slower than its arrival, never under 300 ms. So a
+    // modified client can shave at most TOL_SLACK off a call, and only when both players were right.
     const serverRt = nowMs - T.cur.R;
     let rt = Number(req.body.rt);
     if (!Number.isFinite(rt)) rt = serverRt;
-    rt = Math.round(Math.max(200, Math.max(serverRt - 2500, Math.min(serverRt + 300, rt))));
+    rt = Math.round(Math.max(300, Math.max(serverRt - TOL_SLACK, Math.min(serverRt + 300, rt))));
     const call = JSON.stringify({ s: req.body.said ? 1 : 0, rt, at: nowMs }), key = String(k);
     if (r === 'host') {
       await sql`update live_games set host_extra = jsonb_set(coalesce(host_extra, '{}'::jsonb), '{calls}',

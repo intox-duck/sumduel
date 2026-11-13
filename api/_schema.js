@@ -1,7 +1,6 @@
 // v2.8 schema: wallets (coins, lives, the Climb, daily gift) and Daily VS ghosts.
-// scripts/migrate.js applies these too, but the functions that need them also call ensureSchema() once per
-// cold start, so a deploy works even if nobody has run `npm run migrate` yet. Every statement is idempotent.
-import { db } from './_lib.js';
+// Applied BY HAND before the deploy that needs it (scripts/migrate.js includes these; see master-ref §6 for the
+// one-off command), never from a request path: the functions assume the tables exist. Every statement is idempotent.
 
 export const V28 = [
   `create table if not exists wallets (
@@ -16,6 +15,8 @@ export const V28 = [
      run          jsonb,
      earn_day     text,
      earn_n       int not null default 0,
+     climb_day    text,
+     climb_n      int not null default 0,
      rev          int not null default 0,
      updated_at   timestamptz not null default now()
    )`,
@@ -33,9 +34,3 @@ export const V28 = [
    )`,
   `create index if not exists daily_vs_day_time_idx on daily_vs(day, time)`,
 ];
-
-let ready = null;
-export function ensureSchema() {
-  if (!ready) ready = (async () => { const sql = db(); for (const s of V28) await sql.query(s); })().catch(e => { ready = null; throw e; });
-  return ready;
-}
