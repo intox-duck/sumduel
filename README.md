@@ -2,10 +2,11 @@
 
 Quick maths, head to head: **https://sumduel.app**
 
-**Play Online**: seven live two-player games, on two devices (both players signed in), server-timed, public or private (password) games, and "Find an opponent" for one-tap matches:
+**Play Online**: eight live games, everyone on their own device (all signed in), server-timed, public or private (password) games, and "Find an opponent" for one-tap matches. Seven are for two players and Treasure Dive is for two to four:
 
 - **Duel**: the same sums for both of you, separate clocks, +3 s per wrong answer. Fastest time wins.
-- **The Climb**: race up a cliff of 12 ledges that gets harder as you go. A wrong answer slips you down a ledge. First to the top wins.
+- **The Climb**: race up a rope of 8, 12, 16 or 20 ledges that gets harder as you go, with both climbers drawn pulling themselves up hand over hand. A wrong answer slips you down a knot. First to the top wins.
+- **Treasure Dive** (2–4 players): the same sum for every diver at the same moment, four answers to pick from. Right answers dive 2 m, the fastest right answer 1 m more, a wrong one floats you up 1 m, and the last round counts double. The deepest diver finds the treasure.
 - **Truth or Lie**: call each sum true or a lie; the quickest right call scores. First to 7.
 - **Sprint**: 60 seconds of sums. Most right answers wins.
 - **Missing Number**: find the hidden number, like 7 × ? = 42.

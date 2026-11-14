@@ -6,7 +6,8 @@ import { route, send, fail, db, requireUser, logEvent } from './_lib.js';
 import { battleCoins, awardBattles } from './_economy.js';
 
 // Every game a battle can be. Live games are written by api/live.js and re-saved by the client (deduped on cid).
-const GAMES = new Set(['duel', 'tol', 'sprint', 'daily', 'climb', 'missing', 'target', 'bigger']);
+// 'dive' (v3.1) is the 2-4 player Treasure Dive: players[0] is the account holder, the rest by place.
+const GAMES = new Set(['duel', 'tol', 'sprint', 'daily', 'climb', 'missing', 'target', 'bigger', 'dive']);
 const TIMED = new Set(['duel', 'climb', 'missing', 'target', 'bigger']);   // fastest time wins
 const MAX_BATCH = 200;
 
@@ -62,6 +63,7 @@ function summarise(b) {
   const out = { game: b.game, at: b.at };
   if (TIMED.has(b.game)) Object.assign(out, { mode: b.mode, winner: b.winner, vs: p(1).name, times: [p(0).time, p(1).time], wrong: [p(0).wrong, p(1).wrong] });
   else if (b.game === 'tol') Object.assign(out, { mode: b.mode, winner: b.winner, vs: p(1).name, score: [p(0).score, p(1).score] });
+  else if (b.game === 'dive') Object.assign(out, { mode: b.mode, winner: b.winner, place: b.place, of: b.of, vs: P.slice(1).map(x => x && x.name).join(', '), depth: P.map(x => x && x.depth) });
   else if (b.game === 'sprint' && P.length > 1) Object.assign(out, { mode: b.mode, winner: b.winner, vs: p(1).name, score: [p(0).score, p(1).score] });
   else if (b.game === 'sprint') Object.assign(out, { score: p(0).score, wrong: p(0).wrong });
   else if (b.game === 'daily') Object.assign(out, { day: b.day, time: p(0).time, wrong: p(0).wrong, practice: !!b.practice });

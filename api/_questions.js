@@ -71,13 +71,16 @@ function oneSum(r, op, R) {
   return { text: (a * b) + ' ÷ ' + a, v: b };
 }
 
-// The Climb (live): a cliff of CLIMB_BANDS.length ledges that get harder on the way up. Each ledge has
-// CLIMB_ALTS different sums, so a player who slips back down meets a fresh sum on the way up again.
+// The Climb (live): a rope of n ledges (CLIMB_NS, chosen in the lobby; 12 by default) that gets harder on the way
+// up: the bottom third easy, then medium up to three quarters, then hard (climbBand, mirrored by app.js cliffBand).
+// Each ledge has CLIMB_ALTS different sums, so a player who slips back down meets a fresh sum on the way up again.
 // Shape: questions[ledge][alt] = { text, ans, op }.
-export const CLIMB_BANDS = ['easy', 'easy', 'easy', 'easy', 'medium', 'medium', 'medium', 'medium', 'medium', 'hard', 'hard', 'hard'];
+export const CLIMB_NS = [8, 12, 16, 20];
 export const CLIMB_ALTS = 4;
-export function makeClimb(ops, seed) {
-  return CLIMB_BANDS.map((level, i) => makeQuestions(CLIMB_ALTS, ops, level, (seed + Math.imul(i + 1, 0x9E3779B1)) | 0));
+// Ledge L (0-based) leads up to knot L + 1. Integer maths, so 12 ledges are 4 easy, 5 medium and 3 hard as before.
+export function climbBand(L, n) { const i = L + 1; return i * 3 <= n ? 'easy' : i * 4 <= 3 * n ? 'medium' : 'hard'; }
+export function makeClimb(n, ops, seed) {
+  return Array.from({ length: n }, (_, i) => makeQuestions(CLIMB_ALTS, ops, climbBand(i, n), (seed + Math.imul(i + 1, 0x9E3779B1)) | 0));
 }
 
 // Target: combine the number tiles with + − × ÷ to make the target. Every puzzle is built from a real
@@ -151,10 +154,33 @@ export function makeBigger(n, ops, level, seed) {
   return out;
 }
 
+// Treasure Dive (party game, 2-4 players): one sum per round with four answers to pick from. The wrong ones are
+// near misses (off by 1, 2 or 10, or by one times-table row), so the right one can't be spotted by size alone.
+// Shape: { text, choices: [4 strings], ans: index of the right one, op }.
+export function makeDive(n, ops, level, seed) {
+  const base = makeQuestions(n, ops, level, seed), r = rng(seed ^ 0x3c6ef372);
+  return base.map(q => {
+    const a = Number(q.ans), t = q.text.split(' '), x = Number(t[0]) || 3, y = Number(t[2]) || 2;
+    let deltas = [1, -1, 2, -2, 10, -10];
+    if (q.op === '×') deltas = deltas.concat([x, -x, y, -y]);
+    if (q.op === '÷') deltas = deltas.concat([3, -3]);
+    for (let i = deltas.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); const s = deltas[i]; deltas[i] = deltas[j]; deltas[j] = s; }
+    // Always one close call (±1 or ±2) first, then whatever else fits.
+    const ci = deltas.findIndex(d => Math.abs(d) <= 2 && a + d >= 0);
+    if (ci > 0) deltas.unshift(deltas.splice(ci, 1)[0]);
+    const vals = [a];
+    for (const d of deltas) { const v = a + d; if (v >= 0 && !vals.includes(v)) vals.push(v); if (vals.length === 4) break; }
+    for (let k = 3; vals.length < 4; k++) if (!vals.includes(a + k)) vals.push(a + k);
+    for (let i = 3; i > 0; i--) { const j = Math.floor(r() * (i + 1)); const s = vals[i]; vals[i] = vals[j]; vals[j] = s; }
+    return { text: q.text, choices: vals.map(String), ans: vals.indexOf(a), op: q.op };
+  });
+}
+
 // Questions for a live game. n is already the right length for that game (see api/live.js cleanCfg).
 export function makeLiveQuestions(game, n, ops, level, seed) {
   if (game === 'tol') return makeTol(n, ops, level, seed);
-  if (game === 'climb') return makeClimb(ops, seed);
+  if (game === 'climb') return makeClimb(n, ops, seed);
+  if (game === 'dive') return makeDive(n, ops, level, seed);
   if (game === 'target') return makeTargets(n, ops, level, seed);
   if (game === 'bigger') return makeBigger(n, ops, level, seed);
   const base = makeQuestions(n, ops, level, seed);

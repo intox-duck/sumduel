@@ -2,11 +2,13 @@
 // The server owns the clock: start_at is set server-side, finish times are checked against server time,
 // and the result is decided here. Both players' battles are written server-side (cid "live-<id>").
 //
-// Seven games, chosen when the game is created (cfg.game; games made before v2.8 have none = duel).
+// Eight games, chosen when the game is created (cfg.game; games made before v2.8 have none = duel). Seven are for
+// two players (below). Treasure Dive ('dive', v3.1) is a party game for 2-4 players: its rules, and how it keeps
+// up to four seats in this same table without a schema change, are in api/_party.js. This file routes to it.
 // "Timed" games are races to the end of the same set, on separate clocks: fastest time wins, with a
 // per-game penalty added for each wrong answer (PEN). The others are decided by score.
 //   duel    - timed. N sums (5-20), +3 s per wrong answer. A wrong answer keeps you on the same sum.
-//   climb   - timed. 12 ledges, easy at the bottom and hard at the top (questions[ledge][alt]). A right
+//   climb   - timed. n ledges (8/12/16/20, v3.1; 12 before), easy at the bottom and hard at the top (questions[ledge][alt]). A right
 //             answer climbs one ledge, a wrong one slips you down one: the slip is the penalty (PEN 0).
 //             idx is the ledge you're on and can go DOWN, so its progress is ordered by idx + 2*wrong.
 //   missing - timed. N sums, each with a number missing (7 x ? = 42), +3 s per wrong answer.
@@ -33,21 +35,23 @@
 import { randomInt } from 'node:crypto';
 import { route, send, fail, db, requireUser, hashPassword, verifyPassword, logEvent } from './_lib.js';
 import { screen } from './_safety.js';
-import { makeLiveQuestions, RANGES, OPS, CLIMB_BANDS } from './_questions.js';
+import { makeLiveQuestions, RANGES, OPS, CLIMB_NS } from './_questions.js';
 import { battleCoins, awardBattle } from './_economy.js';
+import { isParty, partyGet, partyAction, newPartyExtra, busyCode, leaveLobbies, activeCode, DIVE_NS, MAX_SEATS } from './_party.js';
 
 const PENALTY = 3;
 const CODE_ABC = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const START_DELAY = 5;          // seconds from "both ready" to GO
 const STALE_LOBBY = 60;         // host/guest silent this long in the lobby -> dropped
 const GONE = 25;                // opponent silent this long mid-game -> claimable
-const ACTIVE = ['open', 'full', 'playing'];
-const GAMES = ['duel', 'climb', 'tol', 'sprint', 'missing', 'target', 'bigger'];
+const GAMES = ['duel', 'climb', 'tol', 'sprint', 'missing', 'target', 'bigger', 'dive'];
 const SPRINT_SECS = 60, SPRINT_Q = 400, SPRINT_MAX = 150;
 const TIMED = new Set(['duel', 'climb', 'missing', 'target', 'bigger']);   // fastest time to the end wins
 const PEN = { duel: PENALTY, missing: PENALTY, bigger: PENALTY, target: 10, climb: 0 };   // seconds per wrong / skip
 const penOf = game => (PEN[game] != null ? PEN[game] : PENALTY);
-const FIXED_N = { climb: CLIMB_BANDS.length, target: 5, bigger: 15, sprint: SPRINT_Q };   // games with a set length
+const FIXED_N = { target: 5, bigger: 15, sprint: SPRINT_Q };   // games with a set length
+const N_CHOICES = { climb: CLIMB_NS, dive: DIVE_NS };             // games with their own lengths (default: the middle-ish one)
+const N_DEFAULT = { climb: 12, dive: 10 };
 const TOL_TARGET = 7, TOL_MAX = 25;
 const TOL_WINDOW = 6000;        // ms to make a call once a statement is up
 const TOL_GAP = 1800;           // ms between a round ending and the next statement (time to show who scored)
@@ -60,7 +64,7 @@ const limitSecs = cfg => {
   const g = gameOf(cfg);
   if (g === 'sprint') return SPRINT_SECS + 15;
   if (g === 'tol') return Math.ceil(TOL_MAX * (TOL_WINDOW + TOL_GAP) / 1000) + 15;
-  if (g === 'climb') return 240;
+  if (g === 'climb') return Math.max(180, cfg.n * 20);   // 12 ledges: 240 s, as before
   if (g === 'target') return Math.max(180, cfg.n * 45);
   if (g === 'bigger') return Math.max(120, cfg.n * 12);
   return Math.max(120, cfg.n * 20);
@@ -77,7 +81,9 @@ function cleanCfg(c) {
   const game = GAMES.includes(c.game) ? c.game : 'duel';
   const ops = Array.isArray(c.ops) ? [...new Set(c.ops.filter(o => OPS.includes(o)))] : [];
   const level = RANGES[c.level] ? c.level : 'medium';
-  const n = game === 'tol' ? TOL_MAX : FIXED_N[game] || ([5, 10, 15, 20, 30].includes(Number(c.n)) ? Number(c.n) : 10);
+  const n = game === 'tol' ? TOL_MAX : FIXED_N[game]
+    || (N_CHOICES[game] ? (N_CHOICES[game].includes(Number(c.n)) ? Number(c.n) : N_DEFAULT[game])
+      : [5, 10, 15, 20, 30].includes(Number(c.n)) ? Number(c.n) : 10);
   return { game, ops: ops.length ? ops : OPS.slice(), level, n };
 }
 
@@ -98,12 +104,7 @@ async function housekeeping(sql) {
             where status = 'playing' and greatest(host_seen, coalesce(guest_seen, host_seen)) < now() - interval '5 minutes'`;
 }
 
-// Leave whatever lobby this user is sitting in (one active game per player).
-async function leaveLobbies(sql, u) {
-  await sql`update live_games set status = 'cancelled', updated_at = now() where host_id = ${u.id} and status in ('open','full')`;
-  await sql`update live_games set guest_id = null, guest_ready = false, host_ready = false, status = 'open', updated_at = now()
-            where guest_id = ${u.id} and status = 'full'`;
-}
+// leaveLobbies, busyCode and activeCode come from _party.js: they cover two-player rooms and party seats alike.
 
 // ---------- Truth or Lie: the whole game follows from the start time and the two players' calls ----------
 // calls live in host_extra.calls / guest_extra.calls as { "<k>": { s: 1|0 (said true), rt: ms, at: server ms } }.
@@ -296,20 +297,25 @@ export default route(['GET', 'POST'], async (req, res) => {
     const nowDate = new Date(now);
     if (req.query?.lobby) {
       await housekeeping(sql);
-      const games = await sql`select g.code, g.name, g.cfg, g.is_private, g.created_at, g.host_id, h.name as host_name
+      const games = await sql`select g.code, g.name, g.cfg, g.is_private, g.created_at, g.host_id, g.host_idx, h.name as host_name,
+                                coalesce(g.host_extra->'seats', '{}'::jsonb) ? ${String(u.id)} as seated
                               from live_games g join users h on h.id = g.host_id
                               where g.status = 'open' order by g.created_at desc limit 50`;
-      const [act] = await sql`select code from live_games where status = any(${ACTIVE}) and (host_id = ${u.id} or guest_id = ${u.id})
-                              order by created_at desc limit 1`;
+      const active = await activeCode(sql, u);
       return send(res, 200, {
-        now, active: act ? act.code : null,
-        games: games.map(x => ({ code: x.code, name: x.name, host: x.host_name, cfg: { ...x.cfg, game: gameOf(x.cfg) }, private: x.is_private, created_at: x.created_at, mine: String(x.host_id) === String(u.id) })),
+        now, active,
+        games: games.map(x => {
+          const party = isParty(x.cfg);
+          return { code: x.code, name: x.name, host: x.host_name, cfg: { ...x.cfg, game: gameOf(x.cfg) }, private: x.is_private, created_at: x.created_at,
+                   mine: party ? !!x.seated : String(x.host_id) === String(u.id), ...(party ? { party: true, count: x.host_idx, max: MAX_SEATS } : {}) };
+        }),
       });
     }
     const code = String(req.query?.code || '').toUpperCase();
     if (!codeOk(code)) return fail(res, 400, 'Bad game code');
     let g = await load(sql, code);
     if (!g) return fail(res, 404, 'No game with that code');
+    if (isParty(g.cfg)) return send(res, 200, { now, game: await partyGet(req, u, sql, g, nowDate) });
     const r = roleOf(g, u);
     if (r) {
       if (r === 'host') await sql`update live_games set host_seen = now() where id = ${g.id}`;
@@ -323,8 +329,8 @@ export default route(['GET', 'POST'], async (req, res) => {
   const code = String(req.body.code || '').toUpperCase();
 
   if (action === 'create') {
-    const [busy] = await sql`select code from live_games where status = 'playing' and (host_id = ${u.id} or guest_id = ${u.id}) limit 1`;
-    if (busy) return fail(res, 409, 'Finish your current game first (' + busy.code + ').');
+    const busy = await busyCode(sql, u);
+    if (busy) return fail(res, 409, 'Finish your current game first (' + busy + ').');
     const cfg = cleanCfg(req.body.cfg);
     // A typed-in game name goes through the chat filter. The default ("<name>'s game") is built from the display
     // name, which is already public on the boards, so it isn't screened: a name like "sam123456789" would
@@ -342,10 +348,14 @@ export default route(['GET', 'POST'], async (req, res) => {
       pass_hash = await hashPassword(pw);
     }
     await leaveLobbies(sql, u);
+    // A party game starts with its creator in seat one (host_idx = seats taken; see api/_party.js).
+    const party = isParty(cfg);
+    const [{ now: made }] = party ? await sql`select now()` : [{ now: null }];
+    const extra = party ? JSON.stringify(newPartyExtra(u, new Date(made).getTime())) : null;
     let row = null;
     for (let i = 0; i < 6 && !row; i++) {
-      [row] = await sql`insert into live_games (code, name, host_id, is_private, pass_hash, cfg)
-                        values (${newCode()}, ${name}, ${u.id}, ${priv}, ${pass_hash}, ${JSON.stringify(cfg)}::jsonb)
+      [row] = await sql`insert into live_games (code, name, host_id, is_private, pass_hash, cfg, host_idx, host_extra)
+                        values (${newCode()}, ${name}, ${u.id}, ${priv}, ${pass_hash}, ${JSON.stringify(cfg)}::jsonb, ${party ? 1 : 0}, ${extra}::jsonb)
                         on conflict (code) do nothing returning code`;
     }
     if (!row) return fail(res, 500, 'Could not create a game, try again');
@@ -356,6 +366,7 @@ export default route(['GET', 'POST'], async (req, res) => {
   if (!codeOk(code)) return fail(res, 400, 'Bad game code');
   let g = await load(sql, code);
   if (!g) return fail(res, 404, 'No game with that code');
+  if (isParty(g.cfg)) return partyAction(req, res, u, sql, g, action);
   const r = roleOf(g, u);
 
   if (action === 'join') {
@@ -371,8 +382,8 @@ export default route(['GET', 'POST'], async (req, res) => {
         return fail(res, 403, 'Wrong password for that game.');
       }
     }
-    const [busy] = await sql`select code from live_games where status = 'playing' and (host_id = ${u.id} or guest_id = ${u.id}) limit 1`;
-    if (busy) return fail(res, 409, 'Finish your current game first (' + busy.code + ').');
+    const busy = await busyCode(sql, u);
+    if (busy) return fail(res, 409, 'Finish your current game first (' + busy + ').');
     await leaveLobbies(sql, u);
     const ok = await sql`update live_games set guest_id = ${u.id}, guest_seen = now(), status = 'full', host_ready = false, guest_ready = false, updated_at = now()
                          where id = ${g.id} and status = 'open' and guest_id is null returning id`;

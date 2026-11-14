@@ -111,14 +111,19 @@
   // v3 game catalogue: names, one-liners, icons and colours, shared by the Arena, the live lobby,
   // results and the record. The live rules are in api/live.js (PEN mirrors its penalties).
   // =====================================================================
-  var LV_GAMES = ['duel', 'climb', 'tol', 'sprint', 'missing', 'target', 'bigger'];
-  var GNAME = { duel: 'Duel', climb: 'The Climb', tol: 'Truth or Lie', sprint: 'Sprint', missing: 'Missing Number', target: 'Target', bigger: 'Bigger' };
+  var LV_GAMES = ['duel', 'climb', 'dive', 'tol', 'sprint', 'missing', 'target', 'bigger'];
+  var GNAME = { duel: 'Duel', climb: 'The Climb', tol: 'Truth or Lie', sprint: 'Sprint', missing: 'Missing Number', target: 'Target', bigger: 'Bigger', dive: 'Treasure Dive' };
+  // Party games (v3.1) take two to four players; the rules are in api/_party.js. The rest are for two.
+  var PARTY = { dive: 1 };
+  function isParty(game) { return !!PARTY[game]; }
+  function seatsText(game) { return isParty(game) ? '2–4 players' : '2 players'; }
   var PEN = { duel: 3, missing: 3, bigger: 3, target: 10, climb: 0 };   // seconds added per wrong answer (Target: per skip)
   function penOf(game) { return PEN[game] != null ? PEN[game] : PENALTY; }
   function isTimed(game) { return PEN[game] != null; }   // fastest time to the end wins; the rest are scored
   var GINFO = {
     duel: { tag: 'The same sums for both of you. Fastest time wins.', time: '1–2 min', c: 'duel', a: '>x<' },
-    climb: { tag: 'Race up a cliff that gets harder. A wrong answer slips you down a ledge.', time: '2–3 min', c: 'climb', a: '_/^' },
+    climb: { tag: 'Race up a rope that gets harder near the top. A wrong answer slips you down a knot.', time: '2–4 min', c: 'climb', a: '_/^' },
+    dive: { tag: 'The same sum for every diver, four answers to pick from. Right answers dive deeper; the deepest diver finds the treasure.', time: '2 min', c: 'dive', a: '~v~' },
     tol: { tag: 'Is the sum true or a lie? The quickest right call scores.', time: '2 min', c: 'tol', a: 'T|F' },
     sprint: { tag: 'Sixty seconds of sums. Most right answers wins.', time: '1 min', c: 'sprint', a: '60s' },
     missing: { tag: 'Find the hidden number, like 7 × ? = 42.', time: '1–2 min', c: 'missing', a: '[?]' },
@@ -133,6 +138,7 @@
     sprint: '<path d="M27 4L11 27h11l-3 17 18-24H26z" fill="currentColor" stroke-width="2"/>',
     missing: '<rect x="9" y="9" width="30" height="30" rx="8" stroke-dasharray="5 4" stroke-width="3"/><path d="M19 20a5 5 0 1 1 7.4 4.4c-1.6.9-2.4 1.9-2.4 3.6" stroke-width="3.5"/><circle cx="24" cy="33.5" r="2.2" fill="currentColor" stroke="none"/>',
     target: '<circle cx="24" cy="24" r="16" stroke-width="3.5"/><circle cx="24" cy="24" r="8.5" stroke-width="3.5"/><circle cx="24" cy="24" r="3" fill="currentColor" stroke="none"/>',
+    dive: '<path d="M5 12c3.2-3 6.3-3 9.5 0s6.3 3 9.5 0 6.3-3 9.5 0 6.3 3 9.5 0"/><path d="M24 19v19M15.5 30.5L24 39l8.5-8.5"/><circle cx="36.5" cy="24" r="2.8" fill="currentColor" stroke="none"/><circle cx="11.5" cy="23" r="2" fill="currentColor" stroke="none"/>',
     bigger: '<rect x="8" y="9" width="13" height="30" rx="3.5" fill="currentColor" stroke="none"/><rect x="27" y="21" width="13" height="18" rx="3.5" fill="currentColor" stroke="none" opacity=".55"/>',
     trail: '<path d="M14 40c0-9 20-7 20-16S14 17 14 8" stroke-dasharray="1 7"/><circle cx="14" cy="40" r="4.5" fill="currentColor" stroke="none"/><circle cx="34" cy="24" r="4.5" fill="currentColor" stroke="none"/><circle cx="14" cy="8" r="4.5" fill="currentColor" stroke="none"/>',
     daily: '<rect x="8" y="10" width="32" height="30" rx="7" stroke-width="3.5"/><path d="M8 19h32M17 6v8M31 6v8" stroke-width="3.5"/><path d="M17 29l4.5 4.5L31 24"/>',
@@ -157,12 +163,15 @@
     return '<button type="button" class="gcard' + (o.feat ? ' feat' : '') + '" ' + o.attr + ' style="--gc:var(--g-' + o.c + ')">' + gicon(o.icon, o.a) +
       '<span class="gtx"><b>' + o.name + '</b><span>' + o.tag + '</span></span><span class="gmeta">' + o.meta + CHEV + '</span>' + (o.extra || '') + '</button>';
   }
+  // Play Online: The Climb and Treasure Dive side by side with their pictures, then the other six in threes.
+  function liveCard(k) {
+    var I = GINFO[k], art = k === 'climb' ? ropeMini(8, 3, 5) : k === 'dive' ? seaMini() : '';
+    return gcard({ attr: 'data-live="' + k + '"', icon: k, c: I.c, a: I.a, name: GNAME[k], tag: I.tag, meta: I.time + ' · ' + seatsText(k), feat: !!art,
+      extra: art ? '<span class="gfeat" aria-hidden="true">' + art + '</span>' : '' });
+  }
   function renderHomeCards() {
-    $('onlineGames').innerHTML = ['climb', 'duel', 'tol', 'sprint', 'missing', 'target', 'bigger'].map(function (k) {
-      var I = GINFO[k];
-      return gcard({ attr: 'data-live="' + k + '"', icon: k, c: I.c, a: I.a, name: GNAME[k], tag: I.tag, meta: I.time + ' · 2 players', feat: k === 'climb',
-        extra: k === 'climb' ? '<span class="gfeat" aria-hidden="true">' + cliffMini(8, 3, 5) + '</span>' : '' });
-    }).join('');
+    $('onlineFeat').innerHTML = ['climb', 'dive'].map(liveCard).join('');
+    $('onlineGames').innerHTML = ['duel', 'tol', 'sprint', 'missing', 'target', 'bigger'].map(liveCard).join('');
     $('soloGames').innerHTML = SOLO.map(function (o) { return gcard({ attr: 'data-go="' + o.go + '"', icon: o.icon, c: o.c, a: o.a, name: o.name, tag: o.tag, meta: o.meta }); }).join('');
   }
   var pendingJoin = null;   // a game code typed while signed out: after sign-in, go straight to that room
@@ -1003,7 +1012,7 @@
       var now = performance.now();
       p.splits.push(Math.round(now - p.last) / 1000); p.last = now;
       p.idx++; p.input = ''; p.streak++; if (p.streak > p.bestStreak) p.bestStreak = p.streak;
-      if (G.sub === 'climb') cliffPaint('me', p.idx);
+      if (G.sub === 'climb') ropePaint('me', p.idx);
       sfx.good();
       var el = G.ui[pi].el; el.classList.add('good'); setTimeout(function () { el.classList.remove('good'); }, 120);
       if (!clockGame() && p.idx >= G.n) { finish(pi); return; }
@@ -1016,7 +1025,7 @@
       setTimeout(function () { e2.classList.remove('wrong'); }, 350);
       // The Climb (live): a wrong answer slips you down a ledge, and both ledges get a fresh sum next time.
       var slip = null;
-      if (G.sub === 'climb') { var from = p.idx; G.visits[Math.min(from, G.n - 1)]++; if (from > 0) { p.idx = from - 1; G.visits[p.idx]++; } slip = from; cliffPaint('me', p.idx); }
+      if (G.sub === 'climb') { var from = p.idx; G.visits[Math.min(from, G.n - 1)]++; if (from > 0) { p.idx = from - 1; G.visits[p.idx]++; } slip = from; ropePaint('me', p.idx, 'slip'); }
       sfx.bad(); buzz(70); paintQ(pi);
       if (slip != null) { G.ui[pi].streak.textContent = slip > 0 ? 'Slipped to ledge ' + p.idx : 'Try this one'; G.ui[pi].streak.classList.add('slip'); }
       if (G.kind === 'live') liveReport();
@@ -1057,6 +1066,12 @@
     if (G.kind === 'little') return littleKey(e);
     if (G.sub === 'target') return tgKey(e);
     if (G.sub === 'bigger') return bgKey(e);
+    if (G.kind === 'ldive') {
+      var dm = /^(?:Digit|Numpad)([1-4])$/.exec(e.code || '') || (!e.code && /^[1-4]$/.test(e.key) ? [0, e.key] : null);
+      if (!dm) return; e.preventDefault();
+      var db = G.ui[0] && G.ui[0].opts[Number(dm[1]) - 1]; if (db) hit(db);
+      return diveCall(Number(dm[1]) - 1);
+    }
     if (G.kind === 'ltol' || (G.kind === 'climb' && G.lv.kind === 'truth')) {
       var kk = (e.key || '').toLowerCase(), said = (kk === 'a' || kk === 'arrowleft' || kk === 't') ? true : (kk === 's' || kk === 'arrowright' || kk === 'l') ? false : null;
       if (said === null) return; e.preventDefault();
@@ -1435,7 +1450,7 @@
       var cur = W ? W.climb.level : 1, curArea = Math.floor((cur - 1) / AREA), nAreas = Math.max(AREAS.length, curArea + 2), html = '';
       html += '<a class="back" href="#/">← Arena</a><p class="kicker">On This Device</p><h2 class="title">Climb the Coast</h2>' +
         '<p class="lede">Climb the coast one level at a time. Win stars and coins, and open a treasure chest at the end of every area. A level costs a heart only if you don’t make it.</p>' +
-        '<div class="savebar climb-lobby" id="climbLobby"><span><b>Race a friend.</b> The Climb is a live game too: twelve ledges, harder as you go, first to the top wins.</span>' +
+        '<div class="savebar climb-lobby" id="climbLobby"><span><b>Race a friend.</b> The Climb is a live game too: up a rope of 8 to 20 knots, harder as you go, first to the top wins.</span>' +
         (ME ? '<button class="btn primary" id="climbLobbyBtn" type="button">Race a friend</button>' : '<a class="btn" href="#/account">Sign in to race</a>') + '</div>' +
         '<div class="climb-bar" id="climbBar"></div><div class="trail" id="trail">';
       for (var a = nAreas - 1; a >= 0; a--) html += areaHtml(a, cur);
@@ -1833,7 +1848,20 @@
     var g = G; // snapshot for rematch
     var el = $('resBody'), html = '', winColor = null;
     var P = b.players;
-    if (isH2H(b)) {
+    if (b.game === 'dive') {
+      // Treasure Dive: players[0] is you, the rest by place. A podium instead of two cards.
+      var tops = P.filter(function (p) { return p.place === 1 && !p.dnf; }), me0 = P[0];
+      html += '<p class="kicker"><b>' + GNAME.dive + '</b> Final Result</p>';
+      html += '<div class="verdict" style="color:' + (b.winner === 0 ? 'var(--p1)' : 'var(--ink)') + '">' + (tops.length === 1 ? esc(tops[0].name) + ' <em>wins.</em>' : tops.length ? 'A tie <em>for first.</em>' : 'Nobody <em>won.</em>') + '</div>';
+      html += '<p class="margin">' + (me0.dnf ? 'You left the dive, so you came last.' : 'You came ' + ordinal(b.place) + ' of ' + b.of + ', ' + me0.depth + ' m down' + (b.winner === 0 ? ' and found the treasure.' : '.')) + '</p><p class="series">&nbsp;</p>';
+      html += '<div class="dv-podium">' + P.slice().sort(function (x, y) { return x.place - y.place || (x === me0 ? -1 : y === me0 ? 1 : 0); }).map(function (p) {
+        var c = DIVE_COL[p.c != null ? p.c : P.indexOf(p) % 4];
+        return '<div class="dv-pod' + (p === me0 ? ' me' : '') + (p.place === 1 && !p.dnf ? ' p1' : '') + '" style="--dc:' + c + '"><span class="pl">' + (p.dnf ? '–' : ordinal(p.place)) + '</span>' + avatar(p.name, 40) +
+          '<span><b>' + esc(p.name) + (p === me0 ? ' (you)' : '') + '</b><small>' + (p.dnf ? 'Left the dive' : p.right + ' right · ' + p.wrong + ' wrong' + (p.avgRt != null ? ' · ' + p.avgRt.toFixed(2) + ' s' : '')) + '</small></span>' +
+          '<span class="m">' + p.depth + ' m</span></div>';
+      }).join('') + '</div>';
+      if (b.winner === 0) winColor = cssVar('--p1');
+    } else if (isH2H(b)) {
       var w = b.winner, timed = isTimed(b.game), scored = b.game === 'sprint', pen = penOf(b.game);
       var WL = b.game === 'climb' ? 'Slips' : b.game === 'target' ? 'Skipped' : 'Wrong';
       var PQ = b.game === 'climb' ? 'Per ledge' : b.game === 'target' ? 'Per puzzle' : b.game === 'bigger' ? 'Per pair' : 'Per Q';
@@ -1937,9 +1965,11 @@
     var legend = players.length > 1 ? '<div class="legend">' + players.map(function (p, i) { return '<span style="--c:' + COL[i].c + '">' + esc(p.name) + '</span>'; }).join('') + '</div>' : '';
     return '<div class="exhibit panel">' + legend + svg + '<div class="cap">' + esc(caption) + '</div></div>';
   }
+  function ordinal(n) { n = Number(n) || 0; var t = n % 100; return n + (t > 10 && t < 14 ? 'th' : n % 10 === 1 ? 'st' : n % 10 === 2 ? 'nd' : n % 10 === 3 ? 'rd' : 'th'); }
   function shareResult(b) {
     var P = b.players, txt;
-    if (b.game === 'duel') txt = b.winner < 0 ? 'Dead heat on Sum Duel. ' + P[0].name + ' and ' + P[1].name + ' both on ' + P[0].time.toFixed(2) + ' s.' : P[b.winner].name + ' beat ' + P[1 - b.winner].name + ' on Sum Duel by ' + Math.abs(P[0].time - P[1].time).toFixed(2) + ' s ⚔';
+    if (b.game === 'dive') txt = 'I came ' + ordinal(b.place) + ' of ' + b.of + ' in Treasure Dive on Sum Duel, ' + P[0].depth + ' m down' + (b.winner === 0 ? ' and found the treasure!' : '.');
+    else if (b.game === 'duel') txt = b.winner < 0 ? 'Dead heat on Sum Duel. ' + P[0].name + ' and ' + P[1].name + ' both on ' + P[0].time.toFixed(2) + ' s.' : P[b.winner].name + ' beat ' + P[1 - b.winner].name + ' on Sum Duel by ' + Math.abs(P[0].time - P[1].time).toFixed(2) + ' s ⚔';
     else if (isTimed(b.game)) {
       var nm = GNAME[b.game] + ' on Sum Duel';
       txt = b.winner < 0 ? 'Dead heat in ' + nm + '. ' + P[0].name + ' and ' + P[1].name + ' both on ' + P[0].time.toFixed(2) + ' s.'
@@ -1963,7 +1993,7 @@
   // Stats + Record
   // =====================================================================
   // Head to head: duels, Truth or Lie, Daily VS ghost races, and live games of every kind (incl. Sprint).
-  function isH2H(b) { return isTimed(b.game) || b.game === 'tol' || (b.game === 'sprint' && (b.players || []).length > 1); }
+  function isH2H(b) { return isTimed(b.game) || b.game === 'tol' || b.game === 'dive' || (b.game === 'sprint' && (b.players || []).length > 1); }
   function recKind(b) { return b.mode === 'live' ? 'live' : b.mode === 'ghost' ? 'vs' : b.game; }
   function computeStats(list) {
     var st = { total: list.length, duels: 0, w: 0, l: 0, d: 0, bestSprint: null, bestDaily: null, streak: 0, bestStreak: 0, rivals: [], byGame: { duel: 0, tol: 0, sprint: 0, daily: 0, live: 0, vs: 0 }, sprintSeries: [] };
@@ -1975,9 +2005,13 @@
         var res = b.winner === 0 ? 'W' : b.winner === 1 ? 'L' : 'D';
         if (res === 'W') st.w++; else if (res === 'L') st.l++; else st.d++;
         if (streakOpen) { if (res === 'W') st.streak++; else streakOpen = false; }
-        var name = (b.players[1] && b.players[1].name) || 'Player 2', key = name.toLowerCase();
-        var r = riv[key] || (riv[key] = { name: name, n: 0, w: 0, l: 0, d: 0, last: b.at });
-        r.n++; r[res.toLowerCase()]++;
+        // A Treasure Dive counts against every other diver: higher place wins that pairing.
+        var vs = b.game === 'dive' ? b.players.slice(1).map(function (o) { var me = b.players[0]; return [o.name, me.dnf || o.place < me.place ? 'l' : o.place > me.place ? 'w' : 'd']; })
+          : [[(b.players[1] && b.players[1].name) || 'Player 2', res.toLowerCase()]];
+        vs.forEach(function (v) {
+          var key = String(v[0]).toLowerCase(), r = riv[key] || (riv[key] = { name: v[0], n: 0, w: 0, l: 0, d: 0, last: b.at });
+          r.n++; r[v[1]]++;
+        });
       }
       if (b.game === 'sprint' && b.mode !== 'live') { var sc = b.players[0].score; if (st.bestSprint == null || sc > st.bestSprint) st.bestSprint = sc; st.sprintSeries.push(sc); }
       if (b.game === 'daily' && !b.practice) { var tm = b.players[0].time; if (st.bestDaily == null || tm < st.bestDaily) st.bestDaily = tm; }
@@ -2027,7 +2061,12 @@
   }
   function itemHtml(b) {
     var P = b.players || [], badge, main, right;
-    if (isH2H(b)) {
+    if (b.game === 'dive') {
+      var dres = b.winner === 0 ? 'W' : b.winner === 1 ? 'L' : 'D';
+      badge = '<span class="badge ' + dres + '">' + dres + ' · Dive</span>';
+      main = '<b>' + esc(P[0] && P[0].name) + ' vs ' + esc(P.slice(1).map(function (x) { return x.name; }).join(', ')) + '</b><small>' + fmtDate(b.at) + ' · live · ' + esc((b.cfg && b.cfg.ops || []).join(' ')) + ' · ' + esc(b.cfg && b.cfg.level || '') + '</small>';
+      right = (P[0] && P[0].dnf ? 'left' : ordinal(b.place) + ' of ' + b.of) + ' · ' + (P[0] ? P[0].depth : 0) + ' m';
+    } else if (isH2H(b)) {
       var res = b.winner === 0 ? 'W' : b.winner === 1 ? 'L' : 'D';
       var LAB = { duel: 'Duel', tol: 'T/L', sprint: 'Sprint', climb: 'Climb', missing: 'Missing', target: 'Target', bigger: 'Bigger' };
       badge = '<span class="badge ' + res + '">' + res + ' · ' + (b.mode === 'ghost' ? 'VS' : (LAB[b.game] || 'Live')) + '</span>';
@@ -2083,13 +2122,19 @@
   // "Find an opponent" (join an open public game of that kind, or open one) and "Make a game for a friend".
   // =====================================================================
   var LV = { timer: null, offset: 0, rtt: 1e9, g: null, sending: false, again: false, finalSent: false };
-  var LCFG = Object.assign({ game: 'duel', ops: ['+', '−', '×', '÷'], level: 'medium', n: 10, priv: false }, store.get('sd_live_cfg', {}));
+  // n: Duel and Missing Number (5-20). climbN: The Climb's ledges (8-20, v3.1). diveN: Treasure Dive's rounds.
+  var CLIMB_NS = [8, 12, 16, 20], DIVE_NS = [6, 10, 15];
+  var LCFG = Object.assign({ game: 'duel', ops: ['+', '−', '×', '÷'], level: 'medium', n: 10, climbN: 12, diveN: 10, priv: false }, store.get('sd_live_cfg', {}));
   if (!GNAME[LCFG.game]) LCFG.game = 'duel';
   if (!Array.isArray(LCFG.ops) || !LCFG.ops.length) LCFG.ops = ['+', '−', '×', '÷'];
-  function saveLcfg() { store.set('sd_live_cfg', { game: LCFG.game, ops: LCFG.ops, level: LCFG.level, n: LCFG.n, priv: LCFG.priv }); }
+  if (CLIMB_NS.indexOf(LCFG.climbN) < 0) LCFG.climbN = 12;
+  if (DIVE_NS.indexOf(LCFG.diveN) < 0) LCFG.diveN = 10;
+  function saveLcfg() { store.set('sd_live_cfg', { game: LCFG.game, ops: LCFG.ops, level: LCFG.level, n: LCFG.n, climbN: LCFG.climbN, diveN: LCFG.diveN, priv: LCFG.priv }); }
+  function nKey(k) { return k === 'climb' ? 'climbN' : k === 'dive' ? 'diveN' : 'n'; }
   var GHOW = {
     duel: 'You both get the same sums, each on your own clock. Every wrong answer adds 3 seconds. Fastest total time wins.',
-    climb: 'Twelve ledges to the top: easy at the bottom, hard at the top. A right answer climbs one ledge and a wrong one slips you down one. You can see each other on the cliff. First to the top wins.',
+    climb: 'Climb your rope to the top: easy sums at the bottom, hard ones near the top. A right answer pulls you up one knot and a wrong one slips you down one. You can see each other climbing. First to the top wins.',
+    dive: 'Two to four divers, each on their own device. Everyone gets the same sum at the same moment, with four answers to pick from. Right: dive 2 m, and the fastest right answer dives 1 m more. Wrong: float up 1 m. The last round is golden and counts double. The deepest diver finds the treasure.',
     tol: 'The same sum pops up on both screens. Call it true or a lie: the quickest right call scores, and a wrong call can’t score that round. First to 7 wins.',
     sprint: 'Sixty seconds of sums, the same for both of you. Most right answers wins, and fewer mistakes breaks a tie.',
     missing: 'Every sum has a number missing, like 7 × ? = 42. Same sums, separate clocks, and 3 seconds added for every wrong answer. Fastest time wins.',
@@ -2099,7 +2144,8 @@
   // A worked example for each game, drawn in HTML so it follows the palette.
   var GEX = {
     duel: '<span class="ex-q">7 × 8 = <b class="ex-ans">56</b></span><span class="ex-sub">fastest through all ten</span>',
-    climb: cliffMini(6, 2, 4),
+    climb: ropeMini(6, 2, 4),
+    dive: '<span class="ex-q">6 × 7</span><span class="ex-opts"><i>41</i><i class="ok">42</i><i>48</i><i>36</i></span><span class="ex-sub">right: dive 2 m<br>fastest: 1 m more</span>',
     tol: '<span class="ex-q">6 × 7 = 42</span><span class="ex-chip ok">True</span><span class="ex-chip">Lie</span>',
     sprint: '<span class="ex-q">60 s</span><span class="ex-sub">as many as you can</span>',
     missing: '<span class="ex-q">7 × <b class="ex-gap">?</b> = 42</span><span class="ex-sub">the gap is 6</span>',
@@ -2108,7 +2154,7 @@
   };
   var OPNAME = { '+': 'plus', '−': 'minus', '×': 'times', '÷': 'divided by' };
   function liveGame(c) { return (c && GNAME[c.game]) ? c.game : 'duel'; }
-  function inLive(code) { return !!G && (G.kind === 'live' || G.kind === 'ltol') && (!code || G.code === code); }
+  function inLive(code) { return !!G && (G.kind === 'live' || G.kind === 'ltol' || G.kind === 'ldive') && (!code || G.code === code); }
   function serverNow() { return Date.now() + LV.offset; }
   function liveStop() { if (LV.timer) { clearTimeout(LV.timer); LV.timer = null; } }
   // Keep the clock offset from the lowest-latency sample: that's the most accurate one.
@@ -2122,7 +2168,7 @@
   }
   function cfgText(c) {
     var g = liveGame(c), n = c.n;
-    var tail = g === 'tol' ? 'first to 7' : g === 'sprint' ? '60 seconds' : g === 'climb' ? n + ' ledges, easy to hard'
+    var tail = g === 'tol' ? 'first to 7' : g === 'sprint' ? '60 seconds' : g === 'climb' ? n + ' ledges, easy to hard' : g === 'dive' ? n + ' rounds'
       : g === 'target' ? n + ' puzzles' : g === 'bigger' ? n + ' pairs' : n + ' questions';
     return GNAME[g] + ' · ' + (c.ops || []).join(' ') + (g === 'climb' ? '' : ' · ' + c.level) + ' · ' + tail;
   }
@@ -2135,9 +2181,9 @@
     var el = $('v-live');
     if (code && ME) return renderRoom(code);
     if (code) pendingJoin = code;   // signed out with a code: sign in, then go straight to that room
-    el.innerHTML = '<a class="back" href="#/">← Arena</a><p class="kicker">Play Online</p><h2 class="title">Two Players, Two Devices</h2>' +
-      '<p class="lede">' + (ME ? 'Pick a game. Then find an opponent, or make a game for a friend and send them the code.'
-        : 'Play a friend on their own phone, tablet or computer. You both need to sign in, so the game knows who’s who.') + '</p>' +
+    el.innerHTML = '<a class="back" href="#/">← Arena</a><p class="kicker">Play Online</p><h2 class="title">Everyone on Their Own Device</h2>' +
+      '<p class="lede">' + (ME ? 'Pick a game. Then find an opponent, or make a game for friends and send them the code.'
+        : 'Play friends on their own phone, tablet or computer. Everyone needs to sign in, so the game knows who’s who.') + '</p>' +
       (!ME && code ? '<div class="savebar"><span>Sign in and you’ll go straight into game <b class="mono">' + esc(code) + '</b>.</span><a class="btn primary" href="#/account">Sign in</a></div>' : '') +
       '<div id="lvActive"></div>' +
       '<div class="lv-wrap"><div class="lv-pick" id="lvGame" role="radiogroup" aria-label="Choose a game">' + LV_GAMES.map(function (k) {
@@ -2184,10 +2230,11 @@
     var k = LCFG.game, I = GINFO[k], d = $('lvDetail'); if (!d) return;
     qsa('#lvGame .gpick').forEach(function (b) { var on = b.dataset.v === k; b.setAttribute('aria-checked', String(on)); b.tabIndex = on ? 0 : -1; });
     d.style.setProperty('--gc', 'var(--g-' + I.c + ')');
-    var html = '<div class="lvd-head">' + gicon(k, I.a) + '<div><h3>' + GNAME[k] + '</h3><span>' + I.time + ' · 2 players</span></div></div>' +
+    var party = isParty(k);
+    var html = '<div class="lvd-head">' + gicon(k, I.a) + '<div><h3>' + GNAME[k] + '</h3><span>' + I.time + ' · ' + seatsText(k) + '</span></div></div>' +
       '<p class="lvd-how">' + GHOW[k] + '</p><div class="lvd-ex" aria-hidden="true">' + GEX[k] + '</div>';
     if (!ME) {
-      d.innerHTML = html + '<a class="btn primary lg block" href="#/account">Sign in to play</a><p class="hint lvd-hint">Both players need an account. It takes an email and a password.</p>';
+      d.innerHTML = html + '<a class="btn primary lg block" href="#/account">Sign in to play</a><p class="hint lvd-hint">' + (party ? 'Every diver needs' : 'Both players need') + ' an account. It takes an email and a password.</p>';
       return;
     }
     var seg = function (id, list, cur) { return '<div class="seg" id="' + id + '">' + list.map(function (x) { return '<button type="button" data-v="' + x[0] + '" aria-pressed="' + (String(x[0]) === String(cur)) + '">' + x[1] + '</button>'; }).join('') + '</div>'; };
@@ -2195,13 +2242,17 @@
       return '<button type="button" data-v="' + o + '" aria-label="' + OPNAME[o] + '" aria-pressed="' + (LCFG.ops.indexOf(o) >= 0) + '">' + o + '</button>'; }).join('') + '</div></div>';
     html += k === 'climb' ? '<div class="field"><span class="lab">Difficulty</span><p class="hint" style="margin:0">Starts easy and gets harder on the way up.</p></div>'
       : '<div class="field"><span class="lab">Difficulty</span>' + seg('lvLevel', [['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard']], LCFG.level) + '</div>';
-    if (k === 'duel' || k === 'missing') html += '<div class="field"><span class="lab">Questions</span>' + seg('lvN', [[5, '5'], [10, '10'], [15, '15'], [20, '20']], LCFG.n) + '</div>';
-    html += '<button class="btn primary lg block" id="lvQuick" type="button">Find an opponent</button>' +
-      '<p class="hint lvd-hint">Joins an open ' + GNAME[k] + ' game, or opens one and waits for someone to join.</p>' +
-      '<div class="lvd-friend"><p class="lab">Or play a friend</p>' +
-        '<div class="setrow"><div>Private game<small>Your friend needs the code and a password</small></div><button class="toggle" id="lvPriv" type="button" aria-label="Private game" aria-pressed="' + !!LCFG.priv + '"></button></div>' +
+    // How many questions: Duel and Missing Number, The Climb (one per ledge; v3.1) and Treasure Dive (rounds).
+    var ns = k === 'duel' || k === 'missing' ? [5, 10, 15, 20] : k === 'climb' ? CLIMB_NS : k === 'dive' ? DIVE_NS : null;
+    if (ns) html += '<div class="field"><span class="lab">Questions</span>' + seg('lvN', ns.map(function (x) { return [x, String(x)]; }), LCFG[nKey(k)]) +
+      (k === 'climb' ? '<p class="hint" style="margin:6px 0 0">One for every ledge, plus one more for every slip.</p>' : '') + '</div>';
+    html += '<button class="btn primary lg block" id="lvQuick" type="button">' + (party ? 'Find divers' : 'Find an opponent') + '</button>' +
+      '<p class="hint lvd-hint">' + (party ? 'Joins an open ' + GNAME[k] + ' with a free seat, or opens one and waits. It starts when everyone in the room is ready.'
+        : 'Joins an open ' + GNAME[k] + ' game, or opens one and waits for someone to join.') + '</p>' +
+      '<div class="lvd-friend"><p class="lab">' + (party ? 'Or dive with friends' : 'Or play a friend') + '</p>' +
+        '<div class="setrow"><div>Private game<small>' + (party ? 'Friends need the code and a password' : 'Your friend needs the code and a password') + '</small></div><button class="toggle" id="lvPriv" type="button" aria-label="Private game" aria-pressed="' + !!LCFG.priv + '"></button></div>' +
         '<input class="inp' + (LCFG.priv ? '' : ' hidden') + '" id="lvPw" maxlength="50" placeholder="Game password (3 or more characters)" autocomplete="off">' +
-        '<button class="btn lg block" id="lvCreateBtn" type="button">Make a game for a friend</button></div>' +
+        '<button class="btn lg block" id="lvCreateBtn" type="button">' + (party ? 'Make a game for friends' : 'Make a game for a friend') + '</button></div>' +
       '<div class="err" id="lvErr" role="alert"></div>';
     d.innerHTML = html;
     $('lvOps').onclick = function (e) {
@@ -2214,12 +2265,12 @@
       var s = $(id); if (!s) return;
       s.onclick = function (e) { var b = e.target.closest('button'); if (!b) return; LCFG[key] = cast(b.dataset.v); saveLcfg(); qsa('button', s).forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); };
     };
-    segBind('lvLevel', 'level', String); segBind('lvN', 'n', Number);
+    segBind('lvLevel', 'level', String); segBind('lvN', nKey(k), Number);
     $('lvPriv').onclick = function () { LCFG.priv = !LCFG.priv; saveLcfg(); this.setAttribute('aria-pressed', String(LCFG.priv)); $('lvPw').classList.toggle('hidden', !LCFG.priv); if (LCFG.priv) $('lvPw').focus(); };
     $('lvCreateBtn').onclick = function () { createGame(this, !!LCFG.priv); };
     $('lvQuick').onclick = function () { quickMatch(this); };
   }
-  function liveCfg() { return { game: LCFG.game, ops: LCFG.ops, level: LCFG.level, n: LCFG.n }; }
+  function liveCfg() { return { game: LCFG.game, ops: LCFG.ops, level: LCFG.level, n: LCFG[nKey(LCFG.game)] }; }
   function createGame(btn, priv) {
     btn.disabled = true; $('lvErr').textContent = '';
     return liveApi('/api/live', { action: 'create', cfg: liveCfg(), private: priv, password: priv ? $('lvPw').value : '' })
@@ -2251,7 +2302,7 @@
       $('lvList').innerHTML = j.games.length ? j.games.map(function (g) {
         var k = liveGame(g.cfg);
         return '<div class="item" data-code="' + esc(g.code) + '" data-priv="' + (g.private ? 1 : 0) + '">' + gicon(k, GINFO[k].a).replace('class="gicon"', 'class="gicon sm" style="--gc:var(--g-' + GINFO[k].c + ')"') +
-          '<div class="main"><b>' + esc(GNAME[k]) + (g.private ? ' · private' : '') + '</b><small>' + esc(g.host) + ' · ' + esc(cfgText(g.cfg).split(' · ').slice(1).join(' · ')) + ' · <span class="mono">' + esc(g.code) + '</span></small></div>' +
+          '<div class="main"><b>' + esc(GNAME[k]) + (g.party ? ' · ' + g.count + '/' + g.max + ' divers' : '') + (g.private ? ' · private' : '') + '</b><small>' + esc(g.host) + ' · ' + esc(cfgText(g.cfg).split(' · ').slice(1).join(' · ')) + ' · <span class="mono">' + esc(g.code) + '</span></small></div>' +
           (g.mine ? '<button class="btn" data-a="open">Your room</button>' : '<button class="btn primary" data-a="join">Join</button>') + '</div>';
       }).join('') : '<div class="blank">No open games right now. Find an opponent above and you’ll be the first.</div>';
     }).catch(function (e) { if (e.status === 401) { setMe(null); renderLive(); } })
@@ -2279,9 +2330,10 @@
       var g = j.game; LV.g = g;
       if (inLive(code)) return liveTick(g);
       paintRoom(g);
-      if (g.status === 'playing' && g.tol) liveTolStart(g);
+      if (g.status === 'playing' && g.dive) liveDiveStart(g);
+      else if (g.status === 'playing' && g.tol) liveTolStart(g);
       else if (g.status === 'playing' && g.questions) liveStartGame(g);
-      else if (g.status === 'done' && g.result) liveResults(g);
+      else if (g.status === 'done' && g.result) { if (g.party) partyResults(g); else liveResults(g); }
     }).catch(function (e) {
       if (e.status === 401) { setMe(null); return renderLive(); }
       if (e.status === 404 || e.status === 400) { if ($('lvRoom')) $('lvRoom').innerHTML = '<div class="blank">No game with that code. <a href="#/live">Back to Play Online</a></div>'; LV.g = { status: 'gone' }; }
@@ -2289,7 +2341,7 @@
       if (LV.g && LV.g.status === 'gone') return;
       var still = inLive(code) || ($('lvRoom') && liveVisible('v-live'));
       if (!still) return;
-      var playing = LV.g && LV.g.status === 'playing', tol = LV.g && LV.g.cfg && LV.g.cfg.game === 'tol';
+      var playing = LV.g && LV.g.status === 'playing', tol = LV.g && LV.g.cfg && (LV.g.cfg.game === 'tol' || LV.g.party);
       LV.timer = setTimeout(function () { pollRoom(code); }, onResults ? 2500 : playing ? (tol ? 500 : 900) : 1300);
     });
   }
@@ -2299,6 +2351,7 @@
     if (head && !head.querySelector('.gicon')) head.insertAdjacentHTML('afterbegin', gicon(k, GINFO[k].a).replace('class="gicon"', 'class="gicon lg" style="--gc:var(--g-' + GINFO[k].c + ')"'));
     $('lvTitle').textContent = GNAME[k]; $('lvCfg').textContent = g.name + ' · ' + cfgText(g.cfg).split(' · ').slice(1).join(' · ') + (g.private ? ' · private' : '');
     if (g.status === 'cancelled' || g.status === 'abandoned') { room.innerHTML = '<div class="blank">This game was closed. <a href="#/live">Back to Play Online</a></div>'; return; }
+    if (g.party) return paintPartyRoom(g);
     if (!g.you) {
       if (g.status === 'open' && $('lvJoin')) return; // keep the password the visitor is typing
       if (g.status !== 'open') { room.innerHTML = '<div class="blank">This game has already started or is full. <a href="#/live">Find another</a></div>'; return; }
@@ -2389,11 +2442,11 @@
     var half = makeHalf(0, false, true);
     if (k === 'climb') {
       half.classList.add('lclimb');
-      var cl = document.createElement('div'); cl.className = 'cliff'; cl.setAttribute('aria-hidden', 'true'); cl.innerHTML = cliffHtml(G.n, who.me.name, who.opp.name);
-      half.insertBefore(cl, half.querySelector('.stage')); G.cliff = cl;
+      var stage = half.querySelector('.stage');
+      stage.insertAdjacentHTML('afterbegin', ropeWall(G.n, { name: who.me.name, l: G.p[0].idx }, { name: who.opp.name, l: who.opp.idx || 0 }));
+      G.wall = stage.querySelector('.rw');
       half.querySelector('.pen').textContent = 'Slip!';
-      liveChrome(half, '<span class="nm">' + esc(who.opp.name) + '</span><span class="lv-st">Ledge 0 of ' + G.n + '</span>');
-      cliffPaint('me', G.p[0].idx); cliffPaint('opp', who.opp.idx || 0);
+      liveChrome(half, '<span class="nm">' + esc(who.opp.name) + '</span><span class="lv-st">Ledge ' + (who.opp.idx || 0) + ' of ' + G.n + '</span>');
     } else {
       liveChrome(half, '<span class="nm">' + esc(who.opp.name) + '</span>' + (G.sprint ? '' : '<span class="lv-bar"><i></i></span>') + '<span class="lv-st">' + (G.sprint ? '0 correct' : '0 / ' + G.n) + '</span>');
     }
@@ -2418,12 +2471,13 @@
   }
   function liveTick(g) {
     if (G && G.kind === 'ltol') return liveTolTick(g);
+    if (G && G.kind === 'ldive') return diveTick(g);
     if (!G || G.kind !== 'live') return;
     var opp = g[liveOther(g.you)];
     if (G.strip && opp) {
       var st = G.strip.querySelector('.lv-st'), bar = G.strip.querySelector('.lv-bar i');
       if (G.sprint) st.innerHTML = opp.idx + ' correct' + (opp.done ? ' ✓' : '');
-      else if (G.sub === 'climb') { st.textContent = opp.done ? 'At the top ✓' : 'Ledge ' + opp.idx + ' of ' + G.n; cliffPaint('opp', opp.done ? G.n : opp.idx); }
+      else if (G.sub === 'climb') { st.textContent = opp.done ? 'At the top ✓' : 'Ledge ' + opp.idx + ' of ' + G.n; ropePaint('opp', opp.done ? G.n : opp.idx); }
       else {
         if (bar) bar.style.width = (opp.idx / G.n * 100) + '%';
         st.innerHTML = opp.done ? 'done ✓' : (opp.idx + ' / ' + G.n + (opp.wrong ? ' · ' + opp.wrong + (G.sub === 'target' ? ' skipped' : ' wrong') : ''));
@@ -2467,19 +2521,287 @@
     return G.qs[Math.min(p.idx, G.qs.length - 1)];
   }
   function initial(name) { var a = Array.from(String(name || '?').trim() || '?'); return a[0].toUpperCase(); }
-  function cliffBand(i, n) { var f = i / n; return f <= 4 / 12 ? 1 : f <= 9 / 12 ? 2 : 3; }   // ledge i of n: easy, medium, hard (api/_questions.js CLIMB_BANDS)
-  function cliffHtml(n, meName, oppName) {
-    var s = '';
-    for (var i = 1; i <= n; i++) s += '<i class="b' + cliffBand(i, n) + '" style="--i:' + i + ';--h:' + (i / n).toFixed(4) + '"></i>';
-    return '<div class="cl-track" style="--n:' + n + '">' + s + '<span class="cl-flag"></span>' +
-      '<b class="cl-dot opp" style="--l:0">' + esc(initial(oppName)) + '</b><b class="cl-dot me" style="--l:0">' + esc(initial(meName)) + '</b></div>' +
-      '<div class="cl-key"><span class="b1">Easy</span><span class="b2">Medium</span><span class="b3">Hard</span></div>';
+  // Knot i of n: easy, medium or hard. Integer maths, mirrored by api/_questions.js climbBand.
+  function cliffBand(i, n) { return i * 3 <= n ? 1 : i * 4 <= 3 * n ? 2 : 3; }
+  // The rope wall (v3.1): a cliff face with a rope for each climber and a knot for each ledge. The climber is drawn
+  // from behind, hands on the rope above the head; flipping the pose (.f) on every move makes them climb hand over hand.
+  function climberSvg() {
+    var limbs = 'M14 25L18.5 4M26 25L22 12M16 36L15 47M24 36l4 5-5 4';
+    return '<svg viewBox="0 0 40 50" aria-hidden="true"><path class="lo" d="' + limbs + '"/><path class="lb" d="' + limbs + '"/>' +
+      '<rect class="bd" x="13" y="21" width="14" height="17" rx="5.5"/><circle class="bd" cx="20" cy="14" r="8.5"/></svg>';
   }
-  function cliffPaint(who, L) { if (!G || !G.cliff) return; var d = G.cliff.querySelector('.cl-dot.' + who); if (d) d.style.setProperty('--l', L); }
-  // The small static cliff on the Arena card and in the lobby example.
-  function cliffMini(n, a, b) {
-    var s = ''; for (var i = 1; i <= n; i++) s += '<i class="b' + cliffBand(i, n) + '" style="--i:' + i + ';--h:' + (i / n).toFixed(4) + '"></i>';
-    return '<span class="cl-track mini" style="--n:' + n + '">' + s + '<span class="cl-flag"></span><b class="cl-dot opp" style="--l:' + a + '"></b><b class="cl-dot me" style="--l:' + b + '"></b></span>';
+  function climberHtml(who, name, L, n, mini) {
+    return '<span class="climber ' + who + (L >= n ? ' top' : '') + '" style="--x:' + (who === 'me' ? 30 : 70) + '%;--l:' + L + '"><span class="cb">' + climberSvg() +
+      (mini ? '' : '<span class="ci">' + esc(initial(name)) + '</span>') + '</span></span>';
+  }
+  // me, opp: { name, l (the ledge they're on) }. Spans throughout, so it can sit inside the Arena card's button.
+  function ropeWall(n, me, opp, mini) {
+    var e = Math.floor(n / 3), m = Math.floor(3 * n / 4), knots = '';
+    for (var k = 1; k < n; k++) knots += '<i style="--k:' + k + '"></i>';
+    var rope = function (x) { return '<span class="rw-rope" style="--x:' + x + '%">' + knots + '</span>'; };
+    return '<span class="rw' + (mini ? ' mini' : '') + '" style="--n:' + n + ';--e:' + (e / n * 100).toFixed(2) + '%;--m:' + (m / n * 100).toFixed(2) + '%" aria-hidden="true">' +
+      '<span class="rw-edge"></span><span class="rw-band"></span><span class="rw-flag"></span><span class="rw-zone">' + rope(30) + rope(70) +
+      climberHtml('opp', opp.name, opp.l, n, mini) + climberHtml('me', me.name, me.l, n, mini) + '</span></span>';
+  }
+  // Move a climber to ledge L: up a knot (with a hand-over-hand pull), or down one (a slip). how = 'slip' wobbles
+  // them even when they can't go lower (a wrong answer on the ground).
+  function ropePaint(who, L, how) {
+    if (!G || !G.wall) return;
+    var c = G.wall.querySelector('.climber.' + who); if (!c) return;
+    var prev = Number(c.style.getPropertyValue('--l')) || 0;
+    if (prev === L && !how) return;
+    c.style.setProperty('--l', L);
+    c.classList.remove('up', 'slip'); void c.offsetWidth;
+    if (L > prev) { c.classList.toggle('f'); c.classList.add('up'); }
+    else if (L < prev || how === 'slip') c.classList.add('slip');
+    c.classList.toggle('top', L >= G.n);
+    clearTimeout(c.sdT); c.sdT = setTimeout(function () { c.classList.remove('up', 'slip'); }, 650);
+  }
+  // The small static wall on the Arena card and in the lobby example.
+  function ropeMini(n, a, b) { return ropeWall(n, { name: '', l: b }, { name: '', l: a }, true); }
+
+  // ---------------- Treasure Dive (live party game, 2-4 divers): rounds judged by the server ----------------
+  // Every device reveals sum k at the same server time with four answers. One pick per round; the server scores
+  // it (right 2 m, fastest right 1 m more, wrong up 1 m, golden last round doubled). See api/_party.js.
+  // Colours: you are always the first (P1 teal, as everywhere), the other divers in seat order.
+  var DIVE_COL = ['var(--p1)', 'var(--p2)', 'var(--dv3)', 'var(--dv4)'];
+  function diveCols(g) { var out = {}, i = 1; (g.seats || []).forEach(function (st) { out[st.id] = st.id === g.me ? 0 : i++; }); return out; }
+  function diveOrder(g) { var c = diveCols(g); return (g.seats || []).slice().sort(function (a, b) { return c[a.id] - c[b.id]; }); }
+  function diverSvg() {
+    return '<svg viewBox="0 0 26 36" aria-hidden="true"><path class="fn" d="M8.5 1.5L3 11h7zM17.5 1.5L23 11h-7z"/><rect class="bd" x="7.5" y="8" width="11" height="17" rx="5"/>' +
+      '<circle class="bd" cx="13" cy="28" r="6.5"/><rect class="gs" x="9" y="27.5" width="8" height="4.5" rx="2"/></svg>';
+  }
+  function seaMax(n, deepest) { return Math.max(Math.round(2.5 * n + 2), (deepest || 0) + 2); }
+  // divers: [{ id, name, c (colour), d (depth), me, gone }]
+  function diveScene(n, divers, mini) {
+    var N = divers.length || 1, lanes = '', ds = '', deepest = 0;
+    divers.forEach(function (v, i) {
+      var x = ((i + 0.5) / N * 100).toFixed(1); deepest = Math.max(deepest, v.d);
+      lanes += '<span class="dv-lane" style="--x:' + x + '%"></span>';
+      ds += '<span class="diver' + (v.me ? ' me' : '') + (v.gone ? ' gone' : '') + '" data-id="' + esc(v.id) + '" style="--x:' + x + '%;--d:' + v.d + ';--dc:' + DIVE_COL[v.c] + '">' + diverSvg() +
+        '<span class="bub"><i></i><i></i><i></i></span>' + (mini ? '' : '<span class="dv-tag"><b>' + esc(v.name) + '</b><span>' + v.d + ' m</span></span>') + '</span>';
+    });
+    return '<span class="dv-sea' + (mini ? ' mini' : '') + '" style="--max:' + seaMax(n, deepest) + '" aria-hidden="true"><span class="dv-zone">' + lanes + ds + '</span><span class="dv-bed"></span>' + chestSvg() + '</span>';
+  }
+  function seaMini() { return diveScene(10, [{ id: 'a', c: 1, d: 12 }, { id: 'b', c: 0, d: 19 }, { id: 'c', c: 2, d: 7 }, { id: 'd', c: 3, d: 15 }], true); }
+
+  function paintPartyRoom(g) {
+    var room = $('lvRoom'), k = liveGame(g.cfg);
+    if (!g.you) {
+      if (g.status === 'open' && $('lvJoin')) return; // keep the password the visitor is typing
+      if (g.status !== 'open') { room.innerHTML = '<div class="blank">This game has already started or is full. <a href="#/live">Find another</a></div>'; return; }
+      var free = g.max - g.count;
+      room.innerHTML = '<div class="panel lv-joinp"><p style="margin-top:0"><b>' + esc(g.seats.map(function (x) { return x.name; }).join(', ')) + '</b> ' + (g.count === 1 ? 'is' : 'are') + ' waiting to dive. ' +
+        free + (free === 1 ? ' seat' : ' seats') + ' free.</p><p class="hint">' + esc(GHOW[k]) + '</p>' +
+        (g.private && !g.invited ? '<input class="inp" id="lvJoinPw" maxlength="50" placeholder="Password" autocomplete="off">' : '') +
+        '<div class="err" id="lvJoinErr"></div><button class="btn primary block lg" id="lvJoin">Join the dive</button></div>';
+      $('lvJoin').onclick = function () {
+        liveApi('/api/live', { action: 'join', code: g.code, password: $('lvJoinPw') ? $('lvJoinPw').value : '' })
+          .then(function () { pollRoom(g.code); }).catch(function (e) { $('lvJoinErr').textContent = e.message; });
+      };
+      return;
+    }
+    var cols = diveCols(g), order = diveOrder(g), me = order[0] || {}, lobby = g.status === 'open' || g.status === 'full', html = '';
+    if (lobby && g.count < g.max) {
+      html += '<div class="panel lv-wait"><p class="lab">Send your friends this code</p><div class="lv-code" aria-label="Game code ' + esc(g.code.split('').join(' ')) + '">' + esc(g.code) + '</div>' +
+        '<div class="row lv-share"><button class="btn primary" id="lvCopy" type="button">Share the link</button><button class="btn" id="lvCopyCode" type="button">Copy the code</button></div>' +
+        '<p class="hint"><span class="pulse"></span>' + (g.count < 2 ? 'Waiting for someone to join' : 'Room for ' + (g.max - g.count) + ' more') + (g.private ? '. They’ll need your password too.' : '…') + '</p></div>';
+    }
+    html += '<div class="cards four">';
+    for (var i = 0; i < g.max; i++) {
+      var st = order[i];
+      if (!st) { html += '<div class="card pl wait dv" style="--pc:var(--line2)"><span class="whoc">Free seat</span><div class="pl-row"><span class="ava empty">?</span><span class="t">Waiting…</span></div></div>'; continue; }
+      html += '<div class="card pl dv" style="--pc:' + DIVE_COL[cols[st.id]] + '"><span class="whoc">' + (st.id === g.me ? 'You' : 'Diver') + (st.host ? ' · host' : '') + (st.online ? '' : ' · offline') + '</span>' +
+        '<div class="pl-row">' + avatar(st.name, 40) + '<span class="t">' + esc(st.name) + '</span>' + (g.status === 'playing' ? '' : '<span class="ready' + (st.ready ? ' on' : '') + '">' + (st.ready ? 'Ready' : 'Not ready') + '</span>') + '</div></div>';
+    }
+    html += '</div>';
+    if (g.status === 'playing') {
+      var left = Math.max(0, Math.ceil((new Date(g.start_at).getTime() - serverNow()) / 1000));
+      html += '<div class="verdict" style="text-align:center">' + (left > 0 ? left : 'Dive!') + '</div>';
+    } else if (lobby) {
+      var waiting = order.filter(function (x) { return !x.ready && x.id !== g.me; }).map(function (x) { return x.name; });
+      html += '<div class="panel lv-ready"><p class="lvd-how">' + esc(GHOW[k]) + '</p><div class="lvd-ex" aria-hidden="true">' + GEX[k] + '</div>';
+      if (g.count < 2) html += '<p class="lede" style="margin:0">You need at least one more diver. Up to four can play.</p></div>';
+      else html += '<p class="lede" style="margin:0 0 14px">' + (me.ready ? (waiting.length ? 'Waiting for ' + esc(waiting.join(', ')) + ' to get ready.' : 'Starting…')
+          : 'Press ready when you are. The dive starts when all ' + g.count + ' of you are ready.') + '</p>' +
+        '<button class="btn ' + (me.ready ? '' : 'primary ') + 'block lg" id="lvReady">' + (me.ready ? 'Not ready yet' : 'I’m ready') + '</button></div>';
+      html += '<div class="row" style="margin-top:12px"><button class="btn ghost" id="lvLeave">Leave the room</button></div>';
+    }
+    room.innerHTML = html;
+    var url = location.origin + '/#/live/' + g.code;
+    if ($('lvCopy')) $('lvCopy').onclick = function () {
+      (navigator.share ? navigator.share({ title: 'Sum Duel', text: 'Dive with me in Treasure Dive on Sum Duel. Game code ' + g.code, url: url })
+        : navigator.clipboard.writeText(url).then(function () { toast('Link copied'); })).catch(function () {});
+    };
+    if ($('lvCopyCode')) $('lvCopyCode').onclick = function () { if (navigator.clipboard) navigator.clipboard.writeText(g.code).then(function () { toast('Code copied'); }, function () { toast(g.code); }); else toast(g.code); };
+    if ($('lvReady')) $('lvReady').onclick = function () { ac(); liveApi('/api/live', { action: 'ready', code: g.code, ready: !me.ready }).then(function () { pollRoom(g.code); }).catch(function (e) { toast(e.message); }); };
+    if ($('lvLeave')) $('lvLeave').onclick = function () { liveApi('/api/live', { action: 'leave', code: g.code }).catch(function () {}).then(function () { go('live'); }); };
+  }
+
+  function liveDiveStart(g) {
+    abortGame(); token++;
+    var order = diveOrder(g), cols = diveCols(g), me = order[0];
+    G = { kind: 'ldive', token: token, live: true, code: g.code, id: g.id, me: g.me, n: g.cfg.n, cfg: g.cfg, names: [me.name], cols: cols,
+      startAt: new Date(g.start_at).getTime(), dive: g.dive, seats: g.seats, shownK: -1, lastK: -1, calls: {}, revealPerf: 0, ui: [], p: [newP()] };
+    var depth = (g.dive && g.dive.depth) || {};
+    var play = $('play'); play.innerHTML = '';
+    var el = document.createElement('section'); el.className = 'half solo ldive wait'; paintPlayer(el, 0);
+    el.innerHTML = '<div class="hud"><span class="nm"></span><span class="prog">Round 1 of ' + G.n + '</span><span class="clock">–</span></div><div class="bar"><i></i></div>' +
+      diveScene(G.n, order.map(function (x) { return { id: x.id, name: x.id === g.me ? 'You' : x.name, c: cols[x.id], d: depth[x.id] || 0, me: x.id === g.me, gone: x.left }; })) +
+      '<div class="dv-stage"><div class="dv-q">Get ready…</div><div class="dv-flash" aria-live="polite"></div></div>' +
+      '<div class="dv-opts" role="group" aria-label="Answers">' + [0, 1, 2, 3].map(function (i) { return '<button type="button" data-i="' + i + '"><span class="kn">' + (i + 1) + '</span><span class="v">–</span><span class="dv-who"></span></button>'; }).join('') + '</div>' +
+      '<div class="keyhint">1–4 PICK AN ANSWER</div><div class="cover"><div class="big"></div><div class="sub"></div></div>';
+    el.querySelector('.nm').textContent = me.name;
+    el.querySelector('.dv-opts').addEventListener('pointerdown', function (e) { var b = e.target.closest('button'); if (!b) return; e.preventDefault(); hit(b); diveCall(Number(b.dataset.i)); });
+    var top = document.createElement('div'); top.className = 'solo-top lv';
+    var q = document.createElement('button'); q.className = 'chipbtn'; q.type = 'button'; q.textContent = 'Quit';
+    q.onclick = function () {
+      if (!window.confirm('Leave the dive? You’ll come last.')) return;
+      liveApi('/api/live', { action: 'leave', code: G.code }).catch(function () {}); abortGame(); go('live');
+    };
+    var strip = document.createElement('div'); strip.className = 'lv-opp'; strip.style.setProperty('--oc', COL[0].c);
+    strip.innerHTML = '<span class="nm">You</span><span class="lv-st">0 m</span>';
+    top.appendChild(q); top.appendChild(strip); el.appendChild(top);
+    G.ui[0] = { el: el, q: el.querySelector('.dv-q'), flash: el.querySelector('.dv-flash'), opts: qsa('.dv-opts button', el), clock: el.querySelector('.clock'),
+      prog: el.querySelector('.prog'), bar: el.querySelector('.bar i'), sea: el.querySelector('.dv-sea'), st: strip.querySelector('.lv-st'),
+      cover: el.querySelector('.cover'), big: el.querySelector('.cover .big'), sub: el.querySelector('.cover .sub') };
+    play.appendChild(el); showScreen('play'); wakeOn();
+    G.timer = setInterval(diveFrame, 50);
+    diveDepths(depth);
+    diveTick(g);
+  }
+  function diveFrame() {
+    if (!G || G.kind !== 'ldive' || !G.live) return;
+    var u = G.ui[0], now = serverNow();
+    if (now < G.startAt) {
+      var left = G.startAt - now, shown = left > 3000 ? 'Ready' : String(Math.ceil(left / 1000));
+      if (shown !== G.cd) { G.cd = shown; u.cover.classList.remove('hidden'); u.big.textContent = shown; u.sub.textContent = GNAME.dive + ' · ' + (G.seats || []).length + ' divers'; if (shown !== 'Ready') sfx.tick(); }
+      return;
+    }
+    if (G.cd !== 'go') { G.cd = 'go'; u.cover.classList.add('hidden'); sfx.go(); }
+    var r = G.dive && G.dive.round;
+    if (r && r.text && G.shownK !== r.k && G.lastK < r.k && now >= new Date(r.at).getTime()) {
+      G.shownK = r.k; G.revealPerf = performance.now() - (now - new Date(r.at).getTime());
+      diveShowQ(r.text + ' = ?', r.choices);
+      u.el.classList.remove('wait'); u.el.classList.toggle('gold', !!r.gold);
+      u.el.classList.toggle('locked', G.calls[r.k] != null || !!r.mine);
+      u.flash.textContent = r.gold ? 'Golden round: everything counts double!' : ''; u.flash.className = 'dv-flash' + (r.gold ? ' gold' : '');
+      u.prog.textContent = 'Round ' + (r.k + 1) + ' of ' + G.n;
+      if (r.mine && u.opts[r.mine.c]) u.opts[r.mine.c].classList.add('picked');
+    }
+    if (r && G.shownK === r.k && G.lastK < r.k) {
+      var a = new Date(r.at).getTime(), cl = new Date(r.closes).getTime();
+      u.bar.style.width = Math.max(0, Math.min(100, (cl - now) / (cl - a) * 100)) + '%';
+      u.clock.textContent = Math.max(0, (cl - now) / 1000).toFixed(1);
+      u.clock.classList.toggle('low', cl - now < 3000);
+    } else { u.bar.style.width = '0%'; u.clock.textContent = '–'; u.clock.classList.remove('low'); }
+  }
+  function diveShowQ(text, choices) {
+    var u = G.ui[0]; u.q.textContent = text;
+    u.opts.forEach(function (b, i) { b.className = ''; b.querySelector('.v').textContent = choices ? choices[i] : '–'; b.querySelector('.dv-who').innerHTML = ''; });
+  }
+  function diveName(id) { if (id === G.me) return 'You'; var st = (G.seats || []).filter(function (x) { return x.id === id; })[0]; return st ? st.name : 'Someone'; }
+  function diveTick(g) {
+    if (!G || G.kind !== 'ldive') return;
+    if (g.status === 'done' && g.result) return diveDone(g);
+    if (g.status === 'cancelled' || g.status === 'abandoned') { abortGame(); toast('The game was closed.'); go('live'); return; }
+    if (!g.dive || !G.ui[0]) return;
+    G.dive = g.dive; G.seats = g.seats;
+    var d = g.dive, r = d.round, u = G.ui[0];
+    (g.seats || []).forEach(function (st) { var el = u.sea.querySelector('.diver[data-id="' + st.id + '"]'); if (el) el.classList.toggle('gone', !!st.left); });
+    if (d.last && d.last.k > G.lastK) diveReveal(d.last, d.depth);
+    if (r && G.shownK === r.k && G.lastK < r.k) {
+      if (r.mine) { u.el.classList.add('locked'); if (u.opts[r.mine.c]) u.opts[r.mine.c].classList.add('picked'); }
+      if (G.calls[r.k] != null || r.mine) {
+        var still = (g.seats || []).filter(function (st) { return !st.left && st.id !== G.me && (r.called || []).indexOf(st.id) < 0; }).map(function (st) { return st.name; });
+        u.flash.textContent = still.length ? 'Waiting for ' + still.join(', ') + '…' : 'Everyone’s in!'; u.flash.className = 'dv-flash';
+      }
+    }
+  }
+  function diveReveal(L, depth) {
+    var u = G.ui[0]; if (!u) return;
+    G.lastK = L.k;
+    if (G.shownK !== L.k) { diveShowQ(L.text + ' = ?', L.choices); G.shownK = L.k; u.prog.textContent = 'Round ' + (L.k + 1) + ' of ' + G.n; }
+    u.q.textContent = L.text + ' = ' + L.choices[L.ans];
+    u.el.classList.remove('wait'); u.el.classList.add('locked');
+    u.opts[L.ans].classList.add('ok');
+    Object.keys(L.picks || {}).forEach(function (id) {
+      var pk = L.picks[id], b = u.opts[pk.c]; if (!b) return;
+      if (id === G.me && !pk.ok) b.classList.add('no');
+      b.querySelector('.dv-who').insertAdjacentHTML('beforeend', '<i style="--dc:' + DIVE_COL[G.cols[id] != null ? G.cols[id] : 1] + '"></i>');
+    });
+    var my = L.picks && L.picks[G.me], msg, cls = '';
+    if (!my) msg = 'Too slow! It was ' + L.choices[L.ans] + '.';
+    else if (my.ok) {
+      cls = 'ok'; msg = (L.fastest === G.me ? 'Fastest! ' : 'Right! ') + 'Down ' + my.d + ' m';
+      if (L.fastest && L.fastest !== G.me) msg += ' · ' + diveName(L.fastest) + ' was quicker';
+      sfx.good();
+    } else { cls = 'no'; msg = 'Not this time' + (my.d < 0 ? ' · up ' + (-my.d) + ' m' : ''); sfx.bad(); buzz(60); }
+    u.flash.textContent = msg; u.flash.className = 'dv-flash ' + cls;
+    diveDepths(depth);
+  }
+  function diveDepths(depth) {
+    var u = G.ui[0]; if (!u || !depth) return;
+    var ids = Object.keys(depth), deepest = 0;
+    ids.forEach(function (id) { deepest = Math.max(deepest, depth[id]); });
+    u.sea.style.setProperty('--max', seaMax(G.n, deepest));
+    qsa('.diver', u.sea).forEach(function (el) {
+      var id = el.dataset.id, v = depth[id] || 0, prev = Number(el.style.getPropertyValue('--d')) || 0;
+      el.style.setProperty('--d', v);
+      var t = el.querySelector('.dv-tag span'); if (t) t.textContent = v + ' m';
+      el.classList.remove('blub', 'float'); void el.offsetWidth;
+      if (v > prev) el.classList.add('blub'); else if (v < prev) el.classList.add('float');
+    });
+    var mine = depth[G.me] || 0, rank = 1 + ids.filter(function (id) { return depth[id] > mine; }).length;
+    u.st.textContent = mine + ' m · ' + ordinal(rank);
+  }
+  function diveCall(i) {
+    if (!G || G.kind !== 'ldive' || !G.live) return;
+    var r = G.dive && G.dive.round, u = G.ui[0];
+    if (!r || G.shownK !== r.k || G.lastK >= r.k || G.calls[r.k] != null || r.mine) return;
+    var rt = Math.round(performance.now() - G.revealPerf), k = r.k, my = G.token;
+    G.calls[k] = i; u.el.classList.add('locked'); u.opts[i].classList.add('picked');
+    u.flash.textContent = 'Picked in ' + (rt / 1000).toFixed(2) + ' s'; u.flash.className = 'dv-flash';
+    liveApi('/api/live', { action: 'call', code: G.code, k: k, choice: i, rt: rt }).then(function (j) {
+      if (!G || G.token !== my) return;
+      if (j.late) { u.flash.textContent = 'Too late for that one!'; u.flash.className = 'dv-flash no'; }
+      if (j.game) { LV.g = j.game; diveTick(j.game); }
+    }).catch(function (e) {
+      if (!G || G.token !== my) return;
+      delete G.calls[k]; u.el.classList.remove('locked'); u.opts[i].classList.remove('picked'); toast(e.message);
+    });
+  }
+  // The game is over: show the last round's answer for a moment, then the results.
+  function diveDone(g) {
+    if (G.resultFor === g.code) { liveRematchHint(g); return; }
+    G.resultFor = g.code; G.live = false; if (G.timer) { clearInterval(G.timer); G.timer = null; }
+    var res = g.result, L = res.last, depth = {}, my = G.token;
+    res.players.forEach(function (p) { depth[p.id] = p.depth; });
+    if (L && L.k > G.lastK && G.ui[0]) { diveReveal(L, depth); setTimeout(function () { if (G && G.token === my) partyResults(g); }, 2400); }
+    else partyResults(g);
+  }
+  function partyResults(g) {
+    var res = g.result, game = liveGame(g.cfg);
+    if (!(G && G.kind === 'ldive' && G.code === g.code)) { abortGame(); token++; G = { kind: 'ldive', token: token, code: g.code, live: false, me: g.me, p: [newP()], ui: [] }; }
+    if (G.timer) { clearInterval(G.timer); G.timer = null; }
+    G.resultFor = g.code; G.live = false; G.ui = []; wakeOff();
+    var cols = diveCols(g), me = res.players.filter(function (p) { return p.id === g.me; })[0], others = res.players.filter(function (p) { return p.id !== g.me; });
+    var tops = res.players.filter(function (p) { return p.place === 1 && !p.dnf; });
+    var b = { cid: 'live-' + g.id, game: game, mode: 'live', cfg: g.cfg, at: g.start_at, live: { code: g.code, reason: res.reason, role: 'seat' },
+      winner: !me || me.dnf || me.place !== 1 ? 1 : tops.length > 1 ? -1 : 0, place: me ? me.place : res.players.length, of: res.players.length,
+      players: (me ? [me] : []).concat(others).map(function (p) { return { name: p.name, depth: p.depth, right: p.right, wrong: p.wrong, avgRt: p.avgRt, place: p.place, dnf: p.dnf || undefined, c: cols[p.id] }; }) };
+    renderResults(b, null);
+    var m = document.querySelector('#resBody .margin');
+    if (m && res.reason === 'forfeit' && b.winner === 0) m.textContent = 'Everyone else left the dive, so you win.';
+    else if (m && res.reason === 'timeout') m.textContent = 'Time ran out. ' + m.textContent;
+    var kick = document.querySelector('#resBody .kicker b'); if (kick) kick.textContent = GNAME[game] + ' · Live';
+    var hint = document.createElement('div'); hint.id = 'lvRe'; var bar = $('saveBar'); if (bar) bar.parentNode.insertBefore(hint, bar.nextSibling);
+    $('again').onclick = function () {
+      liveApi('/api/live', { action: 'rematch', code: g.code }).then(function (j) {
+        return liveApi('/api/live', { action: 'join', code: j.code }).catch(function () {}).then(function () { abortGame(); go('live/' + j.code); });
+      }).catch(function (e) { toast(e.message); });
+    };
+    liveRematchHint(g);
   }
 
   // ---------------- Target (live): combine number tiles to make the target ----------------
@@ -2662,7 +2984,7 @@
   function liveRematchHint(g) {
     var h = $('lvRe'); if (!h || !g.rematch_code) return;
     if (h.dataset.code === g.rematch_code) return; h.dataset.code = g.rematch_code;
-    h.innerHTML = '<div class="savebar ok"><span class="dot"></span><span>' + esc(g[liveOther(g.you)].name) + ' wants a rematch.</span><button class="btn primary" id="lvReJoin">Join</button></div>';
+    h.innerHTML = '<div class="savebar ok"><span class="dot"></span><span>' + (g.party ? 'A rematch room is open.' : esc(g[liveOther(g.you)].name) + ' wants a rematch.') + '</span><button class="btn primary" id="lvReJoin">Join</button></div>';
     $('lvReJoin').onclick = function () {
       liveApi('/api/live', { action: 'join', code: g.rematch_code }).then(function (j) { abortGame(); go('live/' + j.code); }).catch(function (e) { toast(e.message); });
     };

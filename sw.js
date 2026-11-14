@@ -1,8 +1,8 @@
 /* Sum Duel service worker: offline app shell. Bump VERSION on every deploy that changes shell files.
    app.js is loaded as /app.js?v=<version> (index.html): bump that with VERSION. Assets are stale-while-revalidate, so
    without the query a returning player's first visit after a deploy got the new index.html with the old cached app.js. */
-const VERSION = 'sd-v3.0';
-const SHELL = ['/', '/app.js?v=3.0', '/icon.svg', '/manifest.webmanifest', '/fonts/plus-jakarta-sans-latin-wght.woff2'];
+const VERSION = 'sd-v3.1';
+const SHELL = ['/', '/app.js?v=3.1', '/icon.svg', '/manifest.webmanifest', '/fonts/plus-jakarta-sans-latin-wght.woff2'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

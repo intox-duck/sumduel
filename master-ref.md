@@ -6,20 +6,39 @@ Live: **https://sumduel.app** (`www.sumduel.app` 308-redirects to the apex; `sum
 
 ---
 
-## Now (2026-11-13)
+## Now (2026-11-14)
 
-- **State: v3.0 on `main`** (pushed 2026-11-13; Vercel deploys it automatically). The last version live before it was v2.8.2.
-  - The owner reviewed Grok's local v2.9/v2.10 work ("it's kind of shit") and asked for: the new games, but in a Brilliant.org style ("something less geared toward a 5 year old, but super easy to use"); the online games listed at the top, separately; at least five different maths games, including the climbing one, as live two-player games.
-  - v3.0 replaces v2.9 and v2.10 (neither was ever deployed): seven live games that each play differently, one rewritten stylesheet, and an Arena that lists the online games first. Details in the v3.0 handoff entry.
-- **No schema change.** `live_games.cfg` is jsonb and already holds `cfg.game`; the new games use the existing columns.
-- **QA (local, in-memory PGlite; nothing touched the live database):** 82/82 live API checks (`qa/t-live.mjs`); 76/76 two-browser checks that play Climb, Target, Bigger, Missing Number and Duel through the UI, then quick match and the record (`qa/e2e-live.mjs`), re-run with player A in Seaside night and player B in ASCII night (50/50); 10/10 solo and guest flows (`qa/e2e-solo.mjs`); every view in 8 looks on phone and desktop with no console errors and no sideways overflow (`qa/views.mjs`); WCAG AA on every text/background token pair (`qa/contrast.cjs`). Live Truth or Lie and live Sprint weren't replayed end to end (their engines are unchanged); their API shapes were checked.
-- **Next:** play the new games for real on two phones. The admin portal (`/admin`) keeps the v2 look (Nunito/Fredoka, its own CSS) and `og.png` still shows the v2 look; both could move to the v3 tokens.
+- **State: v3.1 on `main`** (pushed 2026-11-14; Vercel deploys it automatically). The last version live before it was v3.0.
+  - The owner asked: "Update Climb game, so you can see characters climbing up a rope as they get each question right, add an option for number of Qs, and create another fun online game, up to 4 players, use your imagination and push".
+  - v3.1 = The Climb drawn as a rope wall with two climbers, a choice of 8/12/16/20 ledges, and **Treasure Dive**, a new live game for 2-4 players. Details in the v3.1 handoff entry.
+- **No schema change.** Treasure Dive keeps up to four seats inside the existing `live_games` row (seats and answers in `host_extra` jsonb, the seat count in `host_idx`). See §2 "Party games".
+- **QA (local, in-memory PGlite; nothing touched the live database):** 74/74 API checks (`qa/t-party.mjs`: the Climb's ledge counts and limits; a 4-diver game end to end with exact depths, places, battles, coins, rematch, host hand-over, passwords, a fifth diver refused, leaving mid-game, a 2-diver forfeit; plus a two-player Duel regression); 24/24 four-browser checks (`qa/e2e-v31.mjs`: two phones and two desktops in Seaside day, Seaside night and ASCII night play an 8-ledge Climb and a 4-diver Treasure Dive through the UI, then the record), no console errors, no sideways overflow on phones. The v3.0 suites (`t-live`, `e2e-live`, `views`) were not re-run: their scratchpad had gone, and only the shared lobby/busy queries changed for the two-player games (covered by the Duel regression).
+- **Next:** play Treasure Dive for real with three or four phones. Ideas not built: a spectator view; party Sprint (4-player); letting the host start early when some divers aren't ready.
 - **Gotchas:**
   - `pkill -f server.mjs` / `pgrep -f server.mjs` inside a Bash call matches its own shell and kills it (exit 144). Kill by PID: `ps aux | grep "[s]erver\.mjs" | awk '{print $2}' | xargs -r kill`.
-  - Playwright with `isMobile`: the sticky header and animated buttons (Little Ones' start) make `page.click` time out; click through `$eval(el => el.click())` there.
+  - The QA server caches the imported API modules: restart it after editing anything in `api/`.
+  - Playwright with `isMobile`: the sticky header and animated buttons (Little Ones' start) make `page.click` time out; click through `$eval(el => el.click())` there. The headless phone still matches `(hover:hover) and (pointer:fine)`, so the key hints show over the bottom tiles in phone screenshots; real phones hide them.
+  - The Arena's "Got a code?" box opens the room's join preview; the visitor still taps **Join** (tests must click `#lvJoin`).
+  - The palette lives in `localStorage.sumduel` as `{ palette, theme }` (one JSON object), not a key of its own.
+  - Class names are global: `.who` is the header's account chip and `.podium`/`.pod` are the boards' top three. New components prefix their classes (`dv-*`, `rw-*`).
 
 ## Handoff log (newest first)
 
+- **v3.1 (2026-11-14, `main`): the rope Climb, a ledge count, and Treasure Dive (2-4 players).**
+  - **The Climb, drawn as a rope wall** (`ropeWall`, `ropePaint`, `climberSvg` in app.js; `.rw*` and `.climber` in index.html):
+    - A cliff face beside the question (the stage is a two-column grid on every screen size), with a rope per climber and a knot per ledge. The strip down the left shows the bands: easy, medium, hard at the top.
+    - The climbers are drawn from behind, hands on the rope above the head, with the player's initial on the head. You are always the left rope in P1 colours; the opponent is the right rope in P2 colours.
+    - A right answer pulls a climber up one knot and flips the pose (`.f`), so a run of answers reads as hand-over-hand climbing. A wrong answer slides them down a knot with a wobble (`.slip`); on the ground it just wobbles. At the top they hop.
+    - The Arena card and the lobby example use the same wall, small (`ropeMini`).
+  - **Ledge count:** 8, 12 (default), 16 or 20, picked under "Questions" in the lobby (`LCFG.climbN`, `CLIMB_NS`). The server takes it from `cfg.n` (`N_CHOICES` in api/live.js). Bands scale with n via integer maths: the bottom third easy, up to three quarters medium, the rest hard (`climbBand` in api/_questions.js, mirrored by `cliffBand` in app.js). 12 ledges are still 4/5/3. The time limit is `max(180, n × 20)` s (240 s at 12, as before).
+  - **Treasure Dive** (`dive`), the eighth live game and the first for more than two. The rules, the data model and the reasons are in §2 "Party games" and §3. In short, every diver gets the same sum at the same server time, picks one of four answers, and the server scores the round. Right is 2 m, the fastest right answer 1 m more, wrong floats you up 1 m, and the last round counts double. The deepest diver wins.
+  - **Arena:** The Climb and Treasure Dive are the two featured cards side by side (`#onlineFeat`, `.gl.two`), each with a picture. The other six follow in threes (`#onlineGames`, `.gl.three`); v3.0's single `.gl.four` grid is gone. The hero and section copy say "eight live games" and "Everyone on Their Own Device".
+  - **Bugs found by the v3.1 QA, all fixed before the push:**
+    1. A diver's answers didn't count as being seen, so a player who only answered (and polled rarely) could be dropped as gone after 25 s.
+    2. The new results podium first reused `.podium`/`.pod` (the boards' top-three classes), and the answer-tile pick dots reused `.who` (the header chip). Both were renamed (`.dv-podium`, `.dv-pod`, `.dv-who`).
+    3. In ASCII mode the 2nd and 3rd divers had the same colour (P2 and `--g-sprint` are both amber), and in Blue the 4th diver's violet sat next to the indigo P2. The divers now use `--dv3`/`--dv4`, which are set per palette.
+    4. Four seat cards side by side on a phone left no room for the names. It's now one column on phones, two from 560 px and four from 1000 px.
+  - Service worker `sd-v3.1`; index.html loads `/app.js?v=3.1`. No schema change.
 - **v3.0 (2026-11-13, `main`): seven live games, a Brilliant-style redesign, online games first.**
   - **Review of Grok's v2.9/v2.10** (both local, never deployed), and what happened to each part:
     - v2.9's four "new" live games were the Duel engine with blanks or a different clock: Missing Number (every sum blank), Mix-up (every other sum blank), "The Climb" (12 sums with every third blank, so no climbing at all) and "Target" (Sprint with a 45 s clock). **Kept:** Missing Number. **Rebuilt with real mechanics:** The Climb and Target. **Dropped:** Mix-up (it was Duel plus Missing Number).
@@ -107,14 +126,14 @@ Live: **https://sumduel.app** (`www.sumduel.app` 308-redirects to the apex; `sum
 
 ## 1. Architecture & module layout
 
-A static single-page app plus eight Vercel serverless functions (Hobby limit 12; `_`-prefixed files are shared modules, not functions). There's **no build step** and no framework.
+A static single-page app plus eight Vercel serverless functions (Hobby limit 12; `_`-prefixed files are shared modules, not functions; v3.1's `_party.js` is a module, so still eight). There's **no build step** and no framework.
 
 | Path | Role |
 |---|---|
 | `index.html` | Markup for every view plus **all CSS inline**: the v3 design system, one stylesheet organised by component (§4), plus the kept Little Ones and chat blocks. Preloads Plus Jakarta Sans. Loads `app.js` (defer). |
-| `app.js` | The whole player client: router, the **v3 game catalogue** (names, one-liners, icons, colours, penalties) and the Arena cards, the pad engine, the Climb trail, Little Ones, Daily VS, live games (lobby, room, and the Climb, Target and Bigger engines), auth, sync, record, boards, chat (off), sound, speech, confetti. ES5-style IIFE. |
+| `app.js` | The whole player client: router, the **v3 game catalogue** (names, one-liners, icons, colours, penalties; v3.1 `PARTY`, `seatsText`) and the Arena cards, the pad engine, the Climb trail, Little Ones, Daily VS, live games (lobby, room, and the Climb's rope wall, Target, Bigger and v3.1 Treasure Dive: `paintPartyRoom`, `liveDiveStart`, `dive*`, `partyResults`), auth, sync, record, boards, chat (off), sound, speech, confetti. ES5-style IIFE. |
 | `admin.html` + `admin-portal.js` | The admin portal at `/admin` (clean URL). Inline CSS, no inline JS (strict CSP). Shows a plain 404 page to anyone who isn't an admin. |
-| `sw.js` | Service worker `sd-v3.0`: precaches the shell (`/`, `/app.js?v=3.0`, icon, manifest) and Plus Jakarta Sans. **v3: index.html loads `/app.js?v=<version>`; bump it together with `VERSION`.** Assets are stale-while-revalidate, so without the query a returning player's first visit after a deploy got the new index.html with the old cached app.js; navigations network-first with **only `/` cached**; never caches `/api/*` or `/admin*`. Bump `VERSION` when shell files change. |
+| `sw.js` | Service worker `sd-v3.1`: precaches the shell (`/`, `/app.js?v=3.1`, icon, manifest) and Plus Jakarta Sans. **v3: index.html loads `/app.js?v=<version>`; bump it together with `VERSION`.** Assets are stale-while-revalidate, so without the query a returning player's first visit after a deploy got the new index.html with the old cached app.js; navigations network-first with **only `/` cached**; never caches `/api/*` or `/admin*`. Bump `VERSION` when shell files change. |
 | `fonts/` | Self-hosted woff2 files and their licences (`fonts/README.md`): Plus Jakarta Sans for the player app; Nunito and Fredoka, still used by `admin.html`. |
 | `api/_lib.js` | Neon client, `route()`, scrypt, player sessions (`currentUser` returns `role`, `muted_until`), `publicUser`, `isMod`/`isSuper`, **`logEvent()`**. |
 | `api/_safety.js` | Chat safeguarding filter (`screen()`). |
@@ -127,11 +146,12 @@ A static single-page app plus eight Vercel serverless functions (Hobby limit 12;
 | `icon.svg`, `icon-maskable.svg` | The v2.6 seaside ÷ mark (a rounded tile; a full-bleed maskable version with the artwork at 86 % in the safe circle). |
 | `apple-touch-icon.png` (180), `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `favicon-32.png`, `og.png` (1200×630) | Rendered from the SVGs and an HTML share card with headless Chromium (render scripts live in the session scratchpad, not the repo). Re-render them whenever the mark changes. |
 | `api/admin.js` | Admin API (role-gated, see §7). |
-| `api/live.js` | Live games API: Duel, The Climb, Truth or Lie, Sprint, Missing Number, Target, Bigger (`GAMES`, `TIMED`, `PEN`, `FIXED_N`). Lobby, create, join (with password), ready, progress (with the Climb's ordering rule), call (Truth or Lie), leave, claim, rematch. |
+| `api/live.js` | Live games API: Duel, The Climb, Truth or Lie, Sprint, Missing Number, Target, Bigger (`GAMES`, `TIMED`, `PEN`, `FIXED_N`, `N_CHOICES`). Lobby, create, join (with password), ready, progress (with the Climb's ordering rule), call (Truth or Lie), leave, claim, rematch. v3.1: party rooms (Treasure Dive) are routed to `_party.js` (GET by code, and every POST action except create, which builds the row here). |
+| `api/_party.js` | v3.1 party games (2-4 players): Treasure Dive's rules (`diveTimeline`, `diveResult`, `partyBattle`), its room view (`partyView`), polling with seat clean-up (`partyGet`), and its actions (`partyAction`: join, ready, call, leave, rematch). Also the room helpers that know about **both** kinds of room: `busyCode`, `leaveLobbies`, `activeCode`. |
 | `api/rewards.js` | v2.8: wallet (coins + hearts), daily gift, buying hearts, Climb start/continue/finish, Daily VS board (public) and finish, guest `adopt`. |
 | `api/_economy.js` | v2.8 rules: `ECON` numbers, `battleCoins`, `climbReward`, heart regen, `mutate` (optimistic lock on `rev`), `awardBattle`, the Daily VS bots (`botRun`). **Mirrored in `app.js`.** |
 | `api/_schema.js` | The v2.8 tables (`V28`), applied by hand (§6). No request path runs DDL: v2.8.1 removed `ensureSchema()`. `scripts/migrate.js` also applies `V28`. |
-| `api/_questions.js` | Server copy of `makeQuestions`, `makeTol`, `rng`, `hashStr` and `RANGES` (**keep these identical to `app.js`**), plus the server-only v3 generators: `makeClimb` (12 ledges × 4 sums, `CLIMB_BANDS`), `makeTargets` (+ `combine`), `makeBigger`, and `makeLiveQuestions(game, n, ops, level, seed)`. |
+| `api/_questions.js` | Server copy of `makeQuestions`, `makeTol`, `rng`, `hashStr` and `RANGES` (**keep these identical to `app.js`**), plus the server-only v3 generators: `makeClimb(n, …)` (n ledges × 4 sums; v3.1: `CLIMB_NS`, `climbBand`), `makeTargets` (+ `combine`), `makeBigger`, v3.1 `makeDive` (a sum and four choices, near misses), and `makeLiveQuestions(game, n, ops, level, seed)`. |
 | `api/audit-cron.js` | Vercel cron target. Checks `Authorization: Bearer $CRON_SECRET`, then calls `runAudit`. |
 | `scripts/migrate.js` | Idempotent schema (`npm run migrate`). |
 | `scripts/role.js` | `npm run role -- <email> <player|admin|super_admin>`. **The only way to create a super_admin.** Logs `role_set_cli`. |
@@ -144,7 +164,7 @@ A static single-page app plus eight Vercel serverless functions (Hobby limit 12;
 
 ### The Arena (`#/`, v3)
 - **Hero** (`.hero`): kicker, headline, lede, two buttons (Play a friend online → `#/live`; Climb the coast → `#/climb`) and `.hero-demo`, an HTML mock of a live game card. Phones hide the demo and the buttons so Play Online starts on the first screen.
-- **Play Online** (`#online`): a join-by-code form (`#homeJoin`: 5 characters; signed out it keeps the code in `pendingJoin` and opens Account) and `#onlineGames`, the seven live games drawn by `renderHomeCards()` from `GINFO` (The Climb is the wide featured card with a mini cliff). A card (`data-live`) sets `LCFG.game` and opens `#/live` with that game picked.
+- **Play Online** (`#online`): a join-by-code form (`#homeJoin`: 5 characters; signed out it keeps the code in `pendingJoin` and opens Account; it opens the room's join preview, where the player taps Join) and the eight live games, drawn by `renderHomeCards()`/`liveCard()` from `GINFO`. v3.1: `#onlineFeat` holds the two featured cards side by side, The Climb (a mini rope wall) and Treasure Dive (a mini sea). `#onlineGames` holds the other six in threes. A card (`data-live`) sets `LCFG.game` and opens `#/live` with that game picked. The meta line says "2 players" or "2–4 players" (`seatsText`).
 - **Gift banner** (`#giftBar`) when the daily gift is ready, then **On This Device** (`#soloGames`, from `SOLO`: `data-go` = climb, daily, vs, sprint, duel, little), then the leaderboard (`#homeBoard`), your numbers (`#homeStats`, when this device has battles) and the colour picker (`#palPick`).
 - Clicks are delegated once on `#v-home`. The meta line of three solo cards updates live: `#climbTag` (level and stars), `#dailyTag` and `#vsTag` (Today / Done ✓ / Raced ✓).
 - **Avatars** (`avatar(name, size)`): the first letter of the name on one of seven game colours, chosen by a hash of the name.
@@ -152,9 +172,14 @@ A static single-page app plus eight Vercel serverless functions (Hobby limit 12;
 ### Games, battle record shape, offline-first sync
 Unchanged from v2, with the live games' names added in v3. Solo games, the take-turns Duel and the live clients live in `app.js`. Battles are written to `sd_battles` + `sd_pending` and flushed in batches of 200, deduped on `(user_id, client_id)`. Guest battles migrate to the account on sign-in. Shape:
 ```js
-{ cid, at, game: 'duel'|'tol'|'sprint'|'daily'|'climb'|'missing'|'target'|'bigger', mode?: 'turns'|'live'|'ghost', cfg: { ops, level, n? }, winner?: 0|1|-1, day?, practice?,
+{ cid, at, game: 'duel'|'tol'|'sprint'|'daily'|'climb'|'missing'|'target'|'bigger'|'dive', mode?: 'turns'|'live'|'ghost', cfg: { ops, level, n? }, winner?: 0|1|-1, day?, practice?,
   players: [{ name, time?, raw?, wrong, score?, splits?, bestStreak?, wrongBy?, avgRt? }] }   // account holder = player 0
+// v3.1 Treasure Dive (2-4 players): place, of, and every diver; players[0] is you, the rest by place.
+// winner: 0 = you were first outright, -1 = you shared first, 1 = someone else won (so the record, the boards'
+// players report and the coins all treat it like any live game).
+{ cid: 'live-<id>', game: 'dive', mode: 'live', place, of, winner, players: [{ name, depth, right, wrong, avgRt, place, dnf?, c? }] }
 ```
+The record shows a dive as "W · Dive" (or L/D), "You vs A, B, C" and "1st of 4 · 21 m". Head to Head counts it against every other diver (a higher place wins that pairing). `api/battles.js` accepts `dive` (so the client's re-save dedupes instead of failing the whole batch) and logs `battle_saved` with place, of, the other names and every depth.
 
 ### Rewards (v2.8): coins, hearts, daily gift
 - **Authority:** signed in, `/api/rewards` owns the wallet; the client renders what it returns (`setWallet`). Guests: `localRewards(action, body)` in `app.js` runs the same rules on `localStorage sd_wallet_local` and returns the same shapes, so every caller just uses `rewards(action, body)`.
@@ -247,23 +272,24 @@ There's no retention limit: everything is kept.
 - Client: `liveTolStart`, a 50 ms frame loop (`liveTolFrame`) that reveals on server time and runs the call-window bar, `liveTolTick` for round results ("+1 for you! Quicker by 0.21 s"), `liveTolCall`. Keys: A/← true, S/→ lie.
 
 ### Live games (`#/live`, `api/live.js`, `live_games`)
-- **The seven games** (`cfg.game`). The catalogue is `LV_GAMES`/`GNAME`/`GINFO`/`GICON` in app.js; the rules are in api/live.js.
+- **The eight games** (`cfg.game`). The catalogue is `LV_GAMES`/`GNAME`/`GINFO`/`GICON` in app.js; the two-player rules are in api/live.js, Treasure Dive's in api/_party.js (see "Party games" below).
   - "Timed" games are a race to the end of the same set, on separate clocks. Fastest time wins, with a penalty per wrong answer (`PEN`, mirrored in app.js): Duel 3 s, Missing Number 3 s, Bigger 3 s, Target 10 s per skip, The Climb 0.
   - Sprint and Truth or Lie are scored.
 
   | Game | Length | How it's played | Decided by |
   |---|---|---|---|
   | Duel | 5/10/15/20 sums | Type the answer. A wrong answer keeps you on the same sum. | Fastest time, +3 s per wrong |
-  | The Climb | 12 ledges (`CLIMB_BANDS`: 4 easy, 5 medium, 3 hard), 4 sums per ledge (`questions[ledge][alt]`) | Right = up a ledge. Wrong = down a ledge, and both ledges show a fresh sum next time (`G.visits`). Both climbers are on one cliff. | First to the top (no penalty) |
+  | The Climb | 8/12/16/20 ledges (v3.1, default 12; `climbBand`: the bottom third easy, to three quarters medium, the rest hard), 4 sums per ledge (`questions[ledge][alt]`) | Right = up a knot. Wrong = down a knot, and both ledges show a fresh sum next time (`G.visits`). Both climbers are drawn on their own rope on one wall. | First to the top (no penalty) |
   | Truth or Lie | up to 25 statements | Call true or lie once per round; the server judges the round (see Live Truth or Lie). | First to 7 |
   | Sprint | 60 s | Type answers. | Most correct; fewer wrong breaks a tie |
   | Missing Number | 5/10/15/20 sums | Every sum has a gap (`toMissing`): `7 × ? = 42`. | Fastest time, +3 s per wrong |
   | Target | 5 puzzles (`makeTargets`: easy 3 tiles 1–9 for 6–30; medium 4 tiles 1–10 for 10–60; hard 4 tiles 2–12, half the time one of 15/20/25, for 20–150) | Tap a number, a sign, then another number; the result replaces them and stays selected. Make the target by any route, without needing every tile. − and ÷ put the bigger number first. Undo, Start again, Skip (+10 s, shows one way). | Fastest time, +10 s per skip |
   | Bigger | 15 pairs (`makeBigger`: within about 20 %, never a tie; hard mixes operations across the two sides) | Tap the bigger sum. Both values show after each tap. | Fastest time, +3 s per wrong tap |
+  | Treasure Dive (2-4) | 6/10/15 rounds (default 10; `makeDive`: one sum, four choices, one of them a ±1/±2 near miss, the others ±10 or a times-table row off) | Everyone gets the sum at the same server time; one pick each. Right 2 m, the fastest right answer 1 m more, wrong up 1 m (never above 0), no answer 0. The last round is golden: everything doubles. | Deepest; ties: more right, then the quicker average |
 
 - **Lobby (`#/live`):** a radio group of game tiles (`.gpick`; arrow keys move the choice) and a detail panel (`paintDetail`).
-  - The panel shows how it works (`GHOW`), a worked example (`GEX`), Operations, Difficulty (not for The Climb, which ramps from easy to hard) and Questions (Duel and Missing Number only).
-  - **Find an opponent** (`quickMatch`) joins the newest open public game of that kind that isn't mine. If I already have one open it goes back to it; otherwise it creates a public game and waits in its room.
+  - The panel shows how it works (`GHOW`), a worked example (`GEX`), Operations, Difficulty (not for The Climb, which ramps from easy to hard) and Questions: Duel and Missing Number 5/10/15/20 (`LCFG.n`), The Climb 8/12/16/20 (`LCFG.climbN`, v3.1), Treasure Dive 6/10/15 (`LCFG.diveN`). `nKey(game)` picks the right one and `liveCfg()` sends it as `cfg.n`.
+  - **Find an opponent** (`quickMatch`; "Find divers" for Treasure Dive) joins the newest open public game of that kind that isn't mine (a party room is listed as open while it has a free seat). If I already have one open it goes back to it; otherwise it creates a public game and waits in its room.
   - **Make a game for a friend** (`createGame`) can be private, with a password of 3–50 characters (scrypt-hashed).
   - Below: Join With a Code (5 characters) and Open Games (polled every 3 s). The settings persist in localStorage `sd_live_cfg`.
   - The lobby has no name field. The server names a game "<display name>’s game" and only screens a typed-in name with the chat filter: the display name is already public, and screening it blocked names with 9+ digits.
@@ -278,7 +304,8 @@ There's no retention limit: everything is kept.
   - Questions, with answers, are only sent from 3.5 s before GO. Truth or Lie never sends answers early.
   - Each client estimates its clock offset from the lowest-latency poll and counts down on server time. Late arrivals start with their elapsed time already counted.
 - **Play (client):** `liveStartGame` dispatches:
-  - Duel, Missing Number, Sprint and The Climb use the pad engine (`makeHalf`, `press`, `finish`). The Climb adds the cliff (`cliffHtml`, `cliffPaint`), the slip in `press` and its question lookup (`curQ`).
+  - Duel, Missing Number, Sprint and The Climb use the pad engine (`makeHalf`, `press`, `finish`). The Climb adds the rope wall to the stage (`ropeWall`, `ropePaint`; v3.1, replacing v3.0's bar-chart cliff), the slip in `press` and its question lookup (`curQ`).
+  - Treasure Dive is `liveDiveStart` (see "Party games").
   - Target (`liveTargetStart`, `tg*`) and Bigger (`liveBiggerStart`, `bg*`) have their own screens. Truth or Lie is `liveTolStart`.
   - Shared pieces: `liveSetup`, `liveChrome` (Quit plus the opponent strip), `liveShow`, `liveCountdown`, `liveTick` (opponent progress and the claim-win button) and `liveReport` (queued, one in flight, retried).
   - Keys: digits, Backspace and Esc on the pad. Target: 1–9 pick a tile, + − * x / pick a sign, Backspace undoes, Esc starts again. Bigger: ← A 1 for left, → L 2 for right. Truth or Lie: A or ← for true, S or → for lie.
@@ -290,11 +317,39 @@ There's no retention limit: everything is kept.
 - **Result (decided on the server, once, through a conditional update):**
   - **Time (timed games):** the device time is used if it's within −5 s / +1 s of the server-measured time, otherwise the server time is used; then wrong × `PEN` is added.
   - **Winner:** both finished → the lower time (a gap under 5 ms is a draw); one finished → that player; timeout → whoever got further (idx).
-  - **Timeouts:** The Climb 240 s, Target max(180, n×45) s, Bigger max(120, n×12) s, Duel and Missing Number max(120, n×20) s, Sprint 75 s, Truth or Lie about 3.5 min.
+  - **Timeouts:** The Climb max(180, n × 20) s (240 s at 12 ledges), Target max(180, n×45) s, Bigger max(120, n×12) s, Duel and Missing Number max(120, n×20) s, Sprint 75 s, Truth or Lie about 3.5 min.
   - **Forfeits:** `leave` mid-game is a forfeit, and so is `claim` after 25 s of opponent silence.
   - Each player gets a `battles` row from their own perspective (`cid live-<id>`, `mode:'live'`), so the client's re-save dedupes. Coins are paid then (`battleCoins`: 15, plus 15 for a win).
 - **Rematch:** either player creates a new game with the same settings, name and password, with the other player as `invited_id`. The old game's `rematch_code` shows the opponent a "wants a rematch → Join" bar on their results screen. The invited player skips the password.
-- **Logging:** `live_create`, `live_join`, `live_join_failed` (10 per 10 min → 429), `live_start`, `live_finish` and `live_leave`. `live_finish` logs time, raw, wrong, idx and dnf for timed games, and score and wrong for scored ones. The admin log labels all seven games (`GN` and `TIMED` in admin-portal.js).
+- **Party games (v3.1, `api/_party.js`): Treasure Dive, 2-4 players, with no schema change.**
+  - **Storage, in the same `live_games` row:**
+    - `host_id` is whoever holds the room. That's the creator, and it passes to the next diver if they leave the lobby.
+    - `guest_id` stays null, so every two-player query (host_id/guest_id) ignores party rooms.
+    - `host_idx` is the number of seats taken (1-4). A join is a conditional `host_idx < 4` update, so two people landing at once can't overfill the room.
+    - `host_seen` is the last time *anyone* in the room was seen, so the existing housekeeping (lobby silent 60 s → abandoned; game silent 5 min → abandoned) works unchanged.
+    - `host_extra = { seats: { "<user id>": { n: name, o: joined ms, r: ready, s: last seen ms, l: left ms } }, calls: { "<user id>": { "<k>": { c, rt, at } } }, inv: [rematch invitees] }`.
+    - Every write is a `jsonb_set` on the writer's own `seats.<id>` or `calls.<id>`, so devices can't overwrite each other.
+  - **Lobby and room:**
+    - Up to four seats. The game starts when everyone seated is ready and there are at least two of them. The start is a conditional update pinned to `host_idx`, so someone joining at that moment stops it.
+    - Seat cards (`.cards.four`): you first in P1 colours, then the others in seat order (`DIVE_COL`: `--p1`, `--p2`, `--dv3`, `--dv4`).
+    - A diver silent for 60 s in the lobby loses their seat. If the room's holder is gone, the poller takes it over.
+    - Leaving the lobby gives up your seat. The last diver out closes the room.
+  - **Rounds (`diveTimeline`, like Truth or Lie):**
+    - Sum k is revealed at R_k (R_0 = `start_at`). The text and its four choices go out 1.2 s early; which choice is right only goes out after the round.
+    - The round waits for every diver who hadn't left by R_k, or 10 s (`WINDOW`). R_{k+1} = round end + 2.8 s (`GAP`).
+    - Reaction times are device-measured and clamped to the server clock (`SLACK` 1.2 s, floor 300 ms). The quickest right pick gets the bonus.
+  - **Mid-game:**
+    - Quit (`leave`) marks you left (last place, a loss). The others carry on while at least two remain; otherwise the game ends at once (`forfeit`).
+    - A diver silent for 25 s counts as left, so the rounds stop waiting for them. There's no "claim".
+    - Any answer also counts as being seen.
+  - **End:** after the last round, a forfeit, or the time limit (`diveLimit`: n × 12.8 s + 20 s). The result orders divers by: left last; then deepest; then more right answers; then the quicker average. Every diver gets a server-written battle (`partyBattle`) and coins (`battleCoins`: 15, plus 15 for first place).
+  - **Rematch:** a new room with the same settings and the old divers in `inv`, who skip the password. Everyone else sees "A rematch room is open → Join".
+  - **One game at a time across both kinds:** `busyCode`, `leaveLobbies` and `activeCode` check two-player rooms by host_id/guest_id and party rooms by seat (ignoring seats that have left). Joining a party room leaves your duel lobby and vice versa.
+  - **Client (G.kind `ldive`):**
+    - `liveDiveStart` builds the sea (`diveScene`: a lane per diver, depth scale `seaMax` = max(2.5n + 2, deepest + 2) m, the chest on the seabed), the sum, four answer tiles (keys 1-4) and Quit plus a "You 12 m · 2nd" strip.
+    - `diveFrame` (50 ms) reveals on server time and runs the timer bar. `diveTick` (every 0.5 s poll) shows who's still answering and calls `diveReveal`, which marks the right tile and the others' picks as coloured dots, shows "Fastest! Down 3 m", "Not this time · up 1 m" or "Too slow!", and moves the divers.
+    - `diveDone` shows the last round, then `partyResults` (a podium of every diver).
+- **Logging:** `live_create`, `live_join`, `live_join_failed` (10 per 10 min → 429), `live_start`, `live_finish` and `live_leave`. Party games log `live_start` with `players` (names) and `live_finish` with `players: [{ name, depth, right, wrong, place, dnf }]` (the admin log shows "1st Imogen 21 m, 2nd …"). `live_finish` logs time, raw, wrong, idx and dnf for timed games, and score and wrong for scored ones. The admin log labels all seven games (`GN` and `TIMED` in admin-portal.js).
 - **Budget:** 2 players × about 1 call per second during a game. A 1-minute game is about 150 calls in total, which is fine on Hobby.
 
 ### Safeguarding audits (`audit_reports`)
@@ -357,6 +412,17 @@ There's no retention limit: everything is kept.
   - *Brilliant-style, not Brilliant's brand.* The inspiration is the approach: a clean canvas, heavy type, tactile answer tiles, rules with a worked example. Colours, logo, font and icons are Sum Duel's own. Nothing copies Brilliant's name, logo, illustrations or typeface.
   - *Initials and flat geometric icons* replace the sea-creature avatars and card illustrations, because the owner wanted it "less geared toward a 5 year old". The Climb trail keeps its seaside scenery as the one playful world.
 
+- **v3.1 design decisions:**
+  - *Ropes, not a bar chart.* The owner asked to "see characters climbing up a rope as they get each question right". A climber that pulls up a knot per right answer (with a pose flip, so it reads as hand-over-hand) and slides down on a slip shows the game's rule without words. The wall sits beside the question rather than above it, because height is what a climb needs and the stage has more height than width on a phone.
+  - *The ledge count is the question count.* "Number of Qs" for The Climb means ledges (one question each, plus one more per slip). The difficulty bands scale with it, so a short climb still ends hard and a long one still starts easy.
+  - *Treasure Dive is a quiz race, not a turn game.* With four players, turn-based games leave three of them waiting. Every diver answers every round, on server time, the same way as live Truth or Lie, so a slow connection doesn't lose rounds.
+    - *Multiple choice:* four tiles are quicker to tap than a keypad when four people race.
+    - *Wrong floats you up 1 m:* without that cost, random fast tapping would pay.
+    - *Right is worth 2 m and fastest only +1 m:* accuracy beats speed, so a careful 9-year-old stays in it against faster adults.
+    - *The golden last round:* it keeps the result open until the end.
+  - *No schema change for four seats.* Schema changes need the owner's go after a live check (§6). The existing columns already hold everything a party room needs: `host_idx` as a race-safe seat counter, and seats and answers in `host_extra` jsonb, written per key. A dedicated table would be cleaner if party games grow, but it would have needed that go before this push.
+  - *Seaside on purpose.* The sea, the divers and the chest are the second playful world after the Climb trail (the owner asked for "fun" and "use your imagination"). The game chrome around them (tiles, HUD, results) stays in the v3 design system.
+
 ## 4. Styling & design system
 - **v3 (2026-11-13): one stylesheet, written once.** The owner asked for a Brilliant.org style, "less geared toward a 5 year old, but super easy to use".
   - v3 replaced the eight v2 override layers (the textbook base, the v2.4 friendly layer, the v2.6 review, v2.7, v2.8, the v2.8.1 palettes and Grok's v2.10) with one stylesheet inline in `index.html`, organised by component.
@@ -390,9 +456,11 @@ There's no retention limit: everything is kept.
   - States: `--sel #1A5BE0` on `--sel-bg #EAF1FF`, `--win #157A32` on `--win-bg #E4F4E8`, `--bad #C02626` on `--bad-bg #FDECEC`, `--sun #F2B100`, `--on-accent #FFF`.
 - **Tokens, Seaside night:** `--bg #0F1115`, `--surface #171A20`, `--ink #F3F4F6`, `--p1 #3CC6D6`, `--p2 #FF7DA8`, `--sel #6EA1FF`, `--on-accent #0F1115`, dark lips (`--lip #07080A`). The `theme-color` meta follows `--bg` (app.js `applyTheme`).
 - **Game colours** (icon tiles, with a white glyph at 3:1 or better):
+  - v3.1 `--g-dive` sea green (`#087F5B` day 5.0:1, `#099268` night 3.95:1; ASCII `#005F5F`/`#5FFFD7`).
   - `--g-duel` teal, `--g-climb` green, `--g-tol` violet, `--g-sprint` orange, `--g-missing` blue, `--g-target` red, `--g-bigger` grape, `--g-daily` red-orange, `--g-vs` indigo, `--g-little` amber; night has brighter twins.
   - Avatars use the first seven (`.ava.av0`–`av6`), chosen by a hash of the name, never by rank.
-  - The cliff uses `--cl1/--cl2/--cl3` for easy, medium and hard.
+  - The rope wall's band strip uses `--cl1/--cl2/--cl3` for easy, medium and hard. v3.1 tokens: `--rope`/`--rope2` (the braid), `--sea1`/`--sea2`/`--sea3` (Treasure Dive's water, top to bottom; also the wall's sky) and `--sand` (the seabed). All four looks set them: Seaside day and night, ASCII day and night. Blue and Pink inherit Seaside's.
+  - Divers 3 and 4 use `--dv3`/`--dv4`: by default `--g-sprint` (orange) and `--g-tol` (violet). Blue sets `--dv4` to `--g-climb` in both blocks, because violet sits next to its indigo P2. ASCII sets its own (`#AF0087`/`#5F00AF` day, `#FF87D7`/`#D7AFFF` night), because its P2 and `--g-sprint` are the same amber.
 - **Icons:** `GICON` in app.js, 48×48 inline SVG drawn in `currentColor` on a `.gicon` tile (`--gc`). Every icon also carries `data-ascii` for ASCII mode.
 - **Layout:**
   - Max width 1120 px, 24 px gutters (16 px on phones), a 16 px card radius and 12 px for controls.
@@ -404,7 +472,8 @@ There's no retention limit: everything is kept.
   - The top row is the Quit chip and the opponent strip (`.lv-opp`). Then the `.hud` (name in the player colour, progress, clock) and a 10 px rounded progress `.bar`.
   - The question is 800 weight. The answer box has a 3 px border in the player colour: dashed grey when empty, green when right. Below it, a 3×4 keypad of tactile keys.
   - A wrong answer shakes, washes the screen red and floats "+N s" up.
-  - The Climb adds the cliff (`.cliff`, `.cl-track`, `.cl-dot.me`/`.opp`, the flag). Target uses `.tg-*` and Bigger `.bg-*`.
+  - The Climb's stage is a two-column grid: the rope wall on the left (`.rw`, `.rw-zone`, `.rw-rope` with knots `i`, `.rw-band`, `.rw-edge`, `.rw-flag`, `.climber.me`/`.opp` at `--cw` 40 px in game, 22 px small), and the question, answer and streak on the right (the question at `min(8.6vw, 6.4vh)`). Climber states: `.f` (flipped pose), `.up`, `.slip`, `.top`. Target uses `.tg-*` and Bigger `.bg-*`.
+  - Treasure Dive (`.ldive`): `.dv-sea` (lanes `.dv-lane`, divers `.diver` at `--d`/`--max`, tags `.dv-tag`, bubbles `.bub`, `.dv-bed`, the chest), `.dv-stage` (`.dv-q`, `.dv-flash` ok/no/gold), `.dv-opts` 2×2 tactile tiles (picked/ok/no, pick dots `.dv-who`), `.ldive.wait` (before the first sum), `.ldive.locked` (after a pick), `.ldive.gold` (the last round: a sun-coloured frame). Results: `.dv-podium`/`.dv-pod`. Party seats: `.cards.four` (1 column on phones, 2 from 560 px, 4 from 1000 px).
 - **Hero illustration:** `.hero-demo`, an HTML mock of a live game card (progress bars, 7 × 8 = 56, keys) on three flat shapes, tilted −2°. ASCII mode shows the text art `pre.hero-asc` instead.
 - **Palettes (v2.8.1, retuned in v3):** `html[data-palette]` = none (Seaside) | `blue` | `pink` | `ascii`, crossed with `html[data-theme]` = `paper` | `night`.
   - They're stored in localStorage `sumduel.palette` and applied before the first paint by the inline `<head>` script. Keep its list in step with `PALETTES` in app.js.
@@ -421,11 +490,12 @@ There's no retention limit: everything is kept.
   - An ink bar (`x124 y235 w264 h42 rx21` in a 512 box), a `--p1` dot above (`cy150 r46`) and a `--p2` dot below (`cy362`), drawn inline with `.mk-bar`/`.mk-a`/`.mk-b`. They're filled from tokens in CSS, so night mode recolours them.
   - The icon tile is sand `#FFF8EE` with a `#BFE6EA` scalloped sea. Never bring back the dark neon tile.
 - **The Climb trail** keeps its seaside world: area sky gradients (`.t-*` via `--a1/--a2`) and inline-SVG scenery (`DECOR`/`SCENE`, coloured by `.il-*`). Its chrome is restyled: tactile nodes, a sticky bar, pill area headers.
-- **Motion:** presses (70 ms), the wrong-answer shake, the slip on the cliff (`cubic-bezier(.3,1.4,.5,1)`, 0.4 s), a pop on a solved target, the pulsing current Climb node, and confetti on wins. Everything respects `prefers-reduced-motion` (the last rule in the stylesheet).
+- **Motion:** presses (70 ms), the wrong-answer shake, the climber's pull up (0.45 s), slide and wobble (0.32 s + 0.6 s) and hop at the top, the divers' dive (0.8 s) with bubbles and the float-up wobble, a pop on a solved target, the pulsing current Climb node, and confetti on wins. Everything respects `prefers-reduced-motion` (the last rule in the stylesheet).
 - **Confetti (`#fx`):** a fixed canvas sized by CSS (100 % × 100 %). Its pixel size comes from `documentElement.clientWidth/Height`.
   - Never size it from `innerWidth`/`innerHeight` again: that made it, for a moment, a fixed box larger than the screen, and mobile browsers then doubled `innerHeight` until reload (found in v3 QA).
 - **Do NOT:**
   - add a new override layer: change the stylesheet in place, component by component;
+  - give a new component an unprefixed class that already exists (`.who`, `.podium`, `.pod`, `.gl` and `.pl` are all taken): prefix it (`dv-*`, `rw-*`);
   - run DDL (create/alter) from a request path: schema changes are applied by hand, after checking the live database (owner rule);
   - set a palette token in only one of its day/night blocks;
   - use `var()` in SVG presentation attributes (colour SVG by class, or use `currentColor`);
@@ -442,6 +512,10 @@ There's no retention limit: everything is kept.
 - Node ≥ 20 (Vercel uses 26.x), ESM.
 - **Fonts (v3):** the player app loads one file, `plus-jakarta-sans-latin-wght.woff2` (27 KB, `@fontsource-variable/plus-jakarta-sans@5.2.8`, weights 200–800). It is unmodified, so the original name is kept; the licence has no Reserved Font Name. It has tabular figures, and the Latin subset covers × ÷ −. Glyphs outside it (→ ✓ ⌫ ★) fall back to the system font. `admin.html` still loads Nunito (+ italic) and Fredoka (`@fontsource-variable/nunito@5.2.7`, `@fontsource-variable/fredoka@5.2.10`). Licences and sources are in `fonts/`.
 - **npm scripts:** `migrate`, `role`.
+- **v3.1 QA harness** (rebuilt 2026-11-14 in the job scratchpad `~/.claude/jobs/<id>/tmp/qa/`, not the repo; the v3.0 one had gone):
+  - Setup: `npm i @electric-sql/pglite@0.3.14 playwright-core@1.56.1`. `neon-shim.mjs` (tagged templates plus `.query`, one query at a time; int8 and numeric as strings; JS arrays sent as Postgres array literals), `hooks.mjs` + `register.mjs` (redirect `@neondatabase/serverless`), `server.mjs <appDir> <port>` (static files + `api/*.js`, runs `scripts/migrate.js` into the in-memory PGlite at startup).
+  - `t-party.mjs [base]`: 74 API checks (Climb ledge counts and limits; a 4-diver game with exact depths 21/14/0/left; battles from each side; coins; re-save dedupe; rematch; host hand-over; passwords; a fifth diver refused; mid-game leave; a 2-diver forfeit; a Duel regression).
+  - `e2e-v31.mjs [base] [shotsDir]`: four browser contexts (phone Seaside day, desktop Seaside day, phone Seaside night, desktop ASCII night). It plays an 8-ledge Climb and a 4-diver Treasure Dive through the UI, then checks the record, console errors and phone overflow. 24 checks.
 - **Local QA (v3 harness; it lives in the session scratchpad, not the repo; rebuild it if the scratchpad has gone):**
   - Setup: in a scratch folder, `npm i @electric-sql/pglite@0.3.14 playwright-core@1.56.1`. The browser is the cached `~/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell`.
   - `qa/server.mjs <appDir> <port>`, started with `node --import ./register.mjs server.mjs /mnt/c/Apps/sumDu3l 8787`:
@@ -486,7 +560,7 @@ There's no retention limit: everything is kept.
   `.env.example` documents `DATABASE_URL` and `CRON_SECRET`. Locally: `vercel env pull .env.local` (gitignored). No secrets in the repo.
 - **Schema:** by hand, never from a request path. First query the live database and state what's there, then get the owner's go. Then either `npm run migrate` (the whole idempotent script) or just the new statements. For v2.8 that's just these:
   `node --env-file=.env.local -e "import('./api/_schema.js').then(async ({V28}) => { const { neon } = await import('@neondatabase/serverless'); const sql = neon(process.env.DATABASE_URL); for (const s of V28) await sql.query(s); console.log('v2.8 schema applied') })"`
-  **Applied to the live DB on 2026-11-13** (before the merge). The functions assume the tables exist. v3.0 needed no schema change.
+  **Applied to the live DB on 2026-11-13** (before the merge). The functions assume the tables exist. v3.0 and v3.1 needed no schema change (v3.1's party rooms reuse `live_games` columns; see §2 "Party games").
 - **Preview deployments share the production database** (`DATABASE_URL` is one value for production, preview and development), so anything tested on a preview writes to the live database.
 - **Roles:** `npm run role -- <email> <role>`.
 

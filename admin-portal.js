@@ -238,17 +238,21 @@
     chat_delete: 'Removed a message', chat_mute: 'Muted', chat_unmute: 'Unmuted', admin_open: 'Opened admin', admin_password_reset: 'Reset password',
     admin_role_change: 'Changed role', admin_review: 'Reviewed flag', audit_run: 'Audit ran', audit_reviewed: 'Audit reviewed', role_set_cli: 'Role set (CLI)'
   };
-  var GN = { duel: 'Duel', climb: 'The Climb', tol: 'Truth or Lie', sprint: 'Sprint', missing: 'Missing Number', target: 'Target', bigger: 'Bigger' };
+  var GN = { duel: 'Duel', climb: 'The Climb', tol: 'Truth or Lie', sprint: 'Sprint', missing: 'Missing Number', target: 'Target', bigger: 'Bigger', dive: 'Treasure Dive' };
   var TIMED = { duel: 1, climb: 1, missing: 1, target: 1, bigger: 1 };   // fastest time wins (the rest are scored)
+  function ordinal(n) { n = Number(n) || 0; return n + (n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'); }
   function describe(r) {
     var d = r.detail || {};
     switch (r.action) {
-      case 'battle_saved': return battleText({ game: d.game, mode: d.mode, winner: d.winner, day: d.day, practice: d.practice, players: [{ time: d.times ? d.times[0] : d.time, score: d.score && d.score.length ? d.score[0] : d.score, wrong: d.wrong && d.wrong.length ? d.wrong[0] : d.wrong }, { name: d.vs, time: d.times ? d.times[1] : null, score: d.score && d.score.length ? d.score[1] : null }] });
+      case 'battle_saved': if (d.game === 'dive') return 'Treasure Dive · ' + (d.place ? ordinal(d.place) + ' of ' + esc(d.of) : '') + ' · vs ' + esc(d.vs) + (d.depth ? ' · ' + esc(d.depth.join(' / ')) + ' m' : '');
+        return battleText({ game: d.game, mode: d.mode, winner: d.winner, day: d.day, practice: d.practice, players: [{ time: d.times ? d.times[0] : d.time, score: d.score && d.score.length ? d.score[0] : d.score, wrong: d.wrong && d.wrong.length ? d.wrong[0] : d.wrong }, { name: d.vs, time: d.times ? d.times[1] : null, score: d.score && d.score.length ? d.score[1] : null }] });
       case 'live_create': return esc(d.code) + (d.name ? ' · ' + esc(d.name) : '') + (d.private ? ' · private' : '') + (d.rematch_of ? ' · rematch of ' + esc(d.rematch_of) : '');
       case 'live_join': return esc(d.code) + ' · ' + esc(d.name) + (d.private ? ' · private' : '');
       case 'live_join_failed': case 'live_leave': return esc(d.code) + (d.during ? ' · during ' + esc(d.during) : '');
-      case 'live_start': return esc(d.code) + ' · ' + esc(GN[d.game] || 'Duel') + ' · ' + esc(d.host) + ' vs ' + esc(d.guest);
+      case 'live_start': return esc(d.code) + ' · ' + esc(GN[d.game] || 'Duel') + ' · ' + (d.players ? esc(d.players.join(', ')) : esc(d.host) + ' vs ' + esc(d.guest));
       case 'live_finish':
+        // Party games (Treasure Dive, 2-4 players) log every diver with their place and depth.
+        if (d.players) return esc(d.code) + ' · ' + esc(GN[d.game] || d.game) + ' · ' + d.players.map(function (p) { return ordinal(p.place) + ' ' + esc(p.name) + ' ' + (p.dnf ? 'left' : esc(p.depth) + ' m'); }).join(', ') + ' · winner ' + esc(d.winner) + (d.reason !== 'finished' ? ' (' + esc(d.reason) + ')' : '');
         if (d.game && !TIMED[d.game]) return esc(d.code) + ' · ' + esc(GN[d.game] || d.game) + ' · ' + esc(d.host && d.host.name) + ' ' + esc(d.host && d.host.score) + '–' + esc(d.guest && d.guest.score) + ' ' + esc(d.guest && d.guest.name) + ' · winner ' + esc(d.winner) + (d.reason !== 'finished' ? ' (' + esc(d.reason) + ')' : '');
         return esc(d.code) + (d.game && d.game !== 'duel' ? ' · ' + esc(GN[d.game] || d.game) : '') + ' · ' + esc(d.host && d.host.name) + ' ' + (d.host && d.host.dnf ? 'DNF' : esc(d.host && d.host.time) + ' s') + ' vs ' + esc(d.guest && d.guest.name) + ' ' + (d.guest && d.guest.dnf ? 'DNF' : esc(d.guest && d.guest.time) + ' s') + ' · winner ' + esc(d.winner) + (d.reason !== 'finished' ? ' (' + esc(d.reason) + ')' : '');
       case 'climb_finish': return 'Level ' + esc(d.level) + ' · ' + (d.won ? new Array((d.stars || 0) + 1).join('★') + ' · +' + esc(d.coins) + ' coins' + (d.chest ? ' · chest' : '') : 'not this time');
